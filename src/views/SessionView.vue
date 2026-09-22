@@ -83,7 +83,10 @@
           <div class="candidates-header">
             <p class="section-label">streams — tap to hear</p>
             <div class="streams-actions">
-              <button class="icon-btn refresh-streams-btn" aria-label="another" @click="redraw">
+              <button
+                class="icon-btn refresh-streams-btn"
+                aria-label="another"
+                @click="redraw">
                 <IonIcon :icon="refreshOutline" />
               </button>
               <button
@@ -141,7 +144,6 @@
             @edit="editCluster"
             @reorder="reorderClusters" />
         </div>
-
       </div>
 
       <!-- Confirm button — slot="fixed" pins it above the footer regardless of scroll
@@ -162,67 +164,69 @@
     </ion-content>
 
     <ion-footer class="playback-footer">
-        <div class="footer-bar">
-          <button
-            class="btn-icon-outline play-stop"
-            :class="{ playing: isPlaying }"
-            :disabled="sequenceStore.sequence.length < 1"
-            @click="isPlaying ? audioEngine.stopLoop(true) : handlePlay()">
-            <ion-icon :icon="isPlaying ? stopOutline : playOutline" />
-          </button>
-          <button
-            class="btn-icon-outline loop-toggle"
-            :class="{ active: loopActive }"
-            @click="toggleLoop">
-            <ion-icon :icon="infiniteOutline" />
-          </button>
-          <ion-select
-            interface="action-sheet"
-            :value="settingsStore.instrument"
-            class="instrument-select"
-            @ionChange="
-              settingsStore.setInstrument(($event as CustomEvent).detail.value)
-            ">
-            <ion-select-option value="piano">piano</ion-select-option>
-            <ion-select-option value="electric-piano">e-piano</ion-select-option>
-            <ion-select-option value="guitar-acoustic">guitar</ion-select-option>
-            <ion-select-option value="electric-guitar">e-guitar</ion-select-option>
-            <ion-select-option value="holdsworthian-pad">pad</ion-select-option>
-          </ion-select>
-          <button
-            class="icon-btn footer-expand-btn"
-            :class="{ open: footerExpanded }"
-            @click="footerExpanded = !footerExpanded">
-            <ion-icon
-              :icon="footerExpanded ? chevronDownOutline : chevronUpOutline" />
-          </button>
-        </div>
+      <div class="footer-bar">
+        <button
+          class="btn-icon-outline play-stop"
+          :class="{ playing: isPlaying }"
+          :disabled="sequenceStore.sequence.length < 1"
+          @click="isPlaying ? audioEngine.stopLoop(true) : handlePlay()">
+          <ion-icon :icon="isPlaying ? stopOutline : playOutline" />
+        </button>
+        <button
+          class="btn-icon-outline loop-toggle"
+          :class="{ active: loopActive }"
+          @click="toggleLoop">
+          <ion-icon :icon="infiniteOutline" />
+        </button>
+        <ion-select
+          interface="action-sheet"
+          :value="settingsStore.instrument"
+          class="instrument-select"
+          @ionChange="
+            settingsStore.setInstrument(($event as CustomEvent).detail.value)
+          ">
+          <ion-select-option value="piano">piano</ion-select-option>
+          <ion-select-option value="electric-piano">e-piano</ion-select-option>
+          <ion-select-option value="guitar-acoustic">guitar</ion-select-option>
+          <ion-select-option value="electric-guitar"
+            >e-guitar</ion-select-option
+          >
+          <ion-select-option value="holdsworthian-pad">pad</ion-select-option>
+        </ion-select>
+        <button
+          class="icon-btn footer-expand-btn"
+          :class="{ open: footerExpanded }"
+          @click="footerExpanded = !footerExpanded">
+          <ion-icon
+            :icon="footerExpanded ? chevronDownOutline : chevronUpOutline" />
+        </button>
+      </div>
 
-        <div class="footer-tray" :class="{ open: footerExpanded }">
-          <div class="tray-inner">
-            <div class="tray-row playback-row">
-              <div class="toggle-row">
-                <button
-                  v-for="d in directionOptions"
-                  :key="d.value"
-                  class="btn-icon-outline toggle-btn"
-                  :class="{ active: settingsStore.arpeggioDirection === d.value }"
-                  @click="settingsStore.setArpeggioDirection(d.value as any)">
-                  <ion-icon :icon="d.icon" />
-                </button>
-              </div>
-              <div class="tempo-control">
-                <button class="btn-icon-outline adj-btn" @click="adjustTempo(-5)">
-                  <ion-icon :icon="removeOutline" />
-                </button>
-                <span class="tempo-value">{{ settingsStore.tempo }}</span>
-                <button class="btn-icon-outline adj-btn" @click="adjustTempo(5)">
-                  <ion-icon :icon="addOutline" />
-                </button>
-                <span class="tempo-unit">bpm</span>
-              </div>
+      <div class="footer-tray" :class="{ open: footerExpanded }">
+        <div class="tray-inner">
+          <div class="tray-row playback-row">
+            <div class="toggle-row">
+              <button
+                v-for="d in directionOptions"
+                :key="d.value"
+                class="btn-icon-outline toggle-btn"
+                :class="{ active: settingsStore.arpeggioDirection === d.value }"
+                @click="settingsStore.setArpeggioDirection(d.value as any)">
+                <ion-icon :icon="d.icon" />
+              </button>
             </div>
-            <div class="grid-section">
+            <div class="tempo-control">
+              <button class="btn-icon-outline adj-btn" @click="adjustTempo(-5)">
+                <ion-icon :icon="removeOutline" />
+              </button>
+              <span class="tempo-value">{{ settingsStore.tempo }}</span>
+              <button class="btn-icon-outline adj-btn" @click="adjustTempo(5)">
+                <ion-icon :icon="addOutline" />
+              </button>
+              <span class="tempo-unit">bpm</span>
+            </div>
+          </div>
+          <div class="grid-section">
             <div class="tray-row subdivision-row">
               <span class="tray-label">grid</span>
               <span class="subdivision-current">{{ subdivisionLabel }}</span>
@@ -245,22 +249,24 @@
                 class="icon-btn subdivision-label-btn"
                 :title="step.label"
                 @click="settingsStore.setSubdivision(step.value)">
-                <NoteGlyph :type="step.glyph" :active="i === subdivisionIndex" />
-              </button>
-            </div>
-            </div>
-            <div
-              v-if="sequenceStore.sequence.length > 1"
-              class="tray-row export-row">
-              <button class="btn-outline export-btn" @click="exportMidi">
-                <ion-icon :icon="downloadOutline" /> midi
-              </button>
-              <button class="btn-outline export-btn" @click="copyText">
-                {{ copiedFlash ? 'copied!' : 'copy text' }}
+                <NoteGlyph
+                  :type="step.glyph"
+                  :active="i === subdivisionIndex" />
               </button>
             </div>
           </div>
+          <div
+            v-if="sequenceStore.sequence.length > 1"
+            class="tray-row export-row">
+            <button class="btn-outline export-btn" @click="exportMidi">
+              <ion-icon :icon="downloadOutline" /> midi
+            </button>
+            <button class="btn-outline export-btn" @click="copyText">
+              {{ copiedFlash ? 'copied!' : 'copy text' }}
+            </button>
+          </div>
         </div>
+      </div>
     </ion-footer>
   </ion-page>
 </template>
@@ -312,7 +318,10 @@
 
   import { useSequenceStore } from '../stores/sequenceStore'
   import { useSettingsStore, type Subdivision } from '../stores/settingsStore'
-  import { useAudioEngine, INSTRUMENT_NOTE_RANGE } from '../composables/useAudioEngine'
+  import {
+    useAudioEngine,
+    INSTRUMENT_NOTE_RANGE,
+  } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'
   import { generateCandidates } from '../composables/useVoiceLeading'
@@ -321,7 +330,11 @@
   import type { Strategy } from '../data/strategies'
   import type { Cluster } from '../utils/noteUtils'
   import { sortCluster } from '../utils/noteUtils'
-  import { saveSession, overwriteSession, listSessions } from '../utils/sessionStorage'
+  import {
+    saveSession,
+    overwriteSession,
+    listSessions,
+  } from '../utils/sessionStorage'
   import {
     exportSequenceAsMidi,
     exportSequenceAsText,
@@ -423,10 +436,15 @@
   ]
 
   const subdivisionIndex = computed(() =>
-    Math.max(0, SUBDIVISION_STEPS.findIndex(s => s.value === settingsStore.subdivision))
+    Math.max(
+      0,
+      SUBDIVISION_STEPS.findIndex((s) => s.value === settingsStore.subdivision)
+    )
   )
 
-  const subdivisionLabel = computed(() => SUBDIVISION_STEPS[subdivisionIndex.value].label)
+  const subdivisionLabel = computed(
+    () => SUBDIVISION_STEPS[subdivisionIndex.value].label
+  )
 
   function onSubdivisionChange(event: Event) {
     const index = (event as CustomEvent).detail.value as number
@@ -486,7 +504,10 @@
 
   function playCurrentCluster() {
     if (!sequenceStore.currentCluster) return
-    audioEngine.playCluster(sequenceStore.currentCluster, playbackSettings.value)
+    audioEngine.playCluster(
+      sequenceStore.currentCluster,
+      playbackSettings.value
+    )
   }
 
   function selectCandidate(cluster: Cluster, index: number) {
@@ -605,7 +626,9 @@
     sequenceStore.setLoopResolved(false)
   }
 
-  const instrumentRange = computed(() => INSTRUMENT_NOTE_RANGE[settingsStore.instrument])
+  const instrumentRange = computed(
+    () => INSTRUMENT_NOTE_RANGE[settingsStore.instrument]
+  )
 
   function editCluster(index: number, newCluster: Cluster) {
     sequenceStore.editClusterAt(index, newCluster, instrumentRange.value)
@@ -627,7 +650,7 @@
   const savedSessionName = computed(() => {
     const id = sequenceStore.savedSessionId
     if (!id) return ''
-    return listSessions().find(s => s.id === id)?.name ?? 'this flow'
+    return listSessions().find((s) => s.id === id)?.name ?? 'this flow'
   })
 
   function flashSaved() {
@@ -714,6 +737,7 @@
     position: absolute;
     left: 0;
     right: 0;
+    text-align: center;
     bottom: 0;
     z-index: 2;
     padding: 0.8rem 1rem;
@@ -772,7 +796,6 @@
   .current-cluster-block:active {
     opacity: 0.75;
   }
-
 
   .loop-banner {
     background: rgba(69, 74, 104, 0.3);
@@ -988,7 +1011,6 @@
     justify-content: space-between;
   }
 
-
   .tray-label {
     font-size: var(--text-label);
     letter-spacing: 0.12em;
@@ -1078,6 +1100,4 @@
     color: var(--color-text);
     background: var(--color-accent);
   }
-
 </style>
-
