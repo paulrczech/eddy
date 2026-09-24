@@ -91,7 +91,11 @@ ion-segment-button {
    about half a button on a real phone) — tighten padding and drop the font a step just
    for this row rather than shrinking Voices' already-fine 2-option layout too */
 .drift-segment ion-segment-button {
-  --padding-start: 0.5rem;
-  --padding-end: 0.5rem;
-  font-size: var(--text-sm);
+  --padding-start: 0.2rem;
+  --padding-end: 0.2rem;
+  min-width: 0;
+  font-size: var(--text-xs);
+}
+.drift-segment ion-label {
+  white-space: nowrap;
 }

@@ -9,6 +9,8 @@
 
 ion-picker {
   --background: var(--color-bg);
+  /* default highlight is near-white, which washes out the dark voice colors */
+  --highlight-background: var(--color-surface-2);
 }
 ion-modal.picker-modal {
   --max-width: 360px;

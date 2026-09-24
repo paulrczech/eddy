@@ -73,7 +73,10 @@
           class="current-cluster-block"
           @click="playCurrentCluster">
           <p class="section-label">now</p>
-          <ClusterDisplay :cluster="sequenceStore.currentCluster" />
+          <div class="current-row">
+            <ClusterDisplay :cluster="sequenceStore.currentCluster" />
+            <IonIcon class="now-glyph" :icon="playOutline" aria-hidden="true" />
+          </div>
         </button>
 
         <!-- Candidates -->
@@ -696,8 +699,8 @@
     settingsStore.setTempo(settingsStore.tempo + delta)
   }
 
-  function exportMidi() {
-    exportSequenceAsMidi(sequenceStore.sequence, {
+  async function exportMidi() {
+    await exportSequenceAsMidi(sequenceStore.sequence, {
       bpm: settingsStore.tempo,
       direction: settingsStore.arpeggioDirection,
       subdivision: settingsStore.subdivision,
@@ -725,7 +728,7 @@
     gap: 1.6rem;
     max-width: 500px;
     margin: 0 auto;
-    padding-bottom: 2rem;
+    padding-bottom: 6rem; /* last flow row scrolls clear of the pinned confirm button + footer */
   }
 
   /* slot="fixed" content is positioned by us, absolute within ion-content, immune to
@@ -792,9 +795,23 @@
     border-radius: 8px;
     transition: opacity 0.15s;
   }
-  .current-cluster-block:hover,
   .current-cluster-block:active {
-    opacity: 0.75;
+    opacity: 0.5;
+    transition-duration: 0.05s;
+  }
+
+  .current-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  /* dim, borderless play glyph — signals "tap to hear" without turning the cluster into
+     a boxed button; sits on the notes' baseline at the row's right edge */
+  .now-glyph {
+    font-size: var(--icon-md);
+    color: var(--color-text-muted);
+    margin-right: 0.25rem;
   }
 
   .loop-banner {
@@ -938,6 +955,11 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+  }
+  /* open-only: padding on the always-present inner box would keep a sliver of the tray
+     (the direction buttons) visible when collapsed to 0fr */
+  .footer-tray.open .tray-inner {
+    padding-bottom: 1.25rem; /* keeps the grid glyphs off the home indicator */
   }
 
   .tray-row {

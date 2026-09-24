@@ -176,6 +176,9 @@ ion-item.history-item-shim::part(native) {
 ion-item-options ion-item-option {
   font-family: var(--font-sans);
 }
+ion-item-options ion-item-option ion-icon {
+  font-size: var(--icon-md);
+}
 
 /* ion-toast ("saved" flash, HomeView's "default saved" toast) */
 ion-toast {
@@ -186,5 +189,20 @@ ion-toast {
   --border-style: solid;
   --border-radius: 10px;
   --box-shadow: none;
+  font-family: var(--font-sans);
+}
+
+/* ion-action-sheet (instrument selector's ion-select interface="action-sheet") — shadow
+   DOM, so custom properties only. !important because Ionic's own mode-scoped rule
+   (.action-sheet-ios.sc-ion-action-sheet-ios) sets the same variables at higher specificity
+   — same situation as ion-alert above. */
+ion-action-sheet {
+  --background: var(--color-surface) !important;
+  --color: var(--color-text-dim) !important;
+  --button-background: var(--color-surface) !important;
+  --button-background-selected: var(--color-bg) !important;
+  --button-background-selected-opacity: 1 !important;
+  --button-color: var(--color-text) !important;
+  --button-color-selected: var(--voice-1) !important;
   font-family: var(--font-sans);
 }

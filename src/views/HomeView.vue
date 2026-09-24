@@ -112,7 +112,6 @@
               <p class="sheet-label">drift</p>
               <IonSegment
                 class="drift-segment"
-                scrollable
                 :value="movementSize"
                 @ionChange="settingsStore.setMovementSize(($event as CustomEvent).detail.value)">
                 <IonSegmentButton v-for="m in movementOptions" :key="m.value" :value="m.value">
@@ -501,7 +500,7 @@
      affordance rather than toolbar chrome */
   .about-btn {
     position: absolute;
-    top: 1rem;
+    top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
     right: 1rem;
     border: 1px solid var(--color-border);
     border-radius: 50%;
@@ -518,7 +517,7 @@
     gap: 2.5rem;
     max-width: 420px;
     margin: 0 auto;
-    padding-top: 4rem;
+    padding-top: 6rem;
   }
 
   /* Title */
@@ -560,6 +559,8 @@
   .trigger-row--source {
     display: flex;
     padding: 0;
+    gap: 0;
+    background: var(--color-surface);
     border-top: 1px solid var(--color-border);
   }
 

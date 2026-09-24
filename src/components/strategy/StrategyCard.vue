@@ -40,7 +40,7 @@
   defineProps<{ strategy: Strategy }>()
 
   const hintOpen = ref(false)
-  const collapsed = ref(false)
+  const collapsed = ref(true)
 
   function expandIfCollapsed() {
     if (collapsed.value) collapsed.value = false
