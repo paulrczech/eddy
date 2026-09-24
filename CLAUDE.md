@@ -7,7 +7,7 @@ A minimal music utility for voice leading guided by oblique strategies. Users mo
 ## Stack
 
 - Vue 3 `<script setup>`, Ionic, Pinia, Tone.js (instrument samples self-hosted in `public/samples/` — see CREDITS.md), @tonejs/midi
-- Capacitor deferred to V2
+- Capacitor iOS platform live (`ios/`, bundle ID `com.yindad.eddy`); Android not yet added. Build/run: `npm run build && npx cap sync ios`, then build the `App` scheme in Xcode or via `xcodebuild`
 - No backend — all client-side
 
 ## Key constraints
@@ -42,19 +42,24 @@ A minimal music utility for voice leading guided by oblique strategies. Users mo
 
 ## Design tokens (key ones)
 
+Source of truth: `src/theme/variables.css` ("New Moon" palette — cool, night-water; no warm accent).
+
 ```css
---font-serif:
-  'Cormorant Garamond', Georgia,
-  serif /* poetry, headings, strategy text */ --font-mono: 'SF Mono',
-  'Fira Code',
-  monospace /* note names, data */ --font-sans: system-ui sans
-    /* controls, body */ --color-bg: #0d0d12 --color-surface: #161620
-    --color-accent: #e0a87c /* amber */ --color-text: #e4e4dc
-    --color-text-dim: #8888a8 /* labels, secondary UI */ --color-border: #2a2a38
-    --voice-1: #7eb8d4 --voice-2: #8ecfb0 --voice-3: #e0a87c --voice-4: #b8a0d4;
+--font-serif: Georgia, serif /* poetry, headings, strategy text */
+--font-mono: 'SF Mono', 'Fira Code', monospace /* note names, data */
+--font-sans: system sans /* controls, body */
+--color-bg: #0a0d11
+--color-surface: #0f141a
+--color-accent: #454a68 /* indigo-slate */
+--color-text: #e6dec8 /* warm off-white */
+--color-text-dim: #7d8590 /* labels, secondary UI */
+--color-border: #1c2530
+--voice-1: #4a6478 --voice-2: #3a6b64 --voice-3: #5c4f68 --voice-4: #a5a2ba
 ```
 
 ## Critical patterns
+
+- **Capacitor iOS**: `fetch()` on `capacitor://` returns status 0 / `ok=false` with an intact body, so Tone's own sample loader rejects everything — `useAudioEngine.ts` fetches + decodes buffers itself (`loadBuffers`). MIDI export uses Filesystem (cache dir) + Share on native, `<a download>` on web. Scrollable `ion-segment` paints blank labels in WKWebView sheets — don't use `scrollable` there. Ionic overlays (`ion-action-sheet`, `ion-alert`) need `!important` on theme variables. Verify anything native-looking in the simulator, not just headless Chromium.
 
 - **Strategy card bug fix**: `activeStrategy` is a local ref in SessionView, set atomically in `advance()` — never use `currentStrategy` from the composable directly in the template
 - **Loop playback**: Use Transport.loop (not Part.loop). Set all loop params BEFORE `loopPart.start(0)`. Start transport with `'+0.05'` offset.
@@ -81,7 +86,7 @@ A minimal music utility for voice leading guided by oblique strategies. Users mo
 ## V2 / deferred
 
 - Instrument selector UI live — piano/guitar-acoustic/electric-piano/electric-guitar/holdsworthian-pad (electric piano and electric guitar sourced from Pianobook.co.uk; holdsworthian pad from "Blackhole Guitars" by JWB — an Allan Holdsworth-esque ambient guitar swell). Cello, violin, harp, and nylon guitar were tried and removed (didn't sound good, or weren't necessary); a choir and a second pad candidate went through the same real-sample-pack evaluation as holdsworthian-pad but weren't kept; a FluidR3 SoundFont-based approach (electric pianos, string pads, celesta, choir aahs) was also tried and abandoned in favor of real recorded sample packs; strings/synth engine code from earlier exploration is gone, not just hidden
-- Capacitor native build
+- Android build, App Store / TestFlight submission
 - 5-voice support
 - See DOWNRIVER.md for full future vision
 
