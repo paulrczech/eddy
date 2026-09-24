@@ -184,23 +184,41 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   // Guards against stale instrument values from old saved sessions/defaults
   // (e.g. 'cello'/'violin' persisted before those were removed)
   const { urls, baseUrl } = SAMPLER_CONFIGS[instrumentType] ?? SAMPLER_CONFIGS.piano
-  return new Promise((resolve, reject) => {
-    instrument = new Tone.Sampler({
-      urls,
-      baseUrl,
-      release: noteRelease(instrumentType),
-      onload: () => {
-        isLoaded.value = true
-        loadError.value = null
-        resolve()
-      },
-      onerror: (err) => {
-        loadError.value = `Failed to load ${instrumentType} samples`
-        console.error('Sampler load error:', err)
-        reject(err)
-      },
-    }).toDestination()
-  })
+  // Fetch + decode ourselves rather than letting Tone.Sampler do it: in Capacitor's iOS
+  // WKWebView, fetch() against the capacitor:// scheme returns status 0 / ok=false even
+  // though the body is delivered intact, and Tone rejects every sample on !response.ok.
+  try {
+    const buffers = await loadBuffers(urls, baseUrl)
+    return await new Promise((resolve) => {
+      instrument = new Tone.Sampler({
+        urls: buffers,
+        release: noteRelease(instrumentType),
+        onload: () => {
+          isLoaded.value = true
+          loadError.value = null
+          resolve()
+        },
+      }).toDestination()
+    })
+  } catch (err) {
+    loadError.value = `Failed to load ${instrumentType} samples`
+    console.error('Sampler load error:', err)
+    throw err
+  }
+}
+
+async function loadBuffers(
+  urls: Record<string, string>,
+  baseUrl: string,
+): Promise<Record<string, AudioBuffer>> {
+  const ctx = Tone.getContext().rawContext
+  const entries = await Promise.all(
+    Object.entries(urls).map(async ([note, file]) => {
+      const bytes = await (await fetch(baseUrl + file)).arrayBuffer()
+      return [note, await ctx.decodeAudioData(bytes)] as const
+    }),
+  )
+  return Object.fromEntries(entries)
 }
 
 function playCluster(

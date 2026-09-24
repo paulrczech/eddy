@@ -1,4 +1,7 @@
 import { Midi } from '@tonejs/midi'
+import { Capacitor } from '@capacitor/core'
+import { Directory, Filesystem } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 import type { Cluster } from './noteUtils'
 import { clusterLabel } from './noteUtils'
 
@@ -38,11 +41,12 @@ function orderNotes(cluster: Cluster, direction: ArpeggioDirection): number[] {
   }
 }
 
-// Export a sequence of clusters as a MIDI file and trigger a browser download
-export function exportSequenceAsMidi(
+// Export a sequence of clusters as a MIDI file: native share sheet inside the Capacitor
+// shell (WKWebView ignores <a download>), plain browser download on the web
+export async function exportSequenceAsMidi(
   sequence: Cluster[],
   options: Partial<MidiExportOptions> = {}
-): void {
+): Promise<void> {
   const opts = { ...DEFAULT_OPTIONS, ...options }
 
   const midi = new Midi()
@@ -98,13 +102,26 @@ export function exportSequenceAsMidi(
     barCursor += barsNeeded
   }
 
-  // Encode and download
   const bytes = midi.toArray()
+  const filename = `eddy-${clusterLabel(sequence[0])}.mid`
+
+  if (Capacitor.isNativePlatform()) {
+    let binary = ''
+    bytes.forEach(b => { binary += String.fromCharCode(b) })
+    const { uri } = await Filesystem.writeFile({
+      path: filename,
+      data: btoa(binary),
+      directory: Directory.Cache,
+    })
+    await Share.share({ url: uri, dialogTitle: 'export midi' })
+    return
+  }
+
   const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'audio/midi' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `eddy-${clusterLabel(sequence[0])}.mid`
+  a.download = filename
   a.click()
   URL.revokeObjectURL(url)
 }
