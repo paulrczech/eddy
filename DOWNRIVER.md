@@ -40,6 +40,13 @@ Currently `generateCandidates` calls `sortCluster` on every output, which silent
 ### Instrument Selector in Session View
 Currently set only on home screen. Allow changing mid-session without losing the flow.
 
+### Portable Session File (Import/Export)
+A shareable `.eddy.json` file — same shape as a saved session (`sequence`, `voiceCount`, `instrument`, `name`) — exportable and re-importable to restore a full flow, not just a single cluster. Most of the mechanism already exists: `HomeView.vue`'s `loadSession()` already reconstructs an entire flow from a `SavedSession` via `start()` + a `confirm()` loop, so this is mostly export/import plumbing (same download-on-web / share-sheet-on-native pattern as MIDI export) plus validating the parsed JSON with the existing `isValidCluster()`. Restores "the flow" and "now"; a new drift strategy is drawn fresh on resume, same as loading a saved session today — the drift card was never part of the saved record.
+
+Worth building sooner than "someday": once the iOS app ships, it has its own storage, entirely separate from the web app's `localStorage`. A flow saved on the web won't appear in "Past Flows" on the phone, and vice versa. A portable file doubles as the migration/backup path between them, not just a nice-to-have.
+
+**Explicitly a separate, harder idea — don't bundle with the above:** reimporting a previously-*exported* `.mid` file to reconstruct a flow. `@tonejs/midi` already parses MIDI, so that part's free, but a MIDI file never carried voice count, instrument, or strategy history — only pitches and timing — and grouping notes back into bars gets fragile if the file was re-tempo'd or edited elsewhere first. This is really "seed a flow from an arbitrary chord progression," a distinct feature from session restore, and deserves its own design pass rather than riding along with the JSON file idea.
+
 ---
 
 ## Medium-Term — The Big Leaps
