@@ -47,6 +47,25 @@ Worth building sooner than "someday": once the iOS app ships, it has its own sto
 
 **Explicitly a separate, harder idea — don't bundle with the above:** reimporting a previously-*exported* `.mid` file to reconstruct a flow. `@tonejs/midi` already parses MIDI, so that part's free, but a MIDI file never carried voice count, instrument, or strategy history — only pitches and timing — and grouping notes back into bars gets fragile if the file was re-tempo'd or edited elsewhere first. This is really "seed a flow from an arbitrary chord progression," a distinct feature from session restore, and deserves its own design pass rather than riding along with the JSON file idea.
 
+**A real `.eddy` file extension, not just `.json`:** the extension is decoupled from the content format, so this costs nothing beyond the export/import plumbing above — `a.download = 'flow.eddy'` on web, the same Filesystem+Share pattern as MIDI export on native. The real payoff is registering it as an actual iOS document type (`CFBundleDocumentTypes`/`UTExportedTypeDeclarations` in Info.plist, plus a small AppDelegate hook — Capacitor's `App` plugin already surfaces opened-file events to JS), so a `.eddy` file received via AirDrop/Mail/Messages offers "Open in Eddy" with its own icon in the Files app, rather than being an inert blob. Modest lift, distinctive payoff.
+
+### Audio Export (WAV / MP3)
+Render a flow to a real audio file, not just MIDI — the natural ask once a flow is treated as a finished piece of ambient listening rather than only compositional sketch material (see "Ambient/Generative Music" branding note below). The right mechanism is `Tone.Offline()` — renders scheduled audio into a buffer faster than real time, rather than capturing live playback through the speakers — and it can reuse the same note-scheduling logic already shared between live playback and MIDI export, which is most of why this isn't starting from scratch.
+
+- **WAV first:** lossless, no new dependency (a WAV encoder is just writing a PCM header over raw samples). The real tradeoff: a several-minute ambient loop as WAV could be tens of MB, which matters if the goal is sharing it in a text message.
+- **MP3 later:** browsers expose no native MP3 encoder, so this needs an actual JS/WASM encoder library (e.g. lamejs) — patent concerns expired years ago, but it roughly doubles the work versus WAV. Sequence after WAV rather than build both together.
+
+### Ambient/Generative Music — a second, additive use case
+Paul's own experience using the app: looping playback, left running, is often enjoyable as a real piece of ambient music in its own right, not just compositional sketch material — closer to Endel or Eno's own ambient work than to a "meditation app" specifically (meditation apps carry expectations — guided narration, breathing cues, session timers — Eddy has none of that and isn't building toward it; positioning as one risks a real expectation mismatch). This doesn't require new features to be true — it's a second honest reading of what's already built.
+
+Recommended treatment: keep "voice-leading tool for songwriters/composers" as the primary framing everywhere it currently lives (App Store name, subtitle, the opening of the description) — it's Eddy's deepest, most differentiated identity. Add the ambient-listening use case additively rather than replacing anything: a closing line in the App Store description, a keyword or two, maybe one line in the About modal's closing paragraph. Enrich the story, don't dilute the primary pitch by trying to be three things at once in a 30-character subtitle. Audio export (above) is the concrete feature this use case actually wants.
+
+### A Second, Plain Pad
+Requested (Paul, 2026-09-27): a true/plain pad sample library alongside holdsworthian-pad, which is deliberately colored (overtones that don't strictly track the notes played — an intentional Allan Holdsworth-esque ambient character) rather than a neutral pad sound. Worth knowing before re-opening this search: a second pad candidate already went through the same real-sample-pack evaluation as holdsworthian-pad during the original instrument sourcing and didn't make the cut — see CLAUDE.md's V2/deferred section. Not a reason to skip revisiting it, since "a plain, neutral pad option" is a different design goal than what that earlier search was optimizing for, but worth knowing this isn't starting from zero, and worth checking whether a specific library is already in mind before repeating that search from scratch.
+
+### YouTube Tutorial Video
+A short (60–90 second) screen-recorded walkthrough — how to start a flow, hear a stream, add it, save it — linked (not embedded) from the About modal. Link-out costs nothing to add; embedding a video player in-app is real ongoing complexity for little extra benefit. Keep it exactly where the About modal already lives: opt-in, for people who go looking for help, not forced on first launch. Distinct from an App Store "preview video" (15–30 sec, must read fine muted, auto-loops) — a separate, optional asset with its own constraints, not a substitute for this.
+
 ---
 
 ## Medium-Term — The Big Leaps
