@@ -13,8 +13,9 @@
 
         <div class="about-body">
           <p>
-            Get your notes moving. A strategy guides the voices at each turn.
-            Sometimes one moves. Sometimes all drift.
+            Tap a stream to hear it, then "add to the flow" to make it your next
+            move. The drift card tells you what to try next — sometimes one voice
+            moves, sometimes all of them do.
           </p>
 
           <p>
