@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Without an explicit category, WKWebView's WebAudio playback inherits a fragile,
+        // implicit audio session: it goes silent when the ring/silent switch is on, and it's
+        // more prone to being torn down (not just suspended) by the OS across longer
+        // interruptions — the WebAudio-side resume-on-foreground fix in useAudioEngine.ts
+        // can only resume a context iOS actually kept alive. .playback is the category
+        // real music/instrument apps use: it ignores the silent switch and gives the app a
+        // properly-defended session rather than a best-effort implicit one.
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("Failed to configure audio session: \(error)")
+        }
         return true
     }
 
