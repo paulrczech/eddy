@@ -194,7 +194,9 @@
           <ion-select-option value="electric-guitar"
             >e-guitar</ion-select-option
           >
-          <ion-select-option value="holdsworthian-pad">pad</ion-select-option>
+          <ion-select-option value="holdsworthian-pad"
+            >holdsworthian pad</ion-select-option
+          >
         </ion-select>
         <button
           class="icon-btn footer-expand-btn"
