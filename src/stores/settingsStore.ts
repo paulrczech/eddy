@@ -31,7 +31,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const maxMoves = ref<number>(32)   // cap for 'capped' loop mode
   const arpeggioDirection = ref<ArpeggioDirection>('up')
   const instrument = ref<InstrumentType>('piano')
-  const tempo = ref<number>(80)      // BPM
+  const tempo = ref<number>(100)     // BPM — bumped from 80 after the bar-quantized timing fix made 80 feel sluggish
   const subdivision = ref<Subdivision>(4)  // 16th notes
 
   const keyLockActive = computed(() => keyLockMode.value !== 'free')
