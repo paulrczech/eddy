@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { Cluster, sortCluster, isValidCluster, clustersEqual } from '../utils/noteUtils'
+import { Cluster, sortCluster, isValidCluster, clustersEqual, clusterDissonance } from '../utils/noteUtils'
 import { MIDI_SEED_MIN, MIDI_SEED_MAX, MIDI_MIN, MIDI_MAX } from '../data/notes'
+
+// Ceiling on a random seed's average pairwise dissonance rank (see clusterDissonance()).
+// Keeps "let it flow" from ever handing a first-time listener a raw tone cluster — tuned
+// by Monte Carlo so triads/7ths/sus chords pass comfortably and stacked-semitone clusters
+// don't, without ever exhausting the retry loop below into the guaranteed fallback.
+const SEED_DISSONANCE_CEILING = 6
 
 export const useSequenceStore = defineStore('sequence', () => {
   const sequence = ref<Cluster[]>([])
@@ -54,8 +60,9 @@ export const useSequenceStore = defineStore('sequence', () => {
 
   function randomStart(voiceCount: number) {
     let notes: number[] = []
+    let found = false
 
-    // Retry until we get exactly voiceCount valid notes.
+    // Retry until we get exactly voiceCount valid, comfortably-consonant notes.
     // Previous approach broke early when notes went too high, producing silent failures.
     for (let attempt = 0; attempt < 30; attempt++) {
       notes = []
@@ -74,11 +81,19 @@ export const useSequenceStore = defineStore('sequence', () => {
         notes.push(prev + step)
       }
 
-      if (notes.length === voiceCount && isValidCluster(notes)) break
+      if (
+        notes.length === voiceCount &&
+        isValidCluster(notes) &&
+        clusterDissonance(notes) <= SEED_DISSONANCE_CEILING
+      ) {
+        found = true
+        break
+      }
     }
 
-    // Guaranteed fallback — can never fail isValidCluster
-    if (notes.length !== voiceCount || !isValidCluster(notes)) {
+    // Guaranteed fallback — can never fail isValidCluster, and is itself well within the
+    // dissonance ceiling (a major triad/seventh), so it's a safe substitute either way.
+    if (!found) {
       const fallbacks: Record<number, Cluster> = {
         3: [60, 64, 67],  // C4 E4 G4
         4: [60, 64, 67, 71], // C4 E4 G4 B4

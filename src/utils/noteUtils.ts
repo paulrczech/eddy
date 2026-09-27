@@ -73,6 +73,25 @@ export function mostDissonantVoiceIndex(cluster: Cluster): number {
   return maxIdx
 }
 
+// Average dissonance rank across every pair of voices in a cluster — used to gate how
+// harsh a randomly generated starting chord is allowed to sound (see randomStart() in
+// sequenceStore.ts). Averaged rather than summed so the scale doesn't shift with voice
+// count (more voices means more pairs).
+export function clusterDissonance(cluster: Cluster): number {
+  const sorted = sortCluster(cluster)
+  let sum = 0
+  let pairs = 0
+
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      sum += dissonanceRank(sorted[i], sorted[j])
+      pairs++
+    }
+  }
+
+  return pairs > 0 ? sum / pairs : 0
+}
+
 // Generate all notes reachable from a MIDI note within [minInterval, maxInterval] semitones.
 // `bounds` defaults to the global MIDI_MIN/MAX; callers operating on a cluster that already
 // sits outside that window (e.g. a piano session started below E2) should widen it so
