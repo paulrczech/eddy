@@ -13,8 +13,13 @@
 
         <div class="about-body">
           <p>
-            Tap a stream to hear it, then "add to the flow" to make it your next
-            move. The drift card tells you what to try next — sometimes one voice
+            Tap "let it flow" for a random start, or choose your own notes first.
+            Everything else happens on the next screen.
+          </p>
+
+          <p>
+            There, tap a stream to hear it, then "add to the flow" to make it your
+            next move. The drift card tells you what to try — sometimes one voice
             moves, sometimes all of them do.
           </p>
 
