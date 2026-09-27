@@ -1,8 +1,20 @@
 import { ref, readonly } from 'vue'
 import * as Tone from 'tone'
+import { App } from '@capacitor/app'
 import type { Cluster } from '../utils/noteUtils'
 import { midiToName, MIDI_MIN, MIDI_MAX } from '../data/notes'
 import type { InstrumentType, Subdivision } from '../stores/settingsStore'
+
+// iOS suspends the WebAudio context whenever the app is backgrounded or the screen
+// locks (a real interruption, not just a pause), and nothing resumes it automatically —
+// every scheduled note would then silently do nothing until the app was force-restarted.
+// Tone.start() is what actually resumes a suspended context (it's not just a first-run
+// unlock), and it's idempotent — resolves immediately if the context is already running.
+// Registered once at module load (this file is a documented singleton), rather than once
+// per useAudioEngine() call, which would otherwise stack up duplicate listeners.
+App.addListener('resume', () => {
+  Tone.start()
+})
 
 // Salamander Grand Piano samples (Alexander Holm, CC-BY 3.0) — self-hosted locally rather
 // than fetched from tonejs.github.io, so playback doesn't depend on a third party's uptime.
@@ -80,7 +92,6 @@ export const INSTRUMENT_NOTE_RANGE: Record<InstrumentType, { min: number; max: n
   'holdsworthian-pad': { min: 40,     max: 82 },       // E2-A#5
 }
 
-const LOOP_GAP_BEATS = 1
 const BEATS_PER_BAR = 4  // 4/4 assumption, matches midiUtils.ts's bar-per-cluster export convention
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -228,6 +239,15 @@ function playCluster(
 ): void {
   if (!instrument || !isLoaded.value) return
 
+  // Belt-and-suspenders alongside the 'resume' listener above: if the context is still
+  // suspended for any reason (the listener hasn't fired yet, or this platform doesn't
+  // emit it), retry once the resume completes rather than silently scheduling into a
+  // dead context.
+  if (Tone.getContext().state !== 'running') {
+    Tone.start().then(() => playCluster(cluster, settings, onComplete))
+    return
+  }
+
   stopLoop()
 
   const interval = settings.direction === 'chord' ? 0 : intervalFromBpm(settings.bpm, settings.subdivision)
@@ -259,6 +279,15 @@ function playSequence(
   loop = true
 ): void {
   if (!instrument || !isLoaded.value || sequence.length === 0) return
+
+  // See playCluster() above — same resume-and-retry guard against a suspended context.
+  // Deliberately ahead of the debounce check below: it stamps lastPlaySequenceTime, which
+  // would otherwise make the retried call swallow itself as a false "too-soon" repeat.
+  if (Tone.getContext().state !== 'running') {
+    Tone.start().then(() => playSequence(sequence, settings, loop))
+    return
+  }
+
   const now = Date.now()
   if (now - lastPlaySequenceTime < 100) return
   lastPlaySequenceTime = now
@@ -269,10 +298,16 @@ function playSequence(
   const interval = isChord ? 0 : intervalFromBpm(settings.bpm, settings.subdivision)
   const beat = 60 / settings.bpm
 
+  // Bar-quantized, matching exportSequenceAsMidi()'s barsNeeded math exactly — a cluster
+  // always changes on a downbeat, whether you're listening live or in an exported MIDI
+  // file. Previously this used a totally different formula (voice count * interval + a
+  // fixed gap, no bar rounding at all), so live playback and the exported file disagreed
+  // on when a chord changed for every direction except 'chord' (which already happened
+  // to occupy exactly one bar either way).
   const maxVoices = Math.max(...sequence.map(c => c.length))
-  const clusterDuration = isChord
-    ? BEATS_PER_BAR * beat
-    : maxVoices * interval + LOOP_GAP_BEATS * beat
+  const subdivisionsPerBar = BEATS_PER_BAR * (settings.subdivision ?? 4)
+  const barsNeeded = isChord ? 1 : Math.max(1, Math.ceil(maxVoices / subdivisionsPerBar))
+  const clusterDuration = barsNeeded * BEATS_PER_BAR * beat
 
   const dur = noteDuration()
 
