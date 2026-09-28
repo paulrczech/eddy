@@ -34,9 +34,8 @@
         </div>
 
         <p class="about-credits">
-          Piano samples: Mikor Piano Felt via Pianobook.co.uk. Guitar samples via
-          nbrosowsky/tonejs-instruments (CC-BY 3.0). Electric piano and electric guitar
-          via Pianobook.co.uk. holdsworth pad: Blackhole Guitars by JWB. See CREDITS.md.
+          Piano, guitar, electric piano, and electric guitar samples via Pianobook.co.uk.
+          holdsworth pad: Blackhole Guitars by JWB. See CREDITS.md.
         </p>
 
         <button class="btn-outline close-btn" @click="$emit('close')">close</button>

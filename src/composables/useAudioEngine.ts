@@ -2,7 +2,7 @@ import { ref, readonly } from 'vue'
 import * as Tone from 'tone'
 import { App } from '@capacitor/app'
 import type { Cluster } from '../utils/noteUtils'
-import { midiToName, MIDI_MIN, MIDI_MAX } from '../data/notes'
+import { midiToName, MIDI_MAX } from '../data/notes'
 import type { InstrumentType, Subdivision } from '../stores/settingsStore'
 
 // iOS suspends the WebAudio context whenever the app is backgrounded or the screen
@@ -33,23 +33,23 @@ const PIANO_URLS: Record<string, string> = {
   'B3': 'B3.mp3', 'F#4': 'Fs4.mp3', 'C#5': 'Cs5.mp3', 'D#6': 'Ds6.mp3', 'A#6': 'As6.mp3',
 }
 
-// Guitar samples (nbrosowsky/tonejs-instruments, CC-BY 3.0) — self-hosted locally for
-// the same reason as the piano above. See CREDITS.md for full attribution.
-const NBROSOWSKY_BASE = '/samples/'
-
+// Acoustic guitar — "Soft Nylon Guitar Lite" by Mike Georgiades via Pianobook.co.uk.
+// Replaced the original nbrosowsky/tonejs-instruments steel-string samples, which read
+// as too bright/harsh under Eddy's sustained, looping playback — same reasoning as the
+// piano swap. Sparse, minor thirds. Two round-robin takes exist per note in the source
+// pack (alternate performances, not different dynamics) — Tone.Sampler doesn't support
+// round-robin switching, so the first take only.
+// IMPORTANT: source filenames were one octave lower than their true pitch, confirmed by
+// autocorrelation — 7 of 9 root samples matched within ~10 cents. The other two (labeled
+// E1/G1) didn't fit any octave hypothesis — they measured at essentially the exact same
+// pitch as the already-confirmed E3/G3 samples, meaning they appear to be pitch-
+// duplicated content in the source pack itself. Excluded rather than guessed. This
+// leaves only 7 usable roots (C#3-G4) — narrower than the original's full E2-C6, see
+// the INSTRUMENT_NOTE_RANGE entry below. Gain-boosted and trimmed to 6s/1s fade-out,
+// same treatment as piano. See CREDITS.md for full attribution.
 const GUITAR_ACOUSTIC_URLS: Record<string, string> = {
-  'A2': 'A2.mp3',  'A3': 'A3.mp3',  'A4': 'A4.mp3',
-  'A#2': 'As2.mp3', 'A#3': 'As3.mp3', 'A#4': 'As4.mp3',
-  'B2': 'B2.mp3',  'B3': 'B3.mp3',  'B4': 'B4.mp3',
-  'C3': 'C3.mp3',  'C4': 'C4.mp3',  'C5': 'C5.mp3',
-  'C#3': 'Cs3.mp3', 'C#4': 'Cs4.mp3', 'C#5': 'Cs5.mp3',
-  'D2': 'D2.mp3',  'D3': 'D3.mp3',  'D4': 'D4.mp3',  'D5': 'D5.mp3',
-  'D#2': 'Ds2.mp3', 'D#3': 'Ds3.mp3', 'D#4': 'Ds4.mp3',
-  'E2': 'E2.mp3',  'E3': 'E3.mp3',  'E4': 'E4.mp3',
-  'F2': 'F2.mp3',  'F3': 'F3.mp3',  'F4': 'F4.mp3',
-  'F#2': 'Fs2.mp3', 'F#3': 'Fs3.mp3', 'F#4': 'Fs4.mp3',
-  'G2': 'G2.mp3',  'G3': 'G3.mp3',  'G4': 'G4.mp3',
-  'G#2': 'Gs2.mp3', 'G#3': 'Gs3.mp3', 'G#4': 'Gs4.mp3',
+  'C#3': 'Cs3.mp3', 'E3': 'E3.mp3', 'G3': 'G3.mp3', 'A#3': 'As3.mp3',
+  'C#4': 'Cs4.mp3', 'E4': 'E4.mp3', 'G4': 'G4.mp3',
 }
 
 // Electric piano and electric guitar samples via Pianobook.co.uk (royalty-free per
@@ -84,13 +84,16 @@ const HOLDSWORTHIAN_PAD_URLS: Record<string, string> = {
   'G#4': 'Gs4.mp3', 'D#5': 'Ds5.mp3', 'A#5': 'As5.mp3',
 }
 
+
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
 // register. Does NOT affect the voice-leading engine, which always uses the global MIDI_MIN/
 // MIDI_MAX regardless of instrument, so switching instruments mid-flow never changes which
 // moves are reachable — only what you can type in as a starting cluster.
 export const INSTRUMENT_NOTE_RANGE: Record<InstrumentType, { min: number; max: number }> = {
   piano:            { min: 33,       max: MIDI_MAX }, // A1–C6
-  'guitar-acoustic': { min: MIDI_MIN, max: MIDI_MAX },
+  'guitar-acoustic': { min: 40,       max: 79 },       // E2-G5 — narrower than the
+    // original steel-string samples' full E2-C6; only 7 usable roots (C#3-G4), see
+    // GUITAR_ACOUSTIC_URLS
   'electric-piano':  { min: 33,       max: 84 },       // A1-C6
   'electric-guitar': { min: 38,       max: 71 },       // D2-B4
   'holdsworthian-pad': { min: 40,     max: 82 },       // E2-A#5
@@ -119,9 +122,29 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
 // a struck/plucked note, but a hard, audible cutoff for anything sustained. The pad-style
 // instruments above get a real fade instead.
 const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
-  'electric-guitar': 2.5,
+  'electric-guitar': 1.2, // was 2.5 — a note was still near full volume when the next
+    // one fired, masking each new note's own (genuinely fast, ~100ms) attack; read as
+    // both "too long a sustain" and "attack isn't sharp" from the same cause
   'holdsworthian-pad': 2.5,
   piano: 2.0, // felt piano rings naturally — default 0.1s cutoff read as harsh
+  'electric-piano': 1.2, // same class of bug as piano had — no release meant a hard
+    // 0.1s cutoff, which read as "plucky"/inconsistent since the source recording's own
+    // natural sustain varies note to note; a real release masks that instead of fighting it
+  'guitar-acoustic': 1.5, // nylon pluck decays naturally, avoid the harsh-cutoff class of bug
+}
+
+// Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across
+// the shipped instruments varied by ~22dB (electric-guitar loudest, holdsworthian-pad
+// quietest), a jarring jump switching between them mid-session. Targets piano's level
+// (~-24dBFS), the most recently and deliberately tuned reference. Code-level trim rather
+// than re-exporting every instrument's samples — one place to retune, fully reversible.
+// guitar-acoustic needs no entry — its current (nylon) samples were already gain-matched
+// to the same target when converted, same as piano.
+const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
+  piano: 3, // Paul heard it as a little quieter than guitar-acoustic despite matching RMS
+    // targets — try a modest boost first
+  'electric-guitar': -6, // was -10 — Paul heard it as a little quieter than the rest after that cut
+  'holdsworthian-pad': 12,
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
@@ -134,6 +157,22 @@ function noteRelease(instrumentType: InstrumentType): number {
 // instruments with no entry get no reverb node at all, zero added latency or cost.
 const REVERB_SETTINGS: Partial<Record<InstrumentType, { decay: number; wet: number }>> = {
   piano: { decay: 2.2, wet: 0.22 },
+  'guitar-acoustic': { decay: 2.0, wet: 0.2 },
+}
+
+// Chorus (a subtle detune wobble) and ping-pong delay (stereo, alternating left/right
+// echoes) — chorus is genuinely new, no instrument used it before guitar-acoustic. Kept
+// more restrained than a typical "ambient guitar" preset (a suggested starting point had
+// chorus depth 0.7/wet 0.35, delay feedback 0.4/wet 0.3) since Eddy's whole design leans
+// toward restraint. Chorus is LFO-driven, so it needs .start() — silent without it.
+// Order: chorus, then delay, then reverb, then destination.
+const CHORUS_SETTINGS: Partial<Record<InstrumentType, { frequency: number; delayTime: number; depth: number; wet: number }>> = {
+  'guitar-acoustic': { frequency: 1.2, delayTime: 3.5, depth: 0.5, wet: 0.25 },
+}
+const DELAY_SETTINGS: Partial<Record<InstrumentType, { delayTime: string; feedback: number; wet: number }>> = {
+  // guitar-acoustic had { delayTime: '8n.', feedback: 0.3, wet: 0.2 } — removed per
+  // Paul's request to hear it without the ping-pong delay first. Easy to bring back (at
+  // this same value, or lower) if it turns out to be missed.
 }
 
 function noteDuration(): string {
@@ -145,6 +184,8 @@ type ToneInstrument = Tone.Sampler
 
 let instrument: ToneInstrument | null = null
 let outputReverb: Tone.Reverb | null = null
+let outputChorus: Tone.Chorus | null = null
+let outputDelay: Tone.PingPongDelay | null = null
 let currentInstrumentType: InstrumentType | null = null
 let loopPart: Tone.Part | null = null
 let rafId: number | null = null
@@ -188,7 +229,7 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   // No-op if same instrument already loaded
   if (instrument && isLoaded.value && currentInstrumentType === instrumentType) return
 
-  // Dispose previous instrument (and its reverb send, if it had one)
+  // Dispose previous instrument and any effects chain it had
   if (instrument) {
     instrument.dispose()
     instrument = null
@@ -198,13 +239,21 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
     outputReverb.dispose()
     outputReverb = null
   }
+  if (outputChorus) {
+    outputChorus.dispose()
+    outputChorus = null
+  }
+  if (outputDelay) {
+    outputDelay.dispose()
+    outputDelay = null
+  }
 
   await Tone.start()
   currentInstrumentType = instrumentType
 
   const SAMPLER_CONFIGS: Record<InstrumentType, { urls: Record<string, string>; baseUrl: string }> = {
     piano:            { urls: PIANO_URLS,           baseUrl: PIANO_BASE },
-    'guitar-acoustic':{ urls: GUITAR_ACOUSTIC_URLS, baseUrl: NBROSOWSKY_BASE + 'guitar-acoustic/' },
+    'guitar-acoustic':{ urls: GUITAR_ACOUSTIC_URLS, baseUrl: '/samples/guitar-acoustic/' },
     'electric-piano': { urls: ELECTRIC_PIANO_URLS,  baseUrl: '/samples/electric-piano/' },
     'electric-guitar':{ urls: ELECTRIC_GUITAR_URLS, baseUrl: '/samples/electric-guitar/' },
     'holdsworthian-pad':{ urls: HOLDSWORTHIAN_PAD_URLS, baseUrl: '/samples/holdsworthian-pad/' },
@@ -219,27 +268,58 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   try {
     const buffers = await loadBuffers(urls, baseUrl)
     const reverbSettings = REVERB_SETTINGS[instrumentType]
-    // Reverb's impulse response is generated asynchronously (it's rendered via
-    // Tone.Offline internally) — has to be awaited before anything connects to it,
-    // otherwise the first several notes would play with no reverb at all.
+    const chorusSettings = CHORUS_SETTINGS[instrumentType]
+    const delaySettings = DELAY_SETTINGS[instrumentType]
+
+    // Built furthest-downstream-first (reverb, then delay, then chorus), each stage
+    // connecting to whatever's already been built or straight to destination if it's
+    // the last stage — then the sampler connects to whichever stage ends up first in
+    // the chain. Any subset of the three can be configured per instrument; an
+    // instrument with none of them behaves exactly as before (sampler.toDestination()).
     if (reverbSettings) {
+      // Reverb's impulse response is generated asynchronously (it's rendered via
+      // Tone.Offline internally) — has to be awaited before anything connects to it,
+      // otherwise the first several notes would play with no reverb at all.
       const reverb = new Tone.Reverb(reverbSettings.decay).toDestination()
       reverb.wet.value = reverbSettings.wet
       await reverb.ready
       outputReverb = reverb
     }
+    if (delaySettings) {
+      const delay = new Tone.PingPongDelay(delaySettings.delayTime, delaySettings.feedback)
+      delay.wet.value = delaySettings.wet
+      if (outputReverb) delay.connect(outputReverb)
+      else delay.toDestination()
+      outputDelay = delay
+    }
+    if (chorusSettings) {
+      // Chorus is LFO-driven — silent until started.
+      const chorus = new Tone.Chorus(
+        chorusSettings.frequency,
+        chorusSettings.delayTime,
+        chorusSettings.depth
+      ).start()
+      chorus.wet.value = chorusSettings.wet
+      if (outputDelay) chorus.connect(outputDelay)
+      else if (outputReverb) chorus.connect(outputReverb)
+      else chorus.toDestination()
+      outputChorus = chorus
+    }
+    const firstEffectStage = outputChorus ?? outputDelay ?? outputReverb
+
     return await new Promise((resolve) => {
       const sampler = new Tone.Sampler({
         urls: buffers,
         release: noteRelease(instrumentType),
+        volume: INSTRUMENT_VOLUME[instrumentType] ?? 0,
         onload: () => {
           isLoaded.value = true
           loadError.value = null
           resolve()
         },
       })
-      if (outputReverb) {
-        sampler.connect(outputReverb)
+      if (firstEffectStage) {
+        sampler.connect(firstEffectStage)
       } else {
         sampler.toDestination()
       }
@@ -452,6 +532,14 @@ function dispose(): void {
   if (outputReverb) {
     outputReverb.dispose()
     outputReverb = null
+  }
+  if (outputChorus) {
+    outputChorus.dispose()
+    outputChorus = null
+  }
+  if (outputDelay) {
+    outputDelay.dispose()
+    outputDelay = null
   }
 }
 
