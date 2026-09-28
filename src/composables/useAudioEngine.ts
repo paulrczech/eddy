@@ -114,7 +114,11 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   piano:            '2n',
   'guitar-acoustic':'2n',
   'electric-piano': '2n', // struck/decaying, same character class as piano
-  'electric-guitar':'1n', // sustained swell articulation, needs room to show
+  'electric-guitar':'2n', // was '1n' — a full bar held at near-full volume before the
+    // release fade even began, so it was still essentially at full volume right up to
+    // the next chord's downbeat and only started fading during the new chord, reading
+    // as "rings through/muddy" even after the release-time cut. Now matches every other
+    // instrument's held duration, giving the release a half-bar head start instead
   'holdsworthian-pad':'1n', // sustained pad character
 }
 
