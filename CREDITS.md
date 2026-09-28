@@ -4,7 +4,7 @@ Eddy's instrument samples are self-hosted in `public/samples/` rather than fetch
 their original third-party hosts, so playback doesn't depend on someone else's uptime.
 Piano and acoustic guitar below are Creative Commons Attribution 3.0 (CC-BY 3.0) —
 https://creativecommons.org/licenses/by/3.0/. Electric piano, electric guitar, and the
-Holdsworth pad are each sourced from their own sample pack, credited individually below.
+holdsworth pad are each sourced from their own sample pack, credited individually below.
 
 ## Piano
 
@@ -30,6 +30,6 @@ Sourced from [Pianobook.co.uk](https://www.pianobook.co.uk).
 ([pianobook.co.uk/profile/fred-poirier](https://www.pianobook.co.uk/profile/fred-poirier)).
 Sourced from [Pianobook.co.uk](https://www.pianobook.co.uk).
 
-## Holdsworth pad
+## holdsworth pad
 
 **Blackhole Guitars** by JWB.
