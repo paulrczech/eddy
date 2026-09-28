@@ -206,6 +206,22 @@ function intervalFromBpm(bpm: number, subdivision: Subdivision = 4): number {
   return 60 / bpm / subdivision
 }
 
+// Strum articulation: 'chord' direction normally triggers every voice at the exact same
+// instant (interval 0), which reads as a stab/pad-like hit. On a guitar-family
+// instrument that's not how a chord actually happens — a real strum is a very fast
+// ripple across the strings, on the order of tens of milliseconds, much faster than the
+// arpeggio spacing used for 'up'/'down'/'random' (a fraction of a beat). Only applies to
+// 'chord' direction on guitar-type instruments; every other combination is unaffected.
+// Live playback only — MIDI export's 'chord' mode still triggers simultaneously, so an
+// exported file of a strummed chord will sound very slightly different (a negligible
+// ~25ms/voice, but real) from what was heard live.
+const STRUM_INTERVAL = 0.025 // seconds between adjacent strings
+const GUITAR_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['guitar-acoustic', 'electric-guitar'])
+
+function chordInterval(instrumentType: InstrumentType | null): number {
+  return instrumentType && GUITAR_INSTRUMENTS.has(instrumentType) ? STRUM_INTERVAL : 0
+}
+
 function buildArpeggioNotes(cluster: number[], direction: ArpeggioDirection): number[] {
   const sorted = [...cluster].sort((a, b) => a - b)
   switch (direction) {
@@ -364,7 +380,9 @@ function playCluster(
 
   stopLoop()
 
-  const interval = settings.direction === 'chord' ? 0 : intervalFromBpm(settings.bpm, settings.subdivision)
+  const interval = settings.direction === 'chord'
+    ? chordInterval(currentInstrumentType)
+    : intervalFromBpm(settings.bpm, settings.subdivision)
   const notes = buildArpeggioNotes(cluster, settings.direction)
   const now = Tone.now()
   const dur = noteDuration()
@@ -409,7 +427,7 @@ function playSequence(
   stopLoop()
 
   const isChord = settings.direction === 'chord'
-  const interval = isChord ? 0 : intervalFromBpm(settings.bpm, settings.subdivision)
+  const interval = isChord ? chordInterval(currentInstrumentType) : intervalFromBpm(settings.bpm, settings.subdivision)
   const beat = 60 / settings.bpm
 
   // Bar-quantized, matching exportSequenceAsMidi()'s barsNeeded math exactly — a cluster
