@@ -88,6 +88,15 @@ function movableVoiceIndices(strategy: Strategy, cluster: Cluster): number[] {
         : 1
       return all.filter(i => i !== heldIdx)
     }
+    case 'third':
+      // Index 1 (second from the bottom) is "the 3rd" regardless of voice count — for a
+      // 3-voice cluster this is also the true positional middle; for 4+ it's still the
+      // interval a third above the bass, which is what the strategy actually means by
+      // "the middle voice." Previously this strategy used the generic 'one' case, which
+      // let ANY single voice move — most candidates moved the bass or top instead, only
+      // coincidentally touching the middle voice some of the time.
+      return n > 1 ? [1] : all
+
     default:
       return all
   }

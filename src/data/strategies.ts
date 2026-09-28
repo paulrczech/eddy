@@ -10,6 +10,8 @@
 //   'lower'        — all voices except the top
 //   'most-dissonant-held' — hold the voice in the most dissonant interval pair, others may move
 //   'least-expected-held' — hold the statistically least common tone (random selection weighted toward middle voice), others may move
+//   'third'        — only the voice a third above the bass moves (index 1 — the note
+//                    that gives a triad its major/minor quality), regardless of voice count
 //
 // direction:
 //   'any'          — up or down
@@ -138,7 +140,7 @@ export const STRATEGIES: Strategy[] = [
     id: 'drop-the-third',
     text: 'Drop what defines you',
     hint: 'The middle voice — most often the 3rd that gives the cluster its major or minor quality — moves by step, changing the character.',
-    voicesAllowedToMove: 'one',
+    voicesAllowedToMove: 'third',
     movementType: 'step',
     direction: 'any',
     requiresKeyLock: false,
