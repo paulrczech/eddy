@@ -2,14 +2,18 @@
 
 Eddy's instrument samples are self-hosted in `public/samples/` rather than fetched from
 their original third-party hosts, so playback doesn't depend on someone else's uptime.
-Piano and acoustic guitar below are Creative Commons Attribution 3.0 (CC-BY 3.0) —
-https://creativecommons.org/licenses/by/3.0/. Electric piano, electric guitar, and the
-holdsworth pad are each sourced from their own sample pack, credited individually below.
+Acoustic guitar below is Creative Commons Attribution 3.0 (CC-BY 3.0) —
+https://creativecommons.org/licenses/by/3.0/. Piano, electric piano, electric guitar,
+and the holdsworth pad are each sourced from their own sample pack via Pianobook.co.uk
+(royalty-free per Pianobook's standard license), credited individually below.
 
 ## Piano
 
-**Salamander Grand Piano V2** by Alexander Holm. Recording of a Yamaha C5 grand piano.
-Originally distributed via the Tone.js project (tonejs.github.io/audio/salamander).
+**Mikor Piano Felt** by Mikor — a Burger&Jacobi piano, felt pedal engaged, close-miced
+with a pair of 414s from the nineties through ISA preamps. Soft dynamic layer. Sourced
+from [Pianobook.co.uk](https://www.pianobook.co.uk). Replaced the original Salamander
+Grand Piano V2 (Alexander Holm), which read as too bright/percussive under Eddy's
+sustained, looping playback.
 
 ## Guitar (acoustic)
 

@@ -16,17 +16,21 @@ App.addListener('resume', () => {
   Tone.start()
 })
 
-// Salamander Grand Piano samples (Alexander Holm, CC-BY 3.0) — self-hosted locally rather
-// than fetched from tonejs.github.io, so playback doesn't depend on a third party's uptime.
-// See CREDITS.md for full attribution.
-const SALAMANDER_BASE = '/samples/piano/'
-const SALAMANDER_URLS: Record<string, string> = {
-  'A0':  'A0.mp3',  'C1':  'C1.mp3',  'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3',
-  'A1':  'A1.mp3',  'C2':  'C2.mp3',  'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3',
-  'A2':  'A2.mp3',  'C3':  'C3.mp3',  'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3',
-  'A3':  'A3.mp3',  'C4':  'C4.mp3',  'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
-  'A4':  'A4.mp3',  'C5':  'C5.mp3',  'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3',
-  'A5':  'A5.mp3',  'C6':  'C6.mp3',
+// Piano — "Mikor Piano Felt" (Burger&Jacobi piano, felt pedal engaged) via
+// Pianobook.co.uk, soft/unlabeled dynamic layer. Replaced the original Salamander Grand
+// Piano — brighter/more percussive and read as harsh under Eddy's sustained, looping
+// playback; this felt-piano character reads as warm and ambient instead. Sparse, every
+// fifth (7 semitones), like holdsworthian-pad. Source filenames were one octave lower
+// than their true pitch (confirmed by autocorrelation pitch analysis against 8 of 10
+// root samples, matched to within ~50 cents); the keys below are the corrected pitch.
+// The pack's 11th root (labeled F6) didn't fit any consistent octave hypothesis and
+// sits above Eddy's usable range regardless — skipped rather than guessed. Source
+// samples were ~40s (full natural decay) — trimmed to 6s with a 1s fade-out and
+// gain-boosted to a comparable level. See CREDITS.md for full attribution.
+const PIANO_BASE = '/samples/piano/'
+const PIANO_URLS: Record<string, string> = {
+  'C1': 'C1.mp3', 'G1': 'G1.mp3', 'D2': 'D2.mp3', 'A2': 'A2.mp3', 'E3': 'E3.mp3',
+  'B3': 'B3.mp3', 'F#4': 'Fs4.mp3', 'C#5': 'Cs5.mp3', 'D#6': 'Ds6.mp3', 'A#6': 'As6.mp3',
 }
 
 // Guitar samples (nbrosowsky/tonejs-instruments, CC-BY 3.0) — self-hosted locally for
@@ -117,10 +121,19 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
 const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   'electric-guitar': 2.5,
   'holdsworthian-pad': 2.5,
+  piano: 2.0, // felt piano rings naturally — default 0.1s cutoff read as harsh
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
   return RELEASE_TIMES[instrumentType] ?? 0.1
+}
+
+// Per-instrument reverb send — a touch of space is often what actually separates "quiet
+// piano" from "ambient" the way a lowpass filter or a longer release alone don't. Kept
+// deliberately modest (short decay, mostly dry) so it reads as room tone, not a wash —
+// instruments with no entry get no reverb node at all, zero added latency or cost.
+const REVERB_SETTINGS: Partial<Record<InstrumentType, { decay: number; wet: number }>> = {
+  piano: { decay: 2.2, wet: 0.22 },
 }
 
 function noteDuration(): string {
@@ -131,6 +144,7 @@ function noteDuration(): string {
 type ToneInstrument = Tone.Sampler
 
 let instrument: ToneInstrument | null = null
+let outputReverb: Tone.Reverb | null = null
 let currentInstrumentType: InstrumentType | null = null
 let loopPart: Tone.Part | null = null
 let rafId: number | null = null
@@ -174,18 +188,22 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   // No-op if same instrument already loaded
   if (instrument && isLoaded.value && currentInstrumentType === instrumentType) return
 
-  // Dispose previous instrument
+  // Dispose previous instrument (and its reverb send, if it had one)
   if (instrument) {
     instrument.dispose()
     instrument = null
     isLoaded.value = false
+  }
+  if (outputReverb) {
+    outputReverb.dispose()
+    outputReverb = null
   }
 
   await Tone.start()
   currentInstrumentType = instrumentType
 
   const SAMPLER_CONFIGS: Record<InstrumentType, { urls: Record<string, string>; baseUrl: string }> = {
-    piano:            { urls: SALAMANDER_URLS,      baseUrl: SALAMANDER_BASE },
+    piano:            { urls: PIANO_URLS,           baseUrl: PIANO_BASE },
     'guitar-acoustic':{ urls: GUITAR_ACOUSTIC_URLS, baseUrl: NBROSOWSKY_BASE + 'guitar-acoustic/' },
     'electric-piano': { urls: ELECTRIC_PIANO_URLS,  baseUrl: '/samples/electric-piano/' },
     'electric-guitar':{ urls: ELECTRIC_GUITAR_URLS, baseUrl: '/samples/electric-guitar/' },
@@ -200,8 +218,18 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   // though the body is delivered intact, and Tone rejects every sample on !response.ok.
   try {
     const buffers = await loadBuffers(urls, baseUrl)
+    const reverbSettings = REVERB_SETTINGS[instrumentType]
+    // Reverb's impulse response is generated asynchronously (it's rendered via
+    // Tone.Offline internally) — has to be awaited before anything connects to it,
+    // otherwise the first several notes would play with no reverb at all.
+    if (reverbSettings) {
+      const reverb = new Tone.Reverb(reverbSettings.decay).toDestination()
+      reverb.wet.value = reverbSettings.wet
+      await reverb.ready
+      outputReverb = reverb
+    }
     return await new Promise((resolve) => {
-      instrument = new Tone.Sampler({
+      const sampler = new Tone.Sampler({
         urls: buffers,
         release: noteRelease(instrumentType),
         onload: () => {
@@ -209,7 +237,13 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
           loadError.value = null
           resolve()
         },
-      }).toDestination()
+      })
+      if (outputReverb) {
+        sampler.connect(outputReverb)
+      } else {
+        sampler.toDestination()
+      }
+      instrument = sampler
     })
   } catch (err) {
     loadError.value = `Failed to load ${instrumentType} samples`
@@ -414,6 +448,10 @@ function dispose(): void {
     instrument = null
     isLoaded.value = false
     currentInstrumentType = null
+  }
+  if (outputReverb) {
+    outputReverb.dispose()
+    outputReverb = null
   }
 }
 

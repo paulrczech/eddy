@@ -34,7 +34,7 @@
         </div>
 
         <p class="about-credits">
-          Piano samples: Salamander Grand Piano by Alexander Holm. Guitar samples via
+          Piano samples: Mikor Piano Felt via Pianobook.co.uk. Guitar samples via
           nbrosowsky/tonejs-instruments (CC-BY 3.0). Electric piano and electric guitar
           via Pianobook.co.uk. holdsworth pad: Blackhole Guitars by JWB. See CREDITS.md.
         </p>
