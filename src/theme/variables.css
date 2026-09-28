@@ -180,11 +180,15 @@ ion-item-options ion-item-option ion-icon {
   font-size: var(--icon-md);
 }
 
-/* ion-toast ("saved" flash, HomeView's "default saved" toast) */
+/* ion-toast ("saved" flash, HomeView's "default saved" toast) — background previously
+   matched --color-surface, which reads as barely-distinguishable from the app's own
+   near-black background, not enough contrast to register as feedback. Reuses --voice-2
+   (deep muted teal, already an in-palette token, not a new saturated color) as a
+   restrained "success" tone rather than a bright off-palette green. */
 ion-toast {
-  --background: var(--color-surface);
+  --background: var(--voice-2);
   --color: var(--color-text);
-  --border-color: var(--color-border);
+  --border-color: var(--voice-2);
   --border-width: 1px;
   --border-style: solid;
   --border-radius: 10px;
