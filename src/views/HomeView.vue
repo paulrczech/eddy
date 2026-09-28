@@ -385,6 +385,11 @@
   ]
 
   function openPicker() {
+    // Reset here, before any note is picked, rather than in startManual() at confirm
+    // time — resetting instrument that late could invalidate notes already chosen
+    // against a different instrument's range. This way the picker itself reflects the
+    // correct, already-reset instrument range from the moment it opens.
+    settingsStore.resetPlaybackDefaults()
     pickerSnapshot.value = {
       midi: [...manualMidi.value],
       showManual: showManual.value,
@@ -445,6 +450,11 @@
   }
 
   async function startRandom() {
+    // A new flow starts from the default playback settings, not whatever tempo/
+    // direction/grid/instrument a previous flow happened to leave live in the store —
+    // those have no "choose before starting" step on this screen the way voiceCount/
+    // movementSize do, so without this they'd silently carry over stale.
+    settingsStore.resetPlaybackDefaults()
     await init(settingsStore.instrument)
     sequenceStore.randomStart(settingsStore.voiceCount)
     router.push('/session')
@@ -452,7 +462,14 @@
 
   async function loadSession(session: SavedSession) {
     sessionsOpen.value = false
+    // Reset to defaults first, so an older save that predates tempo/direction/grid
+    // being saved-with-a-flow falls back to the true default rather than to whatever
+    // was left over from the session just prior to loading this one.
+    settingsStore.resetPlaybackDefaults()
     if (session.instrument) settingsStore.setInstrument(session.instrument)
+    if (session.tempo) settingsStore.setTempo(session.tempo)
+    if (session.arpeggioDirection) settingsStore.setArpeggioDirection(session.arpeggioDirection)
+    if (session.subdivision) settingsStore.setSubdivision(session.subdivision)
     await init(settingsStore.instrument)
     settingsStore.setVoiceCount(session.voiceCount as 3 | 4)
     sequenceStore.start(session.sequence[0], INSTRUMENT_NOTE_RANGE[settingsStore.instrument])

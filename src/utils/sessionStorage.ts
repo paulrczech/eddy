@@ -1,6 +1,6 @@
 import type { Cluster } from './noteUtils'
 import { clusterLabel } from './noteUtils'
-import type { InstrumentType } from '../stores/settingsStore'
+import type { InstrumentType, ArpeggioDirection, Subdivision } from '../stores/settingsStore'
 
 export interface SavedSession {
   id: string
@@ -9,6 +9,9 @@ export interface SavedSession {
   sequence: Cluster[]
   voiceCount: number
   instrument?: InstrumentType  // optional for backwards compat with older saves
+  tempo?: number                        // optional — older saves predate these three
+  arpeggioDirection?: ArpeggioDirection
+  subdivision?: Subdivision
 }
 
 const STORAGE_KEY = 'note-threader-sessions'
@@ -40,7 +43,15 @@ function nextSessionName(sequence: Cluster[], sessions: SavedSession[]): string 
   return `${base}-${n}`
 }
 
-export function saveSession(sequence: Cluster[], voiceCount: number, instrument?: InstrumentType, name?: string): SavedSession {
+export function saveSession(
+  sequence: Cluster[],
+  voiceCount: number,
+  instrument?: InstrumentType,
+  name?: string,
+  tempo?: number,
+  arpeggioDirection?: ArpeggioDirection,
+  subdivision?: Subdivision
+): SavedSession {
   const sessions = loadAll()
   const session: SavedSession = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -49,6 +60,9 @@ export function saveSession(sequence: Cluster[], voiceCount: number, instrument?
     sequence,
     voiceCount,
     instrument,
+    tempo,
+    arpeggioDirection,
+    subdivision,
   }
   sessions.push(session)
   saveAll(sessions)
@@ -59,7 +73,10 @@ export function overwriteSession(
   id: string,
   sequence: Cluster[],
   voiceCount: number,
-  instrument?: InstrumentType
+  instrument?: InstrumentType,
+  tempo?: number,
+  arpeggioDirection?: ArpeggioDirection,
+  subdivision?: Subdivision
 ): SavedSession | null {
   const sessions = loadAll()
   const target = sessions.find(s => s.id === id)
@@ -67,6 +84,9 @@ export function overwriteSession(
   target.sequence = sequence
   target.voiceCount = voiceCount
   target.instrument = instrument
+  target.tempo = tempo
+  target.arpeggioDirection = arpeggioDirection
+  target.subdivision = subdivision
   target.savedAt = Date.now()
   saveAll(sessions)
   return target

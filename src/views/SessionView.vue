@@ -457,6 +457,11 @@
   }
 
   onIonViewWillEnter(() => {
+    // Purely local UI convenience state, not meaningful to preserve across a trip back
+    // through Home — Ionic keeps this component instance alive rather than destroying
+    // it, so it doesn't reset on its own the way a fresh mount would.
+    footerExpanded.value = false
+
     if (!sequenceStore.currentCluster) {
       router.replace('/')
       return
@@ -674,7 +679,11 @@
     const saved = saveSession(
       sequenceStore.sequence,
       settingsStore.voiceCount,
-      settingsStore.instrument
+      settingsStore.instrument,
+      undefined,
+      settingsStore.tempo,
+      settingsStore.arpeggioDirection,
+      settingsStore.subdivision
     )
     sequenceStore.setSavedSessionId(saved.id)
     flashSaved()
@@ -686,7 +695,10 @@
       sequenceStore.savedSessionId,
       sequenceStore.sequence,
       settingsStore.voiceCount,
-      settingsStore.instrument
+      settingsStore.instrument,
+      settingsStore.tempo,
+      settingsStore.arpeggioDirection,
+      settingsStore.subdivision
     )
     flashSaved()
   }

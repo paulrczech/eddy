@@ -19,6 +19,18 @@ interface StoredDefaults {
   voiceCount: VoiceCount
   movementSize: MovementSize
   instrument: InstrumentType
+  tempo?: number                        // optional — old saved defaults predate these three
+  arpeggioDirection?: ArpeggioDirection
+  subdivision?: Subdivision
+}
+
+// Hardcoded fallback for the per-flow playback settings (instrument/tempo/direction/grid)
+// when no "save as default" blob exists yet — matches this store's own ref initial values.
+const PLAYBACK_FALLBACK = {
+  instrument: 'piano' as InstrumentType,
+  tempo: 100,
+  arpeggioDirection: 'up' as ArpeggioDirection,
+  subdivision: 2 as Subdivision,  // 8th notes
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -32,7 +44,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const arpeggioDirection = ref<ArpeggioDirection>('up')
   const instrument = ref<InstrumentType>('piano')
   const tempo = ref<number>(100)     // BPM — bumped from 80 after the bar-quantized timing fix made 80 feel sluggish
-  const subdivision = ref<Subdivision>(4)  // 16th notes
+  const subdivision = ref<Subdivision>(2)  // 8th notes
 
   const keyLockActive = computed(() => keyLockMode.value !== 'free')
 
@@ -53,6 +65,9 @@ export const useSettingsStore = defineStore('settings', () => {
       voiceCount: voiceCount.value,
       movementSize: movementSize.value,
       instrument: instrument.value,
+      tempo: tempo.value,
+      arpeggioDirection: arpeggioDirection.value,
+      subdivision: subdivision.value,
     }
     localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults))
   }
@@ -68,6 +83,28 @@ export const useSettingsStore = defineStore('settings', () => {
     } catch {
       // corrupt storage — ignore
     }
+  }
+
+  // Reset just the per-flow playback settings (instrument/tempo/direction/grid) to the
+  // saved default if one exists, else the hardcoded fallback — always assigns (unlike
+  // loadDefaults() above, which only overwrites fields present in storage), so this is
+  // a true reset rather than a hydrate-once. Deliberately leaves voiceCount/movementSize
+  // untouched: those are chosen via the Home settings sheet each time anyway and aren't
+  // meant to reset between flows, unlike instrument/tempo/direction/grid, which have no
+  // equivalent "choose before starting" moment and would otherwise silently carry over
+  // from whatever the previous flow happened to leave them at.
+  function resetPlaybackDefaults() {
+    let saved: StoredDefaults | null = null
+    try {
+      const raw = localStorage.getItem(DEFAULTS_KEY)
+      if (raw) saved = JSON.parse(raw) as StoredDefaults
+    } catch {
+      // corrupt storage — fall through to hardcoded fallback
+    }
+    instrument.value = saved?.instrument ?? PLAYBACK_FALLBACK.instrument
+    tempo.value = saved?.tempo ?? PLAYBACK_FALLBACK.tempo
+    arpeggioDirection.value = saved?.arpeggioDirection ?? PLAYBACK_FALLBACK.arpeggioDirection
+    subdivision.value = saved?.subdivision ?? PLAYBACK_FALLBACK.subdivision
   }
 
   return {
@@ -96,5 +133,6 @@ export const useSettingsStore = defineStore('settings', () => {
     setSubdivision,
     saveAsDefault,
     loadDefaults,
+    resetPlaybackDefaults,
   }
 })
