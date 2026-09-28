@@ -353,6 +353,20 @@ function playSequence(
   }
 
   function tick() {
+    // Self-healing: the resume-and-retry guard at the top of this function only catches
+    // a suspended context at the moment playback *starts* — it can't catch one that dies
+    // mid-loop (screen lock, a call, or anything else) while this rAF loop is already
+    // running. Checking every frame is cheap (a property read) and turns "silently dead
+    // until the app is restarted" into "recovers within about a second on its own."
+    // Restarts from the top of the sequence rather than attempting to resume the exact
+    // position — a small jump is a better tradeoff than staying broken.
+    if (Tone.getContext().state !== 'running') {
+      rafId = null
+      Tone.start().then(() => {
+        if (isPlaying.value) playSequence(sequence, settings, loop)
+      })
+      return
+    }
     const pos = Tone.getTransport().seconds
     const idx = Math.floor(pos / currentClusterDuration) % currentSequenceLength
     playingIndex.value = idx
