@@ -85,7 +85,7 @@ Source of truth: `src/theme/variables.css` ("New Moon" palette — cool, night-w
 
 ## V2 / deferred
 
-- Instrument selector UI live — piano/guitar-acoustic/electric-piano/electric-guitar/holdsworthian-pad (electric piano and electric guitar sourced from Pianobook.co.uk; holdsworthian pad from "Blackhole Guitars" by JWB — an Allan Holdsworth-esque ambient guitar swell). Cello, violin, harp, and nylon guitar were tried and removed (didn't sound good, or weren't necessary); a choir and a second pad candidate went through the same real-sample-pack evaluation as holdsworthian-pad but weren't kept; a FluidR3 SoundFont-based approach (electric pianos, string pads, celesta, choir aahs) was also tried and abandoned in favor of real recorded sample packs; strings/synth engine code from earlier exploration is gone, not just hidden
+- Instrument selector UI live — piano/guitar-acoustic/electric-piano/electric-guitar/holdsworthian-pad (electric piano and electric guitar sourced from Pianobook.co.uk; Holdsworth pad from "Blackhole Guitars" by JWB — an Allan Holdsworth-esque ambient guitar swell). Cello, violin, harp, and nylon guitar were tried and removed (didn't sound good, or weren't necessary); a choir and a second pad candidate went through the same real-sample-pack evaluation as the Holdsworth pad but weren't kept; a FluidR3 SoundFont-based approach (electric pianos, string pads, celesta, choir aahs) was also tried and abandoned in favor of real recorded sample packs; strings/synth engine code from earlier exploration is gone, not just hidden
 - Android build, App Store / TestFlight submission
 - 5-voice support
 - See DOWNRIVER.md for full future vision

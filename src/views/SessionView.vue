@@ -195,7 +195,7 @@
             >e-guitar</ion-select-option
           >
           <ion-select-option value="holdsworthian-pad"
-            >holdsworthian pad</ion-select-option
+            >Holdsworth pad</ion-select-option
           >
         </ion-select>
         <button
