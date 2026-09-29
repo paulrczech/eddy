@@ -1160,9 +1160,9 @@
     background: var(--color-accent);
   }
 
-  /* Separated from the direction buttons — it's an independent toggle, not a 6th
-     mutually-exclusive direction option */
+  /* Pushed to the far right of the row (not just a small gap) — reads as related to
+     the arpeggiator row but its own independent toggle, not a 6th direction option */
   .latch-btn {
-    margin-left: 0.4rem;
+    margin-left: auto;
   }
 </style>
