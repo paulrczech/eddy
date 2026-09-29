@@ -23,15 +23,19 @@ A minimal music utility for voice leading guided by oblique strategies. Users mo
 - `src/data/strategies.ts` — 20 Strategy objects {id, text, hint, voicesAllowedToMove, movementType, direction, requiresKeyLock}
 - `src/data/scales.ts` — 12 scale/mode definitions
 - `src/utils/noteUtils.ts` — Cluster type, sortCluster(), isValidCluster(), reachableNotes(), deduplicateClusters()
+- `src/utils/arpeggioEngine.ts` — framework-free shared note-scheduling: intervalFromBpm(), buildArpeggioNotes() (direction ordering), buildClusterEvents() (latch's repeat-to-fill-the-bar), humanVelocity() (jitter+taper). Imported by both useAudioEngine.ts (live) and midiUtils.ts (export) so the two can't drift out of sync — they did before this file existed (MIDI export had no latch support and a flat, unhumanized velocity)
 - `src/utils/sessionStorage.ts` — SavedSession, listSessions(), saveSession(), deleteSession(), renameSession()
-- `src/utils/midiUtils.ts` — exportSequenceAsMidi() (direction-aware), exportSequenceAsText()
+- `src/utils/fileExport.ts` — saveAndShareBytes(bytes, filename, mimeType, dialogTitle): native share sheet on Capacitor (Filesystem cache dir + Share), `<a download>` on web. Shared by midiUtils.ts and audioExport.ts so the native/web branching exists in one place
+- `src/utils/midiUtils.ts` — exportSequenceAsMidi() (direction/latch/time-signature/velocity-aware, built on arpeggioEngine.ts — humanVelocity() applied per-event so a latched bar's taper resets each pass, matching live playback exactly; writes a real timeSignature meta event via `midi.header.timeSignatures` + `.update()` — @tonejs/midi has no setTimeSignature() convenience method), exportSequenceAsText(). One thing deliberately still NOT shared with live playback: the guitar strum articulation (live-only, chord direction always simultaneous in the export — see chordInterval() in useAudioEngine.ts)
+- `src/utils/wavEncoder.ts` — encodeWav(AudioBuffer): Uint8Array, hand-rolled 16-bit PCM WAV (no dependency needed)
+- `src/utils/audioExport.ts` — exportSequenceAsWav(): renders via useAudioEngine's renderSequenceToBuffer(), encodes with wavEncoder.ts, saves via fileExport.ts
 - `src/composables/useVoiceLeading.ts` — generateCandidates(cluster, strategy, options), MAX_CANDIDATES=6
 - `src/composables/useStrategyDeck.ts` — useStrategyDeck(keyLockActive), draw() returns Strategy | null
-- `src/composables/useAudioEngine.ts` — singleton pattern, Tone.js Sampler-based instruments (piano/guitar-acoustic/electric-piano/electric-guitar/holdsworthian-pad), humanized velocity, RAF-based playingIndex tracking
-- `src/stores/settingsStore.ts` — voiceCount, movementSize, keyLockMode, keyRoot, scaleId, loopMode, maxMoves, arpeggioDirection, instrument, tempo, subdivision, latchMode
+- `src/composables/useAudioEngine.ts` — singleton pattern, Tone.js Sampler-based instruments (piano/guitar-acoustic/electric-piano/electric-guitar/holdsworthian-pad), humanized velocity, RAF-based playingIndex tracking, setAmbience() (live wet-mix ramp for reverb/chorus), renderSequenceToBuffer() (offline Tone.Offline() render for audio export — self-contained, builds its own Sampler+effects chain scoped to the OfflineContext, never touches the live singleton state). buildEffectsChain()/createSampler() are shared between init() (live) and renderSequenceToBuffer() (offline)
+- `src/stores/settingsStore.ts` — voiceCount, movementSize, keyLockMode, keyRoot, scaleId, loopMode, maxMoves, arpeggioDirection, instrument, tempo, subdivision, latchMode, ambience, timeSignature
 - `src/stores/sequenceStore.ts` — sequence, redoStack, undo/redo, transposeOctave(), canTransposeOctave(), editClusterAt()
 - `src/views/HomeView.vue` — settings, manual entry, saved sessions, single start button (toggles between "let it begin" / "begin here")
-- `src/views/SessionView.vue` — main session screen, activeStrategy ref (NOT from composable), advance(), watchers for direction/tempo/instrument changes
+- `src/views/SessionView.vue` — main session screen, activeStrategy ref (NOT from composable), advance(), watchers for direction/tempo/subdivision/latch/timeSignature/instrument changes (restart) and ambience (live ramp, no restart)
 - `src/components/cluster/ClusterDisplay.vue`
 - `src/components/strategy/StrategyCard.vue` — IonPopover hint, "another" button
 - `src/components/sequence/SequenceHistory.vue` — swipe-to-delete, inline note editing, playing row highlight
@@ -59,14 +63,19 @@ Source of truth: `src/theme/variables.css` ("New Moon" palette — cool, night-w
 
 ## Critical patterns
 
-- **Capacitor iOS**: `fetch()` on `capacitor://` returns status 0 / `ok=false` with an intact body, so Tone's own sample loader rejects everything — `useAudioEngine.ts` fetches + decodes buffers itself (`loadBuffers`). MIDI export uses Filesystem (cache dir) + Share on native, `<a download>` on web. Scrollable `ion-segment` paints blank labels in WKWebView sheets — don't use `scrollable` there. Ionic overlays (`ion-action-sheet`, `ion-alert`) need `!important` on theme variables. Verify anything native-looking in the simulator, not just headless Chromium.
+- **Capacitor iOS**: `fetch()` on `capacitor://` returns status 0 / `ok=false` with an intact body, so Tone's own sample loader rejects everything — `useAudioEngine.ts` fetches + decodes buffers itself (`loadBuffers`). MIDI export uses Filesystem (cache dir) + Share on native, `<a download>` on web. Scrollable `ion-segment` paints blank labels in WKWebView sheets — don't use `scrollable` there. Ionic overlays (`ion-action-sheet`, `ion-alert`) need `!important` on theme variables. `swipeBackEnabled: false` in main.ts's `IonicVue` config — the iOS edge-swipe-back gesture was competing with in-tray range sliders near the screen edge (tempo/ambience), occasionally sliding SessionView aside and triggering the "start fresh?" guard. Verify anything native-looking in the simulator, not just headless Chromium.
 
 - **Strategy card bug fix**: `activeStrategy` is a local ref in SessionView, set atomically in `advance()` — never use `currentStrategy` from the composable directly in the template
 - **Loop playback**: Use Transport.loop (not Part.loop). Set all loop params BEFORE `loopPart.start(0)`. Start transport with `'+0.05'` offset.
 - **randomStart()**: Uses retry loop (30 attempts) + guaranteed fallback cluster — never passes invalid cluster to start()
 - **start()**: Always clears state first before validating — prevents stale session data leaking
 - **Single start button**: HomeView shows "let it begin" OR "begin here" (v-if/v-else on showManual) — never both at once
-- **Direction/tempo/subdivision/latch/instrument changes during playback**: watchers in SessionView call playLoop() (restarts cleanly)
+- **Direction/tempo/subdivision/latch/timeSignature/instrument changes during playback**: watchers in SessionView call playLoop() (restarts cleanly) — structural settings, need a clean restart
+- **Ambience is different**: live-rampable (`setAmbience()` ramps the existing Tone.Reverb/Chorus `.wet` Signal, no restart) — its dial ceiling is roughly double each instrument's original always-on wet value, with the settingsStore default of 0.5 landing exactly back on the original, pre-dial sound (see the REVERB_SETTINGS comment in useAudioEngine.ts for the math). **UI hidden** as of 2026-09-29 (`SHOW_AMBIENCE_CONTROL = false` in SessionView.vue) — didn't earn its screen space — but the store field/live ramp/save-restore all still work, just no slider to change it mid-session. Flip the flag to bring it back.
+- **Tempo +/- buttons**: tap moves exactly ±1 bpm (every value must be reachable, not just multiples of 5); holding accelerates the step size the longer it's held (see startTempoHold() in SessionView.vue)
+- **Footer tray row layout**: a flex row's `margin-left: auto` child does nothing unless that row's own container has real slack to give it — `.toggle-row`/`.tempo-control` both need explicit `flex: 1` (or `flex-basis: 100%` to force an unconditional line break, not just one that happens to trigger at narrow widths) for this to work. Bit twice already (latch-btn's placement, then the time-signature toggle's).
+- **MIDI export time signature**: `@tonejs/midi` has no `setTimeSignature()` — push directly to `midi.header.timeSignatures` and call `midi.header.update()`, or a receiving DAW (Logic Pro, etc.) silently assumes 4/4 regardless of how the notes are laid out.
+- **Audio export / Tone.Offline()**: `Tone.Offline()` temporarily swaps the *global* Tone context for the duration of the render — anything reading `Tone.getContext()` while a render is in flight (e.g. live playback's per-frame tick loop) would observe the offline context instead. `exportAudio()` in SessionView.vue stops live playback first rather than risk the race. AudioBuffers decoded on the live context are safe to reuse inside the offline one (AudioBuffer isn't tied to a BaseAudioContext, unlike AudioNode) — `renderSequenceToBuffer()` relies on this to avoid a second sample-loading path.
 
 ## Copy/labels
 

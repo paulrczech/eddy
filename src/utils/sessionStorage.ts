@@ -1,6 +1,6 @@
 import type { Cluster } from './noteUtils'
 import { clusterLabel } from './noteUtils'
-import type { InstrumentType, ArpeggioDirection, Subdivision } from '../stores/settingsStore'
+import type { InstrumentType, ArpeggioDirection, Subdivision, TimeSignature } from '../stores/settingsStore'
 
 export interface SavedSession {
   id: string
@@ -13,6 +13,8 @@ export interface SavedSession {
   arpeggioDirection?: ArpeggioDirection
   subdivision?: Subdivision
   latchMode?: boolean
+  ambience?: number
+  timeSignature?: TimeSignature
 }
 
 const STORAGE_KEY = 'note-threader-sessions'
@@ -52,7 +54,9 @@ export function saveSession(
   tempo?: number,
   arpeggioDirection?: ArpeggioDirection,
   subdivision?: Subdivision,
-  latchMode?: boolean
+  latchMode?: boolean,
+  ambience?: number,
+  timeSignature?: TimeSignature
 ): SavedSession {
   const sessions = loadAll()
   const session: SavedSession = {
@@ -66,6 +70,8 @@ export function saveSession(
     arpeggioDirection,
     subdivision,
     latchMode,
+    ambience,
+    timeSignature,
   }
   sessions.push(session)
   saveAll(sessions)
@@ -80,7 +86,9 @@ export function overwriteSession(
   tempo?: number,
   arpeggioDirection?: ArpeggioDirection,
   subdivision?: Subdivision,
-  latchMode?: boolean
+  latchMode?: boolean,
+  ambience?: number,
+  timeSignature?: TimeSignature
 ): SavedSession | null {
   const sessions = loadAll()
   const target = sessions.find(s => s.id === id)
@@ -92,6 +100,8 @@ export function overwriteSession(
   target.arpeggioDirection = arpeggioDirection
   target.subdivision = subdivision
   target.latchMode = latchMode
+  target.ambience = ambience
+  target.timeSignature = timeSignature
   target.savedAt = Date.now()
   saveAll(sessions)
   return target

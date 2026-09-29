@@ -12,6 +12,15 @@ export type InstrumentType =
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.
 export type Subdivision = 0.5 | 1 | 2 | 3 | 4
+// 4/4 or 3/4 — both quarter-note-beat meters, so this is really just "how many beats
+// make a bar." No 6/8, 12/8, or odd meters yet (would need a real compound-time model,
+// not just a different number here). Shared by live playback and MIDI export, same as
+// Subdivision above — TIME_SIGNATURE_BEATS is the single place that maps one to the other.
+export type TimeSignature = '4/4' | '3/4'
+export const TIME_SIGNATURE_BEATS: Record<TimeSignature, number> = {
+  '4/4': 4,
+  '3/4': 3,
+}
 
 const DEFAULTS_KEY = 'eddy_defaults'
 
@@ -23,6 +32,8 @@ interface StoredDefaults {
   arpeggioDirection?: ArpeggioDirection
   subdivision?: Subdivision
   latchMode?: boolean
+  ambience?: number
+  timeSignature?: TimeSignature
 }
 
 // Hardcoded fallback for the per-flow playback settings (instrument/tempo/direction/grid/
@@ -33,6 +44,12 @@ const PLAYBACK_FALLBACK = {
   arpeggioDirection: 'up' as ArpeggioDirection,
   subdivision: 2 as Subdivision,  // 8th notes
   latchMode: false,
+  // 0.5, not 1 — REVERB_SETTINGS/CHORUS_SETTINGS in useAudioEngine.ts define "100%" as
+  // roughly double each instrument's original always-on wet value (needed real headroom
+  // for the dial to do anything audible), so 50% is what lands back on the exact
+  // original, already-approved sound. See the REVERB_SETTINGS comment for the full math.
+  ambience: 0.5,
+  timeSignature: '4/4' as TimeSignature,
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -53,6 +70,15 @@ export const useSettingsStore = defineStore('settings', () => {
   // switching to chord and back must not silently clear this; it's the user's intent,
   // not a per-direction setting.
   const latchMode = ref<boolean>(false)
+  // 0-1 — scales whichever reverb/chorus sends the current instrument has (see
+  // setAmbience() in useAudioEngine.ts). 0.5 reproduces the shipped, already-tuned wet
+  // level for every instrument (see REVERB_SETTINGS's comment for why); 0 is fully dry,
+  // 1 is roughly double the original — genuinely wetter/more forgiving territory.
+  const ambience = ref<number>(0.5)
+  // 4/4 or 3/4 — how many beats make a bar. Structural, not live-rampable like ambience:
+  // changes bar/cluster duration itself, so a change during playback needs a clean
+  // restart (see the SessionView watcher), not a ramp.
+  const timeSignature = ref<TimeSignature>('4/4')
 
   const keyLockActive = computed(() => keyLockMode.value !== 'free')
 
@@ -68,6 +94,8 @@ export const useSettingsStore = defineStore('settings', () => {
   function setInstrument(i: InstrumentType) { instrument.value = i }
   function setSubdivision(s: Subdivision) { subdivision.value = s }
   function setLatchMode(on: boolean) { latchMode.value = on }
+  function setAmbience(level: number) { ambience.value = Math.min(1, Math.max(0, level)) }
+  function setTimeSignature(sig: TimeSignature) { timeSignature.value = sig }
 
   function saveAsDefault() {
     const defaults: StoredDefaults = {
@@ -78,6 +106,8 @@ export const useSettingsStore = defineStore('settings', () => {
       arpeggioDirection: arpeggioDirection.value,
       subdivision: subdivision.value,
       latchMode: latchMode.value,
+      ambience: ambience.value,
+      timeSignature: timeSignature.value,
     }
     localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults))
   }
@@ -116,6 +146,8 @@ export const useSettingsStore = defineStore('settings', () => {
     arpeggioDirection.value = saved?.arpeggioDirection ?? PLAYBACK_FALLBACK.arpeggioDirection
     subdivision.value = saved?.subdivision ?? PLAYBACK_FALLBACK.subdivision
     latchMode.value = saved?.latchMode ?? PLAYBACK_FALLBACK.latchMode
+    ambience.value = saved?.ambience ?? PLAYBACK_FALLBACK.ambience
+    timeSignature.value = saved?.timeSignature ?? PLAYBACK_FALLBACK.timeSignature
   }
 
   return {
@@ -131,6 +163,8 @@ export const useSettingsStore = defineStore('settings', () => {
     tempo,
     subdivision,
     latchMode,
+    ambience,
+    timeSignature,
     keyLockActive,
     setVoiceCount,
     setMovementSize,
@@ -144,6 +178,8 @@ export const useSettingsStore = defineStore('settings', () => {
     setInstrument,
     setSubdivision,
     setLatchMode,
+    setAmbience,
+    setTimeSignature,
     saveAsDefault,
     loadDefaults,
     resetPlaybackDefaults,

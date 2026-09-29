@@ -4,6 +4,7 @@ import { App } from '@capacitor/app'
 import type { Cluster } from '../utils/noteUtils'
 import { midiToName, MIDI_MAX } from '../data/notes'
 import type { InstrumentType, Subdivision } from '../stores/settingsStore'
+import { intervalFromBpm, buildArpeggioNotes, buildClusterEvents, humanVelocity } from '../utils/arpeggioEngine'
 
 // iOS suspends the WebAudio context whenever the app is backgrounded or the screen
 // locks (a real interruption, not just a pause), and nothing resumes it automatically —
@@ -84,6 +85,16 @@ const HOLDSWORTHIAN_PAD_URLS: Record<string, string> = {
   'G#4': 'Gs4.mp3', 'D#5': 'Ds5.mp3', 'A#5': 'As5.mp3',
 }
 
+// Hoisted out of init() (was rebuilt as a local const on every call) — also needed by
+// renderSequenceToBuffer() below for audio export, which loads its own sample buffers
+// independent of whatever's currently live-loaded.
+const SAMPLER_CONFIGS: Record<InstrumentType, { urls: Record<string, string>; baseUrl: string }> = {
+  piano:            { urls: PIANO_URLS,           baseUrl: PIANO_BASE },
+  'guitar-acoustic':{ urls: GUITAR_ACOUSTIC_URLS, baseUrl: '/samples/guitar-acoustic/' },
+  'electric-piano': { urls: ELECTRIC_PIANO_URLS,  baseUrl: '/samples/electric-piano/' },
+  'electric-guitar':{ urls: ELECTRIC_GUITAR_URLS, baseUrl: '/samples/electric-guitar/' },
+  'holdsworthian-pad':{ urls: HOLDSWORTHIAN_PAD_URLS, baseUrl: '/samples/holdsworthian-pad/' },
+}
 
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
 // register. Does NOT affect the voice-leading engine, which always uses the global MIDI_MIN/
@@ -99,8 +110,6 @@ export const INSTRUMENT_NOTE_RANGE: Record<InstrumentType, { min: number; max: n
   'holdsworthian-pad': { min: 40,     max: 82 },       // E2-A#5
 }
 
-const BEATS_PER_BAR = 4  // 4/4 assumption, matches midiUtils.ts's bar-per-cluster export convention
-
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
 
 export interface PlaybackSettings {
@@ -108,7 +117,11 @@ export interface PlaybackSettings {
   direction: ArpeggioDirection
   subdivision?: Subdivision  // notes per beat; defaults to 16th notes
   latch?: boolean  // repeat the arpeggio to fill the whole bar instead of playing once
-    // and resting. No effect on 'chord' direction — see buildClusterEvents() below.
+    // and resting. No effect on 'chord' direction — see buildClusterEvents() in
+    // utils/arpeggioEngine.ts.
+  beatsPerBar?: number  // time signature's numerator (4 for 4/4, 3 for 3/4) — defaults
+    // to 4 if omitted. Matches midiUtils.ts's own beatsPerBar option, which shares this
+    // same default, so the two never disagree about what "a bar" means.
 }
 
 // Fixed note durations for plucky/percussive instruments
@@ -158,22 +171,47 @@ function noteRelease(instrumentType: InstrumentType): number {
 }
 
 // Per-instrument reverb send — a touch of space is often what actually separates "quiet
-// piano" from "ambient" the way a lowpass filter or a longer release alone don't. Kept
-// deliberately modest (short decay, mostly dry) so it reads as room tone, not a wash —
-// instruments with no entry get no reverb node at all, zero added latency or cost.
+// piano" from "ambient" the way a lowpass filter or a longer release alone don't. `wet`
+// here is the Ambience dial's *ceiling* ("what 100% sounds like" — see setAmbience()
+// below), not a fixed value applied outright, so it needs real headroom above what
+// sounded good as a static, always-on setting — a dial that only ever swings between
+// "mostly dry" and "a little less mostly dry" doesn't give Paul the "exposes every
+// choice" <-> "masks harshness" range the feature is actually for. Set to roughly double
+// the original always-on values (piano was 0.22, guitar-acoustic 0.2), paired with the
+// settingsStore ambience default of 0.5 (see settingsStore.ts) so the *default* dial
+// position still reproduces those exact original, already-approved values — 0.5 ceiling
+// = original. Below 50% goes drier than ever shipped before; above 50% is new territory.
+// decay is untouched (still 2.2/2.0) since decay isn't dial-scaled — see DOWNRIVER.md's
+// Ambience writeup on why decay is out of scope for a live control.
+// Every instrument now has an entry — an instrument with none would have nothing for the
+// dial to scale, so it'd silently do nothing when dialed up. The three added here
+// (electric-piano/electric-guitar/holdsworthian-pad) are provisional ceilings, same as
+// piano/guitar-acoustic were before they were tuned by ear — expect these to move.
 const REVERB_SETTINGS: Partial<Record<InstrumentType, { decay: number; wet: number }>> = {
-  piano: { decay: 2.2, wet: 0.22 },
-  'guitar-acoustic': { decay: 2.0, wet: 0.2 },
+  piano: { decay: 2.2, wet: 0.44 },
+  'guitar-acoustic': { decay: 2.0, wet: 0.4 },
+  // Both bumped further than piano/guitar-acoustic's roughly-2x treatment (Paul: audible
+  // on piano/guitar-acoustic, not much on these two) — both are inherently smoother,
+  // already-sustained tones (electric-piano's samples carry their own tremolo-ish wobble;
+  // electric-guitar is a slow-attack swell, not a pluck) with much less silence around
+  // each note for an added reverb tail to be heard in, versus piano/guitar-acoustic's
+  // percussive attack-then-decay shape. Decay also extended slightly, giving the tail
+  // more time to register at all before the next note's attack — still provisional.
+  'electric-piano': { decay: 2.4, wet: 0.5 },
+  'electric-guitar': { decay: 2.6, wet: 0.5 },
+  'holdsworthian-pad': { decay: 2.0, wet: 0.3 }, // already the most sustained/spacious
+    // instrument (long release, whole-note held duration) — needs the least on top;
+    // unconfirmed either way yet, no feedback reported on this one so far
 }
 
 // Chorus (a subtle detune wobble) and ping-pong delay (stereo, alternating left/right
-// echoes) — chorus is genuinely new, no instrument used it before guitar-acoustic. Kept
-// more restrained than a typical "ambient guitar" preset (a suggested starting point had
-// chorus depth 0.7/wet 0.35, delay feedback 0.4/wet 0.3) since Eddy's whole design leans
-// toward restraint. Chorus is LFO-driven, so it needs .start() — silent without it.
-// Order: chorus, then delay, then reverb, then destination.
+// echoes) — chorus is genuinely new, no instrument used it before guitar-acoustic. Chorus
+// wet is likewise now the Ambience dial's ceiling (doubled from the original 0.25, same
+// reasoning and same 0.5-default-equals-original math as REVERB_SETTINGS above) — depth/
+// frequency are unaffected by the dial, only wet scales. Chorus is LFO-driven, so it
+// needs .start() — silent without it. Order: chorus, then delay, then reverb, then dest.
 const CHORUS_SETTINGS: Partial<Record<InstrumentType, { frequency: number; delayTime: number; depth: number; wet: number }>> = {
-  'guitar-acoustic': { frequency: 1.2, delayTime: 3.5, depth: 0.5, wet: 0.25 },
+  'guitar-acoustic': { frequency: 1.2, delayTime: 3.5, depth: 0.5, wet: 0.5 },
 }
 const DELAY_SETTINGS: Partial<Record<InstrumentType, { delayTime: string; feedback: number; wet: number }>> = {
   // guitar-acoustic had { delayTime: '8n.', feedback: 0.3, wet: 0.2 } — removed per
@@ -208,10 +246,6 @@ function midiToTone(midi: number): string {
   return midiToName(midi)
 }
 
-function intervalFromBpm(bpm: number, subdivision: Subdivision = 4): number {
-  return 60 / bpm / subdivision
-}
-
 // Strum articulation: 'chord' direction normally triggers every voice at the exact same
 // instant (interval 0), which reads as a stab/pad-like hit. On a guitar-family
 // instrument that's not how a chord actually happens — a real strum is a very fast
@@ -228,69 +262,72 @@ function chordInterval(instrumentType: InstrumentType | null): number {
   return instrumentType && GUITAR_INSTRUMENTS.has(instrumentType) ? STRUM_INTERVAL : 0
 }
 
-function buildArpeggioNotes(cluster: number[], direction: ArpeggioDirection): number[] {
-  const sorted = [...cluster].sort((a, b) => a - b)
-  switch (direction) {
-    case 'up':
-    case 'chord':
-      return sorted
-    case 'down':
-      return [...sorted].reverse()
-    case 'updown': {
-      const inner = sorted.slice(1, sorted.length - 1).reverse()
-      return [...sorted, ...inner]
-    }
-    case 'random':
-      return [...sorted].sort(() => Math.random() - 0.5)
-    default:
-      return sorted
-  }
+
+interface EffectsChain {
+  reverb: Tone.Reverb | null
+  chorus: Tone.Chorus | null
+  delay: Tone.PingPongDelay | null
+  firstStage: Tone.ToneAudioNode | null
 }
 
-// Latch: repeat the arpeggio to fill the whole bar instead of playing through once and
-// resting for the remainder — the default "runs once per measure" feel. Returns events
-// with `time` relative to the start of this one cluster; the caller offsets by
-// i * clusterDuration. 'chord' direction is unaffected regardless of latch: its interval
-// is near-zero (see chordInterval() above), so "how many times does one pass fit in the
-// bar" is meaningless there — would be either a divide-by-zero or a machine-gun retrigger
-// of the same chord, neither of which is what latch means. Callers gate the UI toggle
-// itself off for chord mode; this is the belt-and-suspenders equivalent in the engine.
-function buildClusterEvents(
-  cluster: Cluster,
-  direction: ArpeggioDirection,
-  interval: number,
-  clusterDuration: number,
-  latch: boolean
-): { time: number; notes: number[] }[] {
-  if (direction === 'chord' || !latch) {
-    return [{ time: 0, notes: buildArpeggioNotes(cluster, direction) }]
-  }
-  const notes = buildArpeggioNotes(cluster, direction)
-  const patternDuration = notes.length * interval
-  if (patternDuration <= 0) return [{ time: 0, notes }]
-  const repeats = Math.max(1, Math.floor(clusterDuration / patternDuration))
-  const events = Array.from({ length: repeats }, (_, r) => ({
-    time: r * patternDuration,
-    // Rebuilt per repeat rather than reusing `notes` — a no-op for the deterministic
-    // directions (up/down/updown), but gives 'random' a fresh shuffle each pass, which
-    // is what a real latched arpeggiator would do.
-    notes: r === 0 ? notes : buildArpeggioNotes(cluster, direction),
-  }))
+// Builds an instrument's reverb/delay/chorus chain — shared by init() (live) and
+// renderSequenceToBuffer() (offline, for audio export) so the two can't drift apart on
+// what an instrument actually sounds like. `ambienceLevel` (0-1) scales reverb/chorus wet
+// directly at construction time here — live playback instead builds at ambienceLevel=1
+// (today's full, already-tuned sound) and relies on a separate setAmbience() call from
+// the caller to live-ramp it down afterward, since a one-shot offline render has no
+// equivalent "ramp it live" moment; baking the level in at construction is the only option.
+async function buildEffectsChain(instrumentType: InstrumentType, ambienceLevel: number): Promise<EffectsChain> {
+  const reverbSettings = REVERB_SETTINGS[instrumentType]
+  const chorusSettings = CHORUS_SETTINGS[instrumentType]
+  const delaySettings = DELAY_SETTINGS[instrumentType]
+  const clamped = Math.min(1, Math.max(0, ambienceLevel))
 
-  // Whole passes don't always divide the bar evenly (e.g. a 3-note cluster at 8th notes
-  // fits 2 full passes with a quarter-note gap left over) — rather than resting through
-  // that leftover time, play as many notes of one more pass as actually fit. A small
-  // float-precision epsilon guards against e.g. 0.599999999s reading as "no room" for a
-  // note that should exactly fit.
-  const remaining = clusterDuration - repeats * patternDuration
-  const extraNoteCount = Math.floor((remaining + 1e-9) / interval)
-  if (extraNoteCount > 0) {
-    events.push({
-      time: repeats * patternDuration,
-      notes: buildArpeggioNotes(cluster, direction).slice(0, extraNoteCount),
-    })
+  let reverb: Tone.Reverb | null = null
+  let delay: Tone.PingPongDelay | null = null
+  let chorus: Tone.Chorus | null = null
+
+  // Built furthest-downstream-first (reverb, then delay, then chorus), each stage
+  // connecting to whatever's already been built or straight to destination if it's the
+  // last stage. Any subset of the three can be configured per instrument; an instrument
+  // with none of them behaves exactly as before (sampler.toDestination()).
+  if (reverbSettings) {
+    // Reverb's impulse response is generated asynchronously (it's rendered via
+    // Tone.Offline internally) — has to be awaited before anything connects to it,
+    // otherwise the first several notes would play with no reverb at all.
+    reverb = new Tone.Reverb(reverbSettings.decay).toDestination()
+    reverb.wet.value = reverbSettings.wet * clamped
+    await reverb.ready
   }
-  return events
+  if (delaySettings) {
+    delay = new Tone.PingPongDelay(delaySettings.delayTime, delaySettings.feedback)
+    delay.wet.value = delaySettings.wet
+    if (reverb) delay.connect(reverb)
+    else delay.toDestination()
+  }
+  if (chorusSettings) {
+    // Chorus is LFO-driven — silent until started.
+    chorus = new Tone.Chorus(chorusSettings.frequency, chorusSettings.delayTime, chorusSettings.depth).start()
+    chorus.wet.value = chorusSettings.wet * clamped
+    if (delay) chorus.connect(delay)
+    else if (reverb) chorus.connect(reverb)
+    else chorus.toDestination()
+  }
+
+  return { reverb, chorus, delay, firstStage: chorus ?? delay ?? reverb }
+}
+
+// Constructs a Sampler from already-decoded buffers and waits for Tone's own onload
+// event — shared by init() (live) and renderSequenceToBuffer() (offline).
+function createSampler(buffers: Record<string, AudioBuffer>, instrumentType: InstrumentType): Promise<Tone.Sampler> {
+  return new Promise((resolve) => {
+    const sampler = new Tone.Sampler({
+      urls: buffers,
+      release: noteRelease(instrumentType),
+      volume: INSTRUMENT_VOLUME[instrumentType] ?? 0,
+      onload: () => resolve(sampler),
+    })
+  })
 }
 
 async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
@@ -319,14 +356,6 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   await Tone.start()
   currentInstrumentType = instrumentType
 
-  const SAMPLER_CONFIGS: Record<InstrumentType, { urls: Record<string, string>; baseUrl: string }> = {
-    piano:            { urls: PIANO_URLS,           baseUrl: PIANO_BASE },
-    'guitar-acoustic':{ urls: GUITAR_ACOUSTIC_URLS, baseUrl: '/samples/guitar-acoustic/' },
-    'electric-piano': { urls: ELECTRIC_PIANO_URLS,  baseUrl: '/samples/electric-piano/' },
-    'electric-guitar':{ urls: ELECTRIC_GUITAR_URLS, baseUrl: '/samples/electric-guitar/' },
-    'holdsworthian-pad':{ urls: HOLDSWORTHIAN_PAD_URLS, baseUrl: '/samples/holdsworthian-pad/' },
-  }
-
   // Guards against stale instrument values from old saved sessions/defaults
   // (e.g. 'cello'/'violin' persisted before those were removed)
   const { urls, baseUrl } = SAMPLER_CONFIGS[instrumentType] ?? SAMPLER_CONFIGS.piano
@@ -335,64 +364,20 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   // though the body is delivered intact, and Tone rejects every sample on !response.ok.
   try {
     const buffers = await loadBuffers(urls, baseUrl)
-    const reverbSettings = REVERB_SETTINGS[instrumentType]
-    const chorusSettings = CHORUS_SETTINGS[instrumentType]
-    const delaySettings = DELAY_SETTINGS[instrumentType]
+    const chain = await buildEffectsChain(instrumentType, 1)
+    outputReverb = chain.reverb
+    outputChorus = chain.chorus
+    outputDelay = chain.delay
 
-    // Built furthest-downstream-first (reverb, then delay, then chorus), each stage
-    // connecting to whatever's already been built or straight to destination if it's
-    // the last stage — then the sampler connects to whichever stage ends up first in
-    // the chain. Any subset of the three can be configured per instrument; an
-    // instrument with none of them behaves exactly as before (sampler.toDestination()).
-    if (reverbSettings) {
-      // Reverb's impulse response is generated asynchronously (it's rendered via
-      // Tone.Offline internally) — has to be awaited before anything connects to it,
-      // otherwise the first several notes would play with no reverb at all.
-      const reverb = new Tone.Reverb(reverbSettings.decay).toDestination()
-      reverb.wet.value = reverbSettings.wet
-      await reverb.ready
-      outputReverb = reverb
+    const sampler = await createSampler(buffers, instrumentType)
+    if (chain.firstStage) {
+      sampler.connect(chain.firstStage)
+    } else {
+      sampler.toDestination()
     }
-    if (delaySettings) {
-      const delay = new Tone.PingPongDelay(delaySettings.delayTime, delaySettings.feedback)
-      delay.wet.value = delaySettings.wet
-      if (outputReverb) delay.connect(outputReverb)
-      else delay.toDestination()
-      outputDelay = delay
-    }
-    if (chorusSettings) {
-      // Chorus is LFO-driven — silent until started.
-      const chorus = new Tone.Chorus(
-        chorusSettings.frequency,
-        chorusSettings.delayTime,
-        chorusSettings.depth
-      ).start()
-      chorus.wet.value = chorusSettings.wet
-      if (outputDelay) chorus.connect(outputDelay)
-      else if (outputReverb) chorus.connect(outputReverb)
-      else chorus.toDestination()
-      outputChorus = chorus
-    }
-    const firstEffectStage = outputChorus ?? outputDelay ?? outputReverb
-
-    return await new Promise((resolve) => {
-      const sampler = new Tone.Sampler({
-        urls: buffers,
-        release: noteRelease(instrumentType),
-        volume: INSTRUMENT_VOLUME[instrumentType] ?? 0,
-        onload: () => {
-          isLoaded.value = true
-          loadError.value = null
-          resolve()
-        },
-      })
-      if (firstEffectStage) {
-        sampler.connect(firstEffectStage)
-      } else {
-        sampler.toDestination()
-      }
-      instrument = sampler
-    })
+    instrument = sampler
+    isLoaded.value = true
+    loadError.value = null
   } catch (err) {
     loadError.value = `Failed to load ${instrumentType} samples`
     console.error('Sampler load error:', err)
@@ -412,6 +397,66 @@ async function loadBuffers(
     }),
   )
   return Object.fromEntries(entries)
+}
+
+// Renders a full sequence to an offline audio buffer via Tone.Offline() — the basis for
+// audio (WAV) export. Fully self-contained: builds its own Sampler + effects chain scoped
+// to the OfflineContext Tone.Offline() provides, entirely independent of the live
+// singleton state above (instrument/outputReverb/etc. are never touched), so this can run
+// safely regardless of whether anything is currently playing live, and can even render a
+// *different* instrument than whatever's currently loaded.
+//
+// Reuses the exact same scheduling logic (buildClusterEvents/buildArpeggioNotes from
+// arpeggioEngine.ts) as both live playback and MIDI export — the same reasoning that
+// module exists for at all. Unlike MIDI export, this includes humanized velocity and the
+// current ambience level: a rendered WAV is a "print," with no post-processing chance
+// left once it's audio, the way a MIDI import still gets reshaped in the receiving DAW.
+async function renderSequenceToBuffer(
+  sequence: Cluster[],
+  instrumentType: InstrumentType,
+  settings: PlaybackSettings,
+  ambience: number
+): Promise<Tone.ToneAudioBuffer> {
+  const beatsPerBar = settings.beatsPerBar ?? 4
+  const isChord = settings.direction === 'chord'
+  const interval = isChord ? chordInterval(instrumentType) : intervalFromBpm(settings.bpm, settings.subdivision)
+  const beat = 60 / settings.bpm
+  const maxVoices = Math.max(...sequence.map(c => c.length))
+  const subdivisionsPerBar = beatsPerBar * (settings.subdivision ?? 4)
+  const barsNeeded = isChord ? 1 : Math.max(1, Math.ceil(maxVoices / subdivisionsPerBar))
+  const clusterDuration = barsNeeded * beatsPerBar * beat
+  const totalDuration = sequence.length * clusterDuration
+
+  const events = sequence.flatMap((cluster, i) =>
+    buildClusterEvents(cluster, settings.direction, interval, clusterDuration, settings.latch ?? false)
+      .map(e => ({ time: i * clusterDuration + e.time, notes: e.notes }))
+  )
+
+  const dur = NOTE_DURATIONS[instrumentType] ?? '2n'
+  const release = noteRelease(instrumentType)
+  const { urls, baseUrl } = SAMPLER_CONFIGS[instrumentType] ?? SAMPLER_CONFIGS.piano
+  const buffers = await loadBuffers(urls, baseUrl)
+
+  // Pad the render past the last note's trigger time so its full sustain+release tail
+  // isn't cut off — live playback never has to worry about this (the Transport just
+  // keeps going), but an offline render has a fixed buffer length decided up front.
+  const tailPadding = Tone.Time(dur).toSeconds() + release + 0.5
+  const renderDuration = totalDuration + tailPadding
+
+  return Tone.Offline(async () => {
+    const chain = await buildEffectsChain(instrumentType, ambience)
+    const sampler = await createSampler(buffers, instrumentType)
+    if (chain.firstStage) sampler.connect(chain.firstStage)
+    else sampler.toDestination()
+
+    events.forEach(event => {
+      const total = event.notes.length
+      event.notes.forEach((midi, noteIdx) => {
+        const vel = humanVelocity(0.72, noteIdx, total)
+        sampler.triggerAttackRelease(midiToTone(midi), dur, event.time + noteIdx * interval, vel)
+      })
+    })
+  }, renderDuration)
 }
 
 function playCluster(
@@ -450,12 +495,6 @@ function playCluster(
   }
 }
 
-// Humanized velocity — base with slight random variation and arpeggio position taper
-function humanVelocity(baseVelocity: number, noteIdx: number, totalNotes: number): number {
-  const jitter = (Math.random() - 0.5) * 0.24  // ±12% random humanization
-  const taper = noteIdx === 0 ? 0 : -0.06 * (noteIdx / Math.max(totalNotes - 1, 1))
-  return Math.min(1, Math.max(0.3, baseVelocity + jitter + taper))
-}
 
 function playSequence(
   sequence: Cluster[],
@@ -488,10 +527,11 @@ function playSequence(
   // fixed gap, no bar rounding at all), so live playback and the exported file disagreed
   // on when a chord changed for every direction except 'chord' (which already happened
   // to occupy exactly one bar either way).
+  const beatsPerBar = settings.beatsPerBar ?? 4
   const maxVoices = Math.max(...sequence.map(c => c.length))
-  const subdivisionsPerBar = BEATS_PER_BAR * (settings.subdivision ?? 4)
+  const subdivisionsPerBar = beatsPerBar * (settings.subdivision ?? 4)
   const barsNeeded = isChord ? 1 : Math.max(1, Math.ceil(maxVoices / subdivisionsPerBar))
-  const clusterDuration = barsNeeded * BEATS_PER_BAR * beat
+  const clusterDuration = barsNeeded * beatsPerBar * beat
 
   const dur = noteDuration()
 
@@ -591,6 +631,31 @@ function stopLoop(hardStop = false): void {
   }
 }
 
+// Ambience dial: scales whichever effects the current instrument already has (reverb,
+// and chorus for guitar-acoustic) proportionally, rather than exposing separate
+// reverb/chorus/delay sliders — see DOWNRIVER.md's "Ambience Dial" writeup for the full
+// reasoning. `level` is 0-1; each instrument's REVERB_SETTINGS/CHORUS_SETTINGS wet value
+// is the ceiling ("what 100% sounds like"), already tuned by ear per instrument, so 1.0
+// reproduces today's shipped sound exactly and 0 goes fully dry. Wet is a plain Tone.js
+// Signal — cheap and safe to change live, unlike reverb decay (would need an async
+// .generate() call) — so this ramps the *existing* node's wet value rather than
+// recreating anything. A short ramp (not an instant jump) avoids a zipper/click artifact
+// on a fast slider drag; still reads as immediate.
+const AMBIENCE_RAMP_TIME = 0.06
+
+function setAmbience(level: number): void {
+  const clamped = Math.min(1, Math.max(0, level))
+  const now = Tone.now()
+  if (outputReverb && currentInstrumentType) {
+    const ceiling = REVERB_SETTINGS[currentInstrumentType]?.wet ?? 0
+    outputReverb.wet.rampTo(ceiling * clamped, AMBIENCE_RAMP_TIME, now)
+  }
+  if (outputChorus && currentInstrumentType) {
+    const ceiling = CHORUS_SETTINGS[currentInstrumentType]?.wet ?? 0
+    outputChorus.wet.rampTo(ceiling * clamped, AMBIENCE_RAMP_TIME, now)
+  }
+}
+
 function dispose(): void {
   stopLoop()
   if (instrument) {
@@ -623,6 +688,8 @@ export function useAudioEngine() {
     playCluster,
     playSequence,
     stopLoop,
+    setAmbience,
+    renderSequenceToBuffer,
     dispose,
   }
 }

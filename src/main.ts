@@ -39,7 +39,14 @@ import './theme/buttons.css';
 import './theme/picker.css';
 
 const app = createApp(App)
-  .use(IonicVue)
+  // swipeBackEnabled: false — the iOS edge-swipe-back gesture and the Ambience range
+  // (and, before it, tempo/subdivision ranges) sit close enough to the screen edge that
+  // a drag starting there was sometimes recognized as a navigation swipe instead, sliding
+  // SessionView aside and triggering the "start fresh?" leave-session guard. Eddy has no
+  // route that back-navigation via gesture would meaningfully serve anyway (Home is the
+  // only other screen, and going back to it is always an explicit, guarded action) — so
+  // rather than fight the gesture recognizer per-control, disable it app-wide.
+  .use(IonicVue, { swipeBackEnabled: false })
   .use(createPinia())
   .use(router);
 

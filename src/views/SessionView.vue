@@ -210,6 +210,7 @@
       <div class="footer-tray" :class="{ open: footerExpanded }">
         <div class="tray-inner">
           <div class="tray-row playback-row">
+            <span class="tray-label playback-label">playback</span>
             <div class="toggle-row">
               <button
                 v-for="d in directionOptions"
@@ -229,14 +230,34 @@
               </button>
             </div>
             <div class="tempo-control">
-              <button class="btn-icon-outline adj-btn" @click="adjustTempo(-5)">
+              <button
+                class="btn-icon-outline adj-btn"
+                @pointerdown="startTempoHold(-1)"
+                @pointerup="stopTempoHold"
+                @pointerleave="stopTempoHold"
+                @pointercancel="stopTempoHold">
                 <ion-icon :icon="removeOutline" />
               </button>
               <span class="tempo-value">{{ settingsStore.tempo }}</span>
-              <button class="btn-icon-outline adj-btn" @click="adjustTempo(5)">
+              <button
+                class="btn-icon-outline adj-btn"
+                @pointerdown="startTempoHold(1)"
+                @pointerup="stopTempoHold"
+                @pointerleave="stopTempoHold"
+                @pointercancel="stopTempoHold">
                 <ion-icon :icon="addOutline" />
               </button>
               <span class="tempo-unit">bpm</span>
+              <div class="time-signature-toggle">
+                <button
+                  v-for="sig in TIME_SIGNATURE_OPTIONS"
+                  :key="sig"
+                  class="btn-outline time-sig-btn"
+                  :class="{ active: settingsStore.timeSignature === sig }"
+                  @click="settingsStore.setTimeSignature(sig)">
+                  {{ sig }}
+                </button>
+              </div>
             </div>
           </div>
           <div class="grid-section">
@@ -268,11 +289,32 @@
               </button>
             </div>
           </div>
+          <div v-if="SHOW_AMBIENCE_CONTROL" class="ambience-section">
+            <div class="tray-row ambience-row">
+              <span class="tray-label">ambience</span>
+              <span class="ambience-current">{{ ambiencePercent }}%</span>
+            </div>
+            <ion-range
+              class="ambience-range"
+              :min="0"
+              :max="100"
+              :step="1"
+              :pin="false"
+              :value="ambiencePercent"
+              @ionInput="onAmbienceInput">
+            </ion-range>
+          </div>
           <div
             v-if="sequenceStore.sequence.length > 1"
             class="tray-row export-row">
             <button class="btn-outline export-btn" @click="exportMidi">
               <ion-icon :icon="downloadOutline" /> midi
+            </button>
+            <button
+              class="btn-outline export-btn"
+              :disabled="exportingAudio"
+              @click="exportAudio">
+              <ion-icon :icon="downloadOutline" /> {{ exportingAudio ? 'rendering…' : 'wav' }}
             </button>
             <button class="btn-outline export-btn" @click="copyText">
               {{ copiedFlash ? 'copied!' : 'copy text' }}
@@ -332,7 +374,7 @@
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
   import { useSequenceStore } from '../stores/sequenceStore'
-  import { useSettingsStore, type Subdivision } from '../stores/settingsStore'
+  import { useSettingsStore, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS } from '../stores/settingsStore'
   import {
     useAudioEngine,
     INSTRUMENT_NOTE_RANGE,
@@ -354,6 +396,7 @@
     exportSequenceAsMidi,
     exportSequenceAsText,
   } from '../utils/midiUtils'
+  import { exportSequenceAsWav } from '../utils/audioExport'
 
   const VOICE_COLORS = [
     'var(--voice-1)',
@@ -432,13 +475,40 @@
     }
   )
 
+  // Structural, not live-rampable like ambience — changes bar/cluster duration itself,
+  // so it needs the same clean-restart treatment as direction/tempo/subdivision/latch.
+  watch(
+    () => settingsStore.timeSignature,
+    () => {
+      if (isPlaying.value) {
+        audioEngine.stopLoop(true)
+        playLoop()
+      }
+    }
+  )
+
   watch(
     () => settingsStore.instrument,
     async (newInstrument) => {
       const wasPlaying = isPlaying.value
       audioEngine.stopLoop()
       await audioEngine.init(newInstrument)
+      // init() rebuilds this instrument's reverb/chorus nodes at their full ceiling wet
+      // value — reapply the current ambience level so a mid-session instrument switch
+      // doesn't silently reset the dial's effect.
+      audioEngine.setAmbience(settingsStore.ambience)
       if (wasPlaying) playLoop()
+    }
+  )
+
+  // Ambience is a live-rampable wet-mix control (see setAmbience() in useAudioEngine.ts)
+  // — unlike direction/tempo/subdivision/latch above, it never needs a playLoop() restart,
+  // it just ramps the existing effect nodes. Also applies while not playing, so a single
+  // preview tap or chord audition reflects the current dial position too.
+  watch(
+    () => settingsStore.ambience,
+    (level) => {
+      audioEngine.setAmbience(level)
     }
   )
 
@@ -447,7 +517,10 @@
     direction: settingsStore.arpeggioDirection,
     subdivision: settingsStore.subdivision,
     latch: settingsStore.latchMode,
+    beatsPerBar: TIME_SIGNATURE_BEATS[settingsStore.timeSignature],
   }))
+
+  const TIME_SIGNATURE_OPTIONS: TimeSignature[] = ['4/4', '3/4']
 
   const SUBDIVISION_STEPS: {
     value: Subdivision
@@ -477,6 +550,25 @@
     settingsStore.setSubdivision(SUBDIVISION_STEPS[index].value)
   }
 
+  // Hidden per Paul's request (2026-09-29) — didn't feel like it paid off relative to the
+  // screen space it took in the footer tray. Everything underneath stays fully wired:
+  // settingsStore.ambience, useAudioEngine's setAmbience() live ramp, and save/restore
+  // with a session all keep working exactly as before (still applies its 0.5 default to
+  // the sound) — there's just no control to change it mid-session. Flipping this back to
+  // true is the only step needed to bring the slider back.
+  const SHOW_AMBIENCE_CONTROL = false
+
+  const ambiencePercent = computed(() => Math.round(settingsStore.ambience * 100))
+
+  // @ionInput (fires continuously while dragging), not @ionChange (fires once on
+  // release) — unlike the subdivision range's discrete snap points, ambience is a
+  // continuous feel control and the watcher above ramps the actual effect live, so it
+  // should track the thumb in real time rather than waiting for the drag to end.
+  function onAmbienceInput(event: Event) {
+    const percent = (event as CustomEvent).detail.value as number
+    settingsStore.setAmbience(percent / 100)
+  }
+
   onIonViewWillEnter(() => {
     // Purely local UI convenience state, not meaningful to preserve across a trip back
     // through Home — Ionic keeps this component instance alive rather than destroying
@@ -492,6 +584,7 @@
 
   onUnmounted(() => {
     audioEngine.stopLoop(true)
+    clearTempoHold()
   })
 
   function advance() {
@@ -705,7 +798,9 @@
       settingsStore.tempo,
       settingsStore.arpeggioDirection,
       settingsStore.subdivision,
-      settingsStore.latchMode
+      settingsStore.latchMode,
+      settingsStore.ambience,
+      settingsStore.timeSignature
     )
     sequenceStore.setSavedSessionId(saved.id)
     flashSaved()
@@ -721,7 +816,9 @@
       settingsStore.tempo,
       settingsStore.arpeggioDirection,
       settingsStore.subdivision,
-      settingsStore.latchMode
+      settingsStore.latchMode,
+      settingsStore.ambience,
+      settingsStore.timeSignature
     )
     flashSaved()
   }
@@ -736,12 +833,78 @@
     settingsStore.setTempo(settingsStore.tempo + delta)
   }
 
+  // Tempo +/- buttons: a tap moves by exactly 1 bpm (every value 40-200 must be
+  // reachable — a fixed step of 5 from a multiple-of-5 starting point can never land
+  // on e.g. 92). Holding down accelerates the step size the longer it's held, so a
+  // big jump (60 -> 160) doesn't require holding through 100 individual increments.
+  let tempoHoldTimeout: ReturnType<typeof setTimeout> | null = null
+  let tempoHoldInterval: ReturnType<typeof setInterval> | null = null
+  let tempoHoldStart = 0
+
+  function clearTempoHold() {
+    if (tempoHoldTimeout !== null) { clearTimeout(tempoHoldTimeout); tempoHoldTimeout = null }
+    if (tempoHoldInterval !== null) { clearInterval(tempoHoldInterval); tempoHoldInterval = null }
+  }
+
+  function tempoStepForElapsed(elapsedMs: number): number {
+    if (elapsedMs > 2200) return 10
+    if (elapsedMs > 900) return 5
+    return 1
+  }
+
+  function startTempoHold(direction: 1 | -1) {
+    clearTempoHold()
+    // The initial tap fires immediately at the fine step, so a single press always
+    // means "exactly 1 bpm" — acceleration only kicks in once the press becomes a hold.
+    adjustTempo(direction)
+    tempoHoldStart = Date.now()
+    tempoHoldTimeout = setTimeout(() => {
+      tempoHoldInterval = setInterval(() => {
+        adjustTempo(direction * tempoStepForElapsed(Date.now() - tempoHoldStart))
+      }, 100)
+    }, 350)
+  }
+
+  function stopTempoHold() {
+    clearTempoHold()
+  }
+
   async function exportMidi() {
     await exportSequenceAsMidi(sequenceStore.sequence, {
       bpm: settingsStore.tempo,
       direction: settingsStore.arpeggioDirection,
       subdivision: settingsStore.subdivision,
+      beatsPerBar: TIME_SIGNATURE_BEATS[settingsStore.timeSignature],
+      latch: settingsStore.latchMode,
     })
+  }
+
+  // Rendering happens via Tone.Offline() (faster than real time, but not instant —
+  // several seconds for a long latched sequence) — the button disables and relabels
+  // itself while it runs rather than looking like a dead tap.
+  const exportingAudio = ref(false)
+
+  async function exportAudio() {
+    if (exportingAudio.value) return
+    // Tone.Offline() temporarily swaps the *global* Tone context for the duration of the
+    // render — if live playback's per-frame tick loop read Tone.getContext() mid-render,
+    // it would observe the offline context instead of the live one. Stopping first avoids
+    // that race entirely rather than relying on timing.
+    if (isPlaying.value) audioEngine.stopLoop(true)
+    exportingAudio.value = true
+    try {
+      await exportSequenceAsWav(
+        audioEngine.renderSequenceToBuffer,
+        sequenceStore.sequence,
+        settingsStore.instrument,
+        playbackSettings.value,
+        settingsStore.ambience
+      )
+    } catch (err) {
+      console.error('Audio export failed:', err)
+    } finally {
+      exportingAudio.value = false
+    }
   }
 
   function copyText() {
@@ -1047,6 +1210,7 @@
     display: flex;
     align-items: center;
     gap: 0.3rem;
+    flex: 1;
   }
 
   /* .adj-btn's box model (border, touch target) comes from theme/buttons.css'
@@ -1066,7 +1230,8 @@
     color: var(--color-text-dim);
   }
 
-  .subdivision-row {
+  .subdivision-row,
+  .ambience-row {
     justify-content: space-between;
   }
 
@@ -1076,7 +1241,31 @@
     color: var(--color-text-dim);
   }
 
-  .subdivision-current {
+  /* Own full-width line, same as .toggle-row/.tempo-control below it (see the
+     .toggle-row comment) — a third stacked row in .playback-row, always above the other
+     two regardless of viewport width */
+  .playback-label {
+    flex: 1 1 100%;
+    margin-bottom: 0.1rem;
+  }
+
+  /* Pushed to the far right of the tempo row (not just a small gap) — reads as related
+     to bpm but its own independent setting, same visual language as .latch-btn's
+     placement relative to the direction buttons */
+  .time-signature-toggle {
+    display: flex;
+    gap: 0.3rem;
+    margin-left: auto;
+  }
+
+  /* .btn-outline (box model, touch target, .active fill) comes from theme/buttons.css —
+     only the tighter padding is unique to fitting two side by side in a label row */
+  .time-sig-btn {
+    padding: 0.4rem 0.7rem;
+  }
+
+  .subdivision-current,
+  .ambience-current {
     font-size: var(--text-xs);
     font-family: var(--font-mono);
     color: var(--color-text);
@@ -1093,6 +1282,26 @@
     padding: 0 1rem;
   }
 
+  /* Continuous feel control, no snap/tick marks — unlike subdivision's 5 discrete steps,
+     any value along the range is meaningful */
+  .ambience-section {
+    border-top: 1px solid var(--color-border);
+    padding: 0.8rem 1rem 1rem;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .ambience-range {
+    --bar-background: var(--color-border);
+    --bar-background-active: var(--color-accent);
+    --bar-height: 2px;
+    --knob-background: var(--color-accent);
+    --knob-size: 22px;
+    padding: 0 1rem;
+  }
+
   .subdivision-labels {
     display: flex;
     justify-content: space-between;
@@ -1106,8 +1315,14 @@
     align-items: flex-end;
   }
 
+  /* flex-basis 100% forces this to always claim the whole row by itself, pushing
+     .tempo-control (bpm + time signature) onto its own line unconditionally — not just
+     when a narrow viewport's content happens to overflow. Without this, a wide enough
+     window (desktop) had enough spare width for both groups to fit on one shared line,
+     which read as one crowded row instead of the two intentional ones. */
   .toggle-row {
     display: flex;
+    flex: 1 1 100%;
     gap: 0.3rem;
   }
 

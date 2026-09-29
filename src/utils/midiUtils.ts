@@ -1,9 +1,8 @@
 import { Midi } from '@tonejs/midi'
-import { Capacitor } from '@capacitor/core'
-import { Directory, Filesystem } from '@capacitor/filesystem'
-import { Share } from '@capacitor/share'
 import type { Cluster } from './noteUtils'
 import { clusterLabel } from './noteUtils'
+import { buildArpeggioNotes, buildClusterEvents, humanVelocity } from './arpeggioEngine'
+import { saveAndShareBytes } from './fileExport'
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
 
@@ -13,6 +12,9 @@ export interface MidiExportOptions {
   beatsPerBar: number  // one cluster occupies exactly this many beats — keeps downbeats grid-aligned
   subdivision: number  // arpeggio notes per beat (2 = 8th notes, 4 = 16th notes) — matches useAudioEngine's playback grid
   gapFraction: number  // fraction of one subdivision left silent before the next downbeat
+  latch: boolean  // repeat the arpeggio to fill the whole bar, matching live playback's
+    // latch toggle — see buildClusterEvents() in arpeggioEngine.ts. No effect on 'chord'
+    // direction, same as live playback.
 }
 
 const DEFAULT_OPTIONS: MidiExportOptions = {
@@ -21,28 +23,20 @@ const DEFAULT_OPTIONS: MidiExportOptions = {
   beatsPerBar: 4,
   subdivision: 4,
   gapFraction: 0.15,
-}
-
-function orderNotes(cluster: Cluster, direction: ArpeggioDirection): number[] {
-  const sorted = [...cluster].sort((a, b) => a - b)
-  switch (direction) {
-    case 'down':
-      return sorted.reverse()
-    case 'updown': {
-      const inner = sorted.slice(1, sorted.length - 1).reverse()
-      return [...sorted, ...inner]
-    }
-    case 'random':
-      return [...sorted].sort(() => Math.random() - 0.5)
-    case 'up':
-    case 'chord':
-    default:
-      return sorted
-  }
+  latch: false,
 }
 
 // Export a sequence of clusters as a MIDI file: native share sheet inside the Capacitor
-// shell (WKWebView ignores <a download>), plain browser download on the web
+// shell (WKWebView ignores <a download>), plain browser download on the web.
+//
+// Note ordering, latch's repeat-to-fill-the-bar behavior, and per-note humanized velocity
+// all come from arpeggioEngine.ts — the same functions live playback schedules from —
+// rather than a separate reimplementation here, so an exported file always matches what
+// was actually heard (was a flat, uniform velocity for every note until Paul flagged it
+// sounding mechanical next to a WAV export of the same flow). One thing is deliberately
+// still MIDI-specific and NOT shared: the guitar strum articulation on 'chord' direction
+// (live-only — see chordInterval() in useAudioEngine.ts — so 'chord' stays simultaneous
+// here regardless of instrument).
 export async function exportSequenceAsMidi(
   sequence: Cluster[],
   options: Partial<MidiExportOptions> = {}
@@ -51,6 +45,13 @@ export async function exportSequenceAsMidi(
 
   const midi = new Midi()
   midi.header.setTempo(opts.bpm)
+  // @tonejs/midi has no setTimeSignature() convenience method — timeSignatures is a
+  // directly-mutable array, and header.update() must be called after changing it for the
+  // new value to actually take effect. Denominator is always 4 (both of Eddy's supported
+  // meters, 4/4 and 3/4, are quarter-note-beat) — without this, a receiving DAW like Logic
+  // Pro has no way to know the file isn't 4/4, regardless of how the notes are laid out.
+  midi.header.timeSignatures.push({ ticks: 0, timeSignature: [opts.beatsPerBar, 4] })
+  midi.header.update()
 
   const track = midi.addTrack()
   track.name = 'Eddy'
@@ -66,16 +67,17 @@ export async function exportSequenceAsMidi(
   let barCursor = 0
 
   for (const cluster of sequence) {
-    const notes = orderNotes(cluster, opts.direction)
     const barStart = barCursor * barSec
 
     if (opts.direction === 'chord') {
-      notes.forEach(midi_note => {
+      const notes = buildArpeggioNotes(cluster, 'chord')
+      const total = notes.length
+      notes.forEach((midi_note, i) => {
         track.addNote({
           midi: midi_note,
           time: barStart,
           duration: barSec - gapSec,
-          velocity: 0.75,
+          velocity: humanVelocity(0.72, i, total),
         })
       })
       barCursor += 1
@@ -84,46 +86,44 @@ export async function exportSequenceAsMidi(
 
     // A cluster spans however many bars its grid needs to fit every voice —
     // coarse subdivisions never drop a note, they just take longer to state
-    // the gesture. Last note holds through to the next downbeat.
-    const barsNeeded = Math.max(1, Math.ceil(notes.length / subdivisionsPerBar))
-    const clusterEnd = barStart + barsNeeded * barSec
+    // the gesture (or, with latch, repeat to fill whatever bars that takes).
+    const voiceCount = cluster.length
+    const barsNeeded = Math.max(1, Math.ceil(voiceCount / subdivisionsPerBar))
+    const clusterDuration = barsNeeded * barSec
+    const clusterEnd = barStart + clusterDuration
 
-    notes.forEach((midi_note, i) => {
-      const isLast = i === notes.length - 1
-      const noteStart = barStart + i * subdivisionSec
+    const events = buildClusterEvents(cluster, opts.direction, subdivisionSec, clusterDuration, opts.latch)
+    // Flatten to a single ordered note list so "last note holds through to the next
+    // downbeat" applies to the true last note of the cluster — whichever latch repeat
+    // (or partial final pass) it falls in — not just the last note of a single pass.
+    // Velocity is computed per-event (noteIdx/total relative to that one pass), matching
+    // live playback's own per-pass taper exactly — not relative to the flattened list,
+    // which would taper across an entire latched bar instead of resetting each repeat.
+    const flatNotes = events.flatMap(event => {
+      const total = event.notes.length
+      return event.notes.map((midi_note, i) => ({
+        time: event.time + i * subdivisionSec,
+        midi_note,
+        velocity: humanVelocity(0.72, i, total),
+      }))
+    })
+
+    flatNotes.forEach((entry, i) => {
+      const isLast = i === flatNotes.length - 1
+      const noteStart = barStart + entry.time
       track.addNote({
-        midi: midi_note,
+        midi: entry.midi_note,
         time: noteStart,
         duration: isLast ? clusterEnd - noteStart - gapSec : subdivisionSec,
-        velocity: 0.75,
+        velocity: entry.velocity,
       })
     })
 
     barCursor += barsNeeded
   }
 
-  const bytes = midi.toArray()
   const filename = `eddy-${clusterLabel(sequence[0])}.mid`
-
-  if (Capacitor.isNativePlatform()) {
-    let binary = ''
-    bytes.forEach(b => { binary += String.fromCharCode(b) })
-    const { uri } = await Filesystem.writeFile({
-      path: filename,
-      data: btoa(binary),
-      directory: Directory.Cache,
-    })
-    await Share.share({ url: uri, dialogTitle: 'export midi' })
-    return
-  }
-
-  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'audio/midi' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  await saveAndShareBytes(midi.toArray(), filename, 'audio/midi', 'export midi')
 }
 
 // Export sequence as plain text (note names, one cluster per line)

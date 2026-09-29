@@ -286,7 +286,7 @@
   const router = useRouter()
   const settingsStore = useSettingsStore()
   const sequenceStore = useSequenceStore()
-  const { init, playCluster } = useAudioEngine()
+  const { init, playCluster, setAmbience } = useAudioEngine()
 
   const voiceCount = computed(() => settingsStore.voiceCount)
   const movementSize = computed(() => settingsStore.movementSize)
@@ -410,6 +410,7 @@
 
   async function previewPicker() {
     await init(settingsStore.instrument)
+    setAmbience(settingsStore.ambience)
     const cluster = manualMidi.value.slice(0, settingsStore.voiceCount) as Cluster
     playCluster(cluster, {
       bpm: settingsStore.tempo,
@@ -456,6 +457,7 @@
     // movementSize do, so without this they'd silently carry over stale.
     settingsStore.resetPlaybackDefaults()
     await init(settingsStore.instrument)
+    setAmbience(settingsStore.ambience)
     sequenceStore.randomStart(settingsStore.voiceCount)
     router.push('/session')
   }
@@ -470,11 +472,16 @@
     if (session.tempo) settingsStore.setTempo(session.tempo)
     if (session.arpeggioDirection) settingsStore.setArpeggioDirection(session.arpeggioDirection)
     if (session.subdivision) settingsStore.setSubdivision(session.subdivision)
+    if (session.timeSignature) settingsStore.setTimeSignature(session.timeSignature)
     // latchMode is a boolean — an explicit `false` is a meaningful saved value, not the
     // same as "this older save predates the field," so this can't use the same truthy
     // check as the fields above (which would wrongly treat a saved `false` as absent).
     if (session.latchMode !== undefined) settingsStore.setLatchMode(session.latchMode)
+    // ambience is a 0-1 float — 0 is a meaningful saved value (fully dry), same reasoning
+    // as the latchMode check above, so this can't use a truthy check either.
+    if (session.ambience !== undefined) settingsStore.setAmbience(session.ambience)
     await init(settingsStore.instrument)
+    setAmbience(settingsStore.ambience)
     settingsStore.setVoiceCount(session.voiceCount as 3 | 4)
     sequenceStore.start(session.sequence[0], INSTRUMENT_NOTE_RANGE[settingsStore.instrument])
     for (let i = 1; i < session.sequence.length; i++) {
@@ -510,6 +517,7 @@
     }
 
     await init(settingsStore.instrument)
+    setAmbience(settingsStore.ambience)
     sequenceStore.start(sorted, range)
     router.push('/session')
   }
