@@ -219,6 +219,14 @@
                 @click="settingsStore.setArpeggioDirection(d.value as any)">
                 <ion-icon :icon="d.icon" />
               </button>
+              <button
+                class="btn-icon-outline toggle-btn latch-btn"
+                :class="{ active: settingsStore.latchMode }"
+                :disabled="settingsStore.arpeggioDirection === 'chord'"
+                title="latch — repeat to fill the bar"
+                @click="settingsStore.setLatchMode(!settingsStore.latchMode)">
+                <ion-icon :icon="settingsStore.latchMode ? lockClosedOutline : lockOpenOutline" />
+              </button>
             </div>
             <div class="tempo-control">
               <button class="btn-icon-outline adj-btn" @click="adjustTempo(-5)">
@@ -314,6 +322,8 @@
     removeOutline,
     downloadOutline,
     refreshOutline,
+    lockClosedOutline,
+    lockOpenOutline,
   } from 'ionicons/icons'
 
   import ClusterDisplay from '../components/cluster/ClusterDisplay.vue'
@@ -413,6 +423,16 @@
   )
 
   watch(
+    () => settingsStore.latchMode,
+    () => {
+      if (isPlaying.value) {
+        audioEngine.stopLoop(true)
+        playLoop()
+      }
+    }
+  )
+
+  watch(
     () => settingsStore.instrument,
     async (newInstrument) => {
       const wasPlaying = isPlaying.value
@@ -426,6 +446,7 @@
     bpm: settingsStore.tempo,
     direction: settingsStore.arpeggioDirection,
     subdivision: settingsStore.subdivision,
+    latch: settingsStore.latchMode,
   }))
 
   const SUBDIVISION_STEPS: {
@@ -683,7 +704,8 @@
       undefined,
       settingsStore.tempo,
       settingsStore.arpeggioDirection,
-      settingsStore.subdivision
+      settingsStore.subdivision,
+      settingsStore.latchMode
     )
     sequenceStore.setSavedSessionId(saved.id)
     flashSaved()
@@ -698,7 +720,8 @@
       settingsStore.instrument,
       settingsStore.tempo,
       settingsStore.arpeggioDirection,
-      settingsStore.subdivision
+      settingsStore.subdivision,
+      settingsStore.latchMode
     )
     flashSaved()
   }
@@ -1135,5 +1158,11 @@
     border-color: var(--color-accent);
     color: var(--color-text);
     background: var(--color-accent);
+  }
+
+  /* Separated from the direction buttons — it's an independent toggle, not a 6th
+     mutually-exclusive direction option */
+  .latch-btn {
+    margin-left: 0.4rem;
   }
 </style>

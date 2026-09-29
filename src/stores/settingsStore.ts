@@ -19,18 +19,20 @@ interface StoredDefaults {
   voiceCount: VoiceCount
   movementSize: MovementSize
   instrument: InstrumentType
-  tempo?: number                        // optional — old saved defaults predate these three
+  tempo?: number                        // optional — old saved defaults predate these four
   arpeggioDirection?: ArpeggioDirection
   subdivision?: Subdivision
+  latchMode?: boolean
 }
 
-// Hardcoded fallback for the per-flow playback settings (instrument/tempo/direction/grid)
-// when no "save as default" blob exists yet — matches this store's own ref initial values.
+// Hardcoded fallback for the per-flow playback settings (instrument/tempo/direction/grid/
+// latch) when no "save as default" blob exists yet — matches this store's own ref initial values.
 const PLAYBACK_FALLBACK = {
   instrument: 'piano' as InstrumentType,
   tempo: 100,
   arpeggioDirection: 'up' as ArpeggioDirection,
   subdivision: 2 as Subdivision,  // 8th notes
+  latchMode: false,
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -45,6 +47,12 @@ export const useSettingsStore = defineStore('settings', () => {
   const instrument = ref<InstrumentType>('piano')
   const tempo = ref<number>(100)     // BPM — bumped from 80 after the bar-quantized timing fix made 80 feel sluggish
   const subdivision = ref<Subdivision>(2)  // 8th notes
+  // Whether an arpeggio direction repeats to fill the whole bar instead of playing
+  // through once and resting. Deliberately independent of arpeggioDirection — chord mode
+  // has no effect for latch (see chordInterval-based guard in useAudioEngine.ts), but
+  // switching to chord and back must not silently clear this; it's the user's intent,
+  // not a per-direction setting.
+  const latchMode = ref<boolean>(false)
 
   const keyLockActive = computed(() => keyLockMode.value !== 'free')
 
@@ -59,6 +67,7 @@ export const useSettingsStore = defineStore('settings', () => {
   function setArpeggioDirection(d: ArpeggioDirection) { arpeggioDirection.value = d }
   function setInstrument(i: InstrumentType) { instrument.value = i }
   function setSubdivision(s: Subdivision) { subdivision.value = s }
+  function setLatchMode(on: boolean) { latchMode.value = on }
 
   function saveAsDefault() {
     const defaults: StoredDefaults = {
@@ -68,6 +77,7 @@ export const useSettingsStore = defineStore('settings', () => {
       tempo: tempo.value,
       arpeggioDirection: arpeggioDirection.value,
       subdivision: subdivision.value,
+      latchMode: latchMode.value,
     }
     localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults))
   }
@@ -105,6 +115,7 @@ export const useSettingsStore = defineStore('settings', () => {
     tempo.value = saved?.tempo ?? PLAYBACK_FALLBACK.tempo
     arpeggioDirection.value = saved?.arpeggioDirection ?? PLAYBACK_FALLBACK.arpeggioDirection
     subdivision.value = saved?.subdivision ?? PLAYBACK_FALLBACK.subdivision
+    latchMode.value = saved?.latchMode ?? PLAYBACK_FALLBACK.latchMode
   }
 
   return {
@@ -119,6 +130,7 @@ export const useSettingsStore = defineStore('settings', () => {
     instrument,
     tempo,
     subdivision,
+    latchMode,
     keyLockActive,
     setVoiceCount,
     setMovementSize,
@@ -131,6 +143,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setArpeggioDirection,
     setInstrument,
     setSubdivision,
+    setLatchMode,
     saveAsDefault,
     loadDefaults,
     resetPlaybackDefaults,

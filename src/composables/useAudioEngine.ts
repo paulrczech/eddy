@@ -107,6 +107,8 @@ export interface PlaybackSettings {
   bpm: number
   direction: ArpeggioDirection
   subdivision?: Subdivision  // notes per beat; defaults to 16th notes
+  latch?: boolean  // repeat the arpeggio to fill the whole bar instead of playing once
+    // and resting. No effect on 'chord' direction — see buildClusterEvents() below.
 }
 
 // Fixed note durations for plucky/percussive instruments
@@ -243,6 +245,37 @@ function buildArpeggioNotes(cluster: number[], direction: ArpeggioDirection): nu
     default:
       return sorted
   }
+}
+
+// Latch: repeat the arpeggio to fill the whole bar instead of playing through once and
+// resting for the remainder — the default "runs once per measure" feel. Returns events
+// with `time` relative to the start of this one cluster; the caller offsets by
+// i * clusterDuration. 'chord' direction is unaffected regardless of latch: its interval
+// is near-zero (see chordInterval() above), so "how many times does one pass fit in the
+// bar" is meaningless there — would be either a divide-by-zero or a machine-gun retrigger
+// of the same chord, neither of which is what latch means. Callers gate the UI toggle
+// itself off for chord mode; this is the belt-and-suspenders equivalent in the engine.
+function buildClusterEvents(
+  cluster: Cluster,
+  direction: ArpeggioDirection,
+  interval: number,
+  clusterDuration: number,
+  latch: boolean
+): { time: number; notes: number[] }[] {
+  if (direction === 'chord' || !latch) {
+    return [{ time: 0, notes: buildArpeggioNotes(cluster, direction) }]
+  }
+  const notes = buildArpeggioNotes(cluster, direction)
+  const patternDuration = notes.length * interval
+  if (patternDuration <= 0) return [{ time: 0, notes }]
+  const repeats = Math.max(1, Math.floor(clusterDuration / patternDuration))
+  return Array.from({ length: repeats }, (_, r) => ({
+    time: r * patternDuration,
+    // Rebuilt per repeat rather than reusing `notes` — a no-op for the deterministic
+    // directions (up/down/updown), but gives 'random' a fresh shuffle each pass, which
+    // is what a real latched arpeggiator would do.
+    notes: r === 0 ? notes : buildArpeggioNotes(cluster, direction),
+  }))
 }
 
 async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
@@ -447,10 +480,10 @@ function playSequence(
 
   const dur = noteDuration()
 
-  const events = sequence.map((cluster, i) => ({
-    time: i * clusterDuration,
-    notes: buildArpeggioNotes(cluster, settings.direction),
-  }))
+  const events = sequence.flatMap((cluster, i) =>
+    buildClusterEvents(cluster, settings.direction, interval, clusterDuration, settings.latch ?? false)
+      .map(e => ({ time: i * clusterDuration + e.time, notes: e.notes }))
+  )
 
   const totalDuration = sequence.length * clusterDuration
 

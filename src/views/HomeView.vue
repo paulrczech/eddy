@@ -470,6 +470,10 @@
     if (session.tempo) settingsStore.setTempo(session.tempo)
     if (session.arpeggioDirection) settingsStore.setArpeggioDirection(session.arpeggioDirection)
     if (session.subdivision) settingsStore.setSubdivision(session.subdivision)
+    // latchMode is a boolean — an explicit `false` is a meaningful saved value, not the
+    // same as "this older save predates the field," so this can't use the same truthy
+    // check as the fields above (which would wrongly treat a saved `false` as absent).
+    if (session.latchMode !== undefined) settingsStore.setLatchMode(session.latchMode)
     await init(settingsStore.instrument)
     settingsStore.setVoiceCount(session.voiceCount as 3 | 4)
     sequenceStore.start(session.sequence[0], INSTRUMENT_NOTE_RANGE[settingsStore.instrument])

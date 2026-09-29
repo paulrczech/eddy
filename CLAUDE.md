@@ -28,7 +28,7 @@ A minimal music utility for voice leading guided by oblique strategies. Users mo
 - `src/composables/useVoiceLeading.ts` — generateCandidates(cluster, strategy, options), MAX_CANDIDATES=6
 - `src/composables/useStrategyDeck.ts` — useStrategyDeck(keyLockActive), draw() returns Strategy | null
 - `src/composables/useAudioEngine.ts` — singleton pattern, Tone.js Sampler-based instruments (piano/guitar-acoustic/electric-piano/electric-guitar/holdsworthian-pad), humanized velocity, RAF-based playingIndex tracking
-- `src/stores/settingsStore.ts` — voiceCount, movementSize, keyLockMode, keyRoot, scaleId, loopMode, maxMoves, arpeggioDirection, instrument, tempo
+- `src/stores/settingsStore.ts` — voiceCount, movementSize, keyLockMode, keyRoot, scaleId, loopMode, maxMoves, arpeggioDirection, instrument, tempo, subdivision, latchMode
 - `src/stores/sequenceStore.ts` — sequence, redoStack, undo/redo, transposeOctave(), canTransposeOctave(), editClusterAt()
 - `src/views/HomeView.vue` — settings, manual entry, saved sessions, single start button (toggles between "let it begin" / "begin here")
 - `src/views/SessionView.vue` — main session screen, activeStrategy ref (NOT from composable), advance(), watchers for direction/tempo/instrument changes
@@ -66,7 +66,7 @@ Source of truth: `src/theme/variables.css` ("New Moon" palette — cool, night-w
 - **randomStart()**: Uses retry loop (30 attempts) + guaranteed fallback cluster — never passes invalid cluster to start()
 - **start()**: Always clears state first before validating — prevents stale session data leaking
 - **Single start button**: HomeView shows "let it begin" OR "begin here" (v-if/v-else on showManual) — never both at once
-- **Direction/tempo/instrument changes during playback**: watchers in SessionView call playLoop() (restarts cleanly)
+- **Direction/tempo/subdivision/latch/instrument changes during playback**: watchers in SessionView call playLoop() (restarts cleanly)
 
 ## Copy/labels
 

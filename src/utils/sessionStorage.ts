@@ -9,9 +9,10 @@ export interface SavedSession {
   sequence: Cluster[]
   voiceCount: number
   instrument?: InstrumentType  // optional for backwards compat with older saves
-  tempo?: number                        // optional — older saves predate these three
+  tempo?: number                        // optional — older saves predate these four
   arpeggioDirection?: ArpeggioDirection
   subdivision?: Subdivision
+  latchMode?: boolean
 }
 
 const STORAGE_KEY = 'note-threader-sessions'
@@ -50,7 +51,8 @@ export function saveSession(
   name?: string,
   tempo?: number,
   arpeggioDirection?: ArpeggioDirection,
-  subdivision?: Subdivision
+  subdivision?: Subdivision,
+  latchMode?: boolean
 ): SavedSession {
   const sessions = loadAll()
   const session: SavedSession = {
@@ -63,6 +65,7 @@ export function saveSession(
     tempo,
     arpeggioDirection,
     subdivision,
+    latchMode,
   }
   sessions.push(session)
   saveAll(sessions)
@@ -76,7 +79,8 @@ export function overwriteSession(
   instrument?: InstrumentType,
   tempo?: number,
   arpeggioDirection?: ArpeggioDirection,
-  subdivision?: Subdivision
+  subdivision?: Subdivision,
+  latchMode?: boolean
 ): SavedSession | null {
   const sessions = loadAll()
   const target = sessions.find(s => s.id === id)
@@ -87,6 +91,7 @@ export function overwriteSession(
   target.tempo = tempo
   target.arpeggioDirection = arpeggioDirection
   target.subdivision = subdivision
+  target.latchMode = latchMode
   target.savedAt = Date.now()
   saveAll(sessions)
   return target
