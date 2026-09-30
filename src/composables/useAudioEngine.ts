@@ -2,7 +2,7 @@ import { ref, readonly } from 'vue'
 import * as Tone from 'tone'
 import { App } from '@capacitor/app'
 import type { Cluster } from '../utils/noteUtils'
-import { midiToName, MIDI_MAX } from '../data/notes'
+import { midiToName, MIDI_MIN, MIDI_MAX } from '../data/notes'
 import type { InstrumentType, Subdivision } from '../stores/settingsStore'
 import { intervalFromBpm, buildArpeggioNotes, buildClusterEvents, humanVelocity } from '../utils/arpeggioEngine'
 
@@ -77,12 +77,38 @@ const ELECTRIC_GUITAR_URLS: Record<string, string> = {
   'D4': 'D4.mp3', 'F4': 'F4.mp3', 'G#4': 'Gs4.mp3', 'B4': 'B4.mp3',
 }
 
-// Holdsworthian pad ("Blackhole Guitars" by JWB) — sparse, every fifth (7 semitones),
-// E2-A#5. Louder "LOUDNR.1" variant. Three low roots (C0/G0/D1) exist in the source but
-// sit far below Eddy's usable range and were skipped. See CREDITS.md for full attribution.
+// Pad voice — "Ultra Ambient Pad" (Paul's own sample pack), replaced the original
+// "Blackhole Guitars" (JWB) holdsworthian pad entirely 2026-09-30 (Paul felt the old one
+// wasn't musically accurate). Kept the InstrumentType key and folder path as
+// 'holdsworthian-pad'/`public/samples/holdsworthian-pad/` — same backward-compatibility
+// reasoning as when Mikor Piano Felt replaced Salamander under the 'piano' key: an old
+// saved session referencing this instrument still resolves to *a* pad, just this one now.
+// Source filenames (YO2_*) were, like every sample pack evaluated so far, one octave
+// lower than true pitch — confirmed via FFT peak analysis across multiple time offsets
+// (autocorrelation alone was unreliable on this heavily chorused/detuned texture). The
+// top root in each of the two alternating-tritone series (labeled A#5/E6) measured a
+// further octave up from there — A#6/E7 — both above Eddy's MIDI_MAX(84), so excluded;
+// six usable roots remain, E3-A#5 alternating every tritone. Trimmed to 7s/1s fade-out
+// and gain-corrected per file (levels varied up to 25dB root to root in the raw pack) to
+// land at the previous pad's own shipped file level, same two-stage (file +
+// INSTRUMENT_VOLUME) treatment. Attribution/license TBD — see CREDITS.md.
 const HOLDSWORTHIAN_PAD_URLS: Record<string, string> = {
-  'E2': 'E2.mp3', 'B2': 'B2.mp3', 'F#3': 'Fs3.mp3', 'C#4': 'Cs4.mp3',
-  'G#4': 'Gs4.mp3', 'D#5': 'Ds5.mp3', 'A#5': 'As5.mp3',
+  'E3': 'E3.mp3', 'A#3': 'As3.mp3', 'E4': 'E4.mp3',
+  'A#4': 'As4.mp3', 'E5': 'E5.mp3', 'A#5': 'As5.mp3',
+}
+
+// Salamander Grand Piano V2 — the original piano, restored from git history (commit
+// a76fc19, the last commit before it was replaced by Mikor Piano Felt). Paul, 2026-09-30:
+// keeping both permanently rather than as an A/B throwaway — Mikor is now "felt piano",
+// this is "piano". Gain-matched to Mikor via INSTRUMENT_VOLUME below; no reverb/filter
+// treatment beyond that yet.
+const SALAMANDER_URLS: Record<string, string> = {
+  'A0':  'A0.mp3',  'C1':  'C1.mp3',  'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3',
+  'A1':  'A1.mp3',  'C2':  'C2.mp3',  'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3',
+  'A2':  'A2.mp3',  'C3':  'C3.mp3',  'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3',
+  'A3':  'A3.mp3',  'C4':  'C4.mp3',  'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
+  'A4':  'A4.mp3',  'C5':  'C5.mp3',  'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3',
+  'A5':  'A5.mp3',  'C6':  'C6.mp3',
 }
 
 // Hoisted out of init() (was rebuilt as a local const on every call) — also needed by
@@ -94,6 +120,7 @@ const SAMPLER_CONFIGS: Record<InstrumentType, { urls: Record<string, string>; ba
   'electric-piano': { urls: ELECTRIC_PIANO_URLS,  baseUrl: '/samples/electric-piano/' },
   'electric-guitar':{ urls: ELECTRIC_GUITAR_URLS, baseUrl: '/samples/electric-guitar/' },
   'holdsworthian-pad':{ urls: HOLDSWORTHIAN_PAD_URLS, baseUrl: '/samples/holdsworthian-pad/' },
+  'piano-salamander': { urls: SALAMANDER_URLS, baseUrl: '/samples/piano-original/' },
 }
 
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
@@ -107,7 +134,10 @@ export const INSTRUMENT_NOTE_RANGE: Record<InstrumentType, { min: number; max: n
     // GUITAR_ACOUSTIC_URLS
   'electric-piano':  { min: 33,       max: 84 },       // A1-C6
   'electric-guitar': { min: 38,       max: 71 },       // D2-B4
-  'holdsworthian-pad': { min: 40,     max: 82 },       // E2-A#5
+  'holdsworthian-pad': { min: 52,     max: 82 },       // E3-A#5 — matches the ambient
+    // pad's actual 6 usable roots (narrower than the old Blackhole pad's E2 floor, since
+    // the lowest sample here is E3; pitch-shifting further down would be too big a stretch)
+  'piano-salamander': { min: 33,      max: MIDI_MAX }, // A1-C6, same range as it had originally
 }
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -135,6 +165,7 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
     // as "rings through/muddy" even after the release-time cut. Now matches every other
     // instrument's held duration, giving the release a half-bar head start instead
   'holdsworthian-pad':'1n', // sustained pad character
+  'piano-salamander':'2n', // same character class as felt piano
 }
 
 // Tone.Sampler's release (the fade-out after triggerRelease) defaults to 0.1s — fine for
@@ -150,6 +181,10 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
     // 0.1s cutoff, which read as "plucky"/inconsistent since the source recording's own
     // natural sustain varies note to note; a real release masks that instead of fighting it
   'guitar-acoustic': 1.5, // nylon pluck decays naturally, avoid the harsh-cutoff class of bug
+  'piano-salamander': 2.0, // same treatment as felt piano — the original never got this
+    // tuning pass since it was retired before release-time tuning existed; leaving it at
+    // the harsh 0.1s default while felt piano got tuned would be an oversight, not a
+    // deliberate "this is how it sounded" choice worth preserving now that it's a keeper
 }
 
 // Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across
@@ -164,6 +199,10 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
     // targets — try a modest boost first
   'electric-guitar': -6, // was -10 — Paul heard it as a little quieter than the rest after that cut
   'holdsworthian-pad': 12,
+  // Measured: Salamander's raw files average ~-35.3dBFS mean volume vs felt piano's
+  // ~-30.5dBFS (both + their own code trim) — +8dB brings Salamander's effective level in
+  // line with felt piano's.
+  'piano-salamander': 8,
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
@@ -199,9 +238,21 @@ const REVERB_SETTINGS: Partial<Record<InstrumentType, { decay: number; wet: numb
   // more time to register at all before the next note's attack — still provisional.
   'electric-piano': { decay: 2.4, wet: 0.5 },
   'electric-guitar': { decay: 2.6, wet: 0.5 },
-  'holdsworthian-pad': { decay: 2.0, wet: 0.3 }, // already the most sustained/spacious
-    // instrument (long release, whole-note held duration) — needs the least on top;
-    // unconfirmed either way yet, no feedback reported on this one so far
+  'holdsworthian-pad': { decay: 2.0, wet: 0.25 }, // already the most sustained/spacious
+    // instrument (long release, whole-note held duration), and the "Ultra Ambient Pad"
+    // sample content is already extremely wet/swelling on its own — needs the least on top
+}
+
+// Gentle lowpass filter — unlike reverb/chorus (which add space), this directly targets
+// "too bright/harsh" by rolling off high-frequency content at the source, before it ever
+// reaches the reverb send (so the tail is warmed too, not just the dry signal). Built for
+// a lowpass+reverb treatment of the original nbrosowsky guitar (Paul: liked the tone, too
+// harsh) — that experiment was tried and shelved 2026-09-30 (kept the current Nylon
+// guitar instead), but the mechanism itself is generic/reusable, same as DELAY_SETTINGS
+// below being kept empty rather than removed after its own guitar experiment ended. Not
+// dial-scaled like ambience — decay/filtering are both the "harder problem" DOWNRIVER.md's
+// Ambience writeup flagged as out of scope for a live control.
+const FILTER_SETTINGS: Partial<Record<InstrumentType, { frequency: number; rolloff: Tone.FilterRollOff }>> = {
 }
 
 // Chorus (a subtle detune wobble) and ping-pong delay (stereo, alternating left/right
@@ -230,6 +281,7 @@ let instrument: ToneInstrument | null = null
 let outputReverb: Tone.Reverb | null = null
 let outputChorus: Tone.Chorus | null = null
 let outputDelay: Tone.PingPongDelay | null = null
+let outputFilter: Tone.Filter | null = null
 let currentInstrumentType: InstrumentType | null = null
 let loopPart: Tone.Part | null = null
 let rafId: number | null = null
@@ -267,6 +319,7 @@ interface EffectsChain {
   reverb: Tone.Reverb | null
   chorus: Tone.Chorus | null
   delay: Tone.PingPongDelay | null
+  filter: Tone.Filter | null
   firstStage: Tone.ToneAudioNode | null
 }
 
@@ -281,16 +334,18 @@ async function buildEffectsChain(instrumentType: InstrumentType, ambienceLevel: 
   const reverbSettings = REVERB_SETTINGS[instrumentType]
   const chorusSettings = CHORUS_SETTINGS[instrumentType]
   const delaySettings = DELAY_SETTINGS[instrumentType]
+  const filterSettings = FILTER_SETTINGS[instrumentType]
   const clamped = Math.min(1, Math.max(0, ambienceLevel))
 
   let reverb: Tone.Reverb | null = null
   let delay: Tone.PingPongDelay | null = null
   let chorus: Tone.Chorus | null = null
+  let filter: Tone.Filter | null = null
 
-  // Built furthest-downstream-first (reverb, then delay, then chorus), each stage
-  // connecting to whatever's already been built or straight to destination if it's the
-  // last stage. Any subset of the three can be configured per instrument; an instrument
-  // with none of them behaves exactly as before (sampler.toDestination()).
+  // Built furthest-downstream-first (reverb, then delay, then chorus, then filter), each
+  // stage connecting to whatever's already been built or straight to destination if it's
+  // the last stage. Any subset can be configured per instrument; an instrument with none
+  // of them behaves exactly as before (sampler.toDestination()).
   if (reverbSettings) {
     // Reverb's impulse response is generated asynchronously (it's rendered via
     // Tone.Offline internally) — has to be awaited before anything connects to it,
@@ -306,15 +361,25 @@ async function buildEffectsChain(instrumentType: InstrumentType, ambienceLevel: 
     else delay.toDestination()
   }
   if (chorusSettings) {
-    // Chorus is LFO-driven — silent until started.
+    // Chorus is LFO-driven — silent without it.
     chorus = new Tone.Chorus(chorusSettings.frequency, chorusSettings.delayTime, chorusSettings.depth).start()
     chorus.wet.value = chorusSettings.wet * clamped
     if (delay) chorus.connect(delay)
     else if (reverb) chorus.connect(reverb)
     else chorus.toDestination()
   }
+  if (filterSettings) {
+    // Placed furthest upstream (closest to the source) rather than in parallel with the
+    // wet sends — the point is to warm the *dry* signal at the source, which then also
+    // warms whatever reverb tail is built from it, rather than filtering only the dry
+    // path and leaving a brighter, unfiltered reverb tail behind.
+    filter = new Tone.Filter(filterSettings.frequency, 'lowpass', filterSettings.rolloff)
+    const next: Tone.ToneAudioNode | null = chorus ?? delay ?? reverb
+    if (next) filter.connect(next)
+    else filter.toDestination()
+  }
 
-  return { reverb, chorus, delay, firstStage: chorus ?? delay ?? reverb }
+  return { reverb, chorus, delay, filter, firstStage: filter ?? chorus ?? delay ?? reverb }
 }
 
 // Constructs a Sampler from already-decoded buffers and waits for Tone's own onload
@@ -352,6 +417,10 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
     outputDelay.dispose()
     outputDelay = null
   }
+  if (outputFilter) {
+    outputFilter.dispose()
+    outputFilter = null
+  }
 
   await Tone.start()
   currentInstrumentType = instrumentType
@@ -368,6 +437,7 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
     outputReverb = chain.reverb
     outputChorus = chain.chorus
     outputDelay = chain.delay
+    outputFilter = chain.filter
 
     const sampler = await createSampler(buffers, instrumentType)
     if (chain.firstStage) {
@@ -675,6 +745,10 @@ function dispose(): void {
   if (outputDelay) {
     outputDelay.dispose()
     outputDelay = null
+  }
+  if (outputFilter) {
+    outputFilter.dispose()
+    outputFilter = null
   }
 }
 

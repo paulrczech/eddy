@@ -7,7 +7,16 @@ export type KeyLockMode = 'free' | 'diatonic' | 'modal'
 export type LoopMode = 'auto' | 'manual' | 'capped'
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
 export type InstrumentType =
-  | 'piano' | 'guitar-acoustic' | 'electric-piano' | 'electric-guitar' | 'holdsworthian-pad'
+  // 'piano' is Mikor Piano Felt (UI label "felt piano"); 'piano-salamander' is the
+  // original Salamander Grand Piano V2, restored from git history and kept permanently
+  // (UI label "piano") — Paul, 2026-09-30: both are staying, gain-matched to each other.
+  | 'piano' | 'piano-salamander'
+  // 'holdsworthian-pad' is now "Ultra Ambient Pad" content (Paul's own pack) — replaced
+  // the original "Blackhole Guitars" pad entirely 2026-09-30; key/folder path kept
+  // unchanged for saved-session backward compatibility, same reasoning as the piano swap
+  // above. A parallel guitar experiment (nbrosowsky original + lowpass filter, to tame
+  // its harshness) was tried the same day and shelved — kept the current Nylon guitar.
+  | 'guitar-acoustic' | 'electric-piano' | 'electric-guitar' | 'holdsworthian-pad'
 // Arpeggio note grid, in notes per beat — 0.5 = half, 1 = quarter, 2 = 8th,
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.

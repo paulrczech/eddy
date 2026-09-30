@@ -276,11 +276,12 @@
   ]
 
   const instrumentOptions = [
-    { label: 'piano', value: 'piano' },
+    { label: 'piano', value: 'piano-salamander' },
+    { label: 'felt piano', value: 'piano' },
     { label: 'electric piano', value: 'electric-piano' },
     { label: 'acoustic guitar', value: 'guitar-acoustic' },
     { label: 'electric guitar', value: 'electric-guitar' },
-    { label: 'holdsworth pad', value: 'holdsworthian-pad' },
+    { label: 'ambient pad', value: 'holdsworthian-pad' },
   ]
 
   const router = useRouter()

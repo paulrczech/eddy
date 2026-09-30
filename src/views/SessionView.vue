@@ -188,14 +188,15 @@
           @ionChange="
             settingsStore.setInstrument(($event as CustomEvent).detail.value)
           ">
-          <ion-select-option value="piano">piano</ion-select-option>
+          <ion-select-option value="piano-salamander">piano</ion-select-option>
+          <ion-select-option value="piano">felt piano</ion-select-option>
           <ion-select-option value="electric-piano">e-piano</ion-select-option>
           <ion-select-option value="guitar-acoustic">guitar</ion-select-option>
           <ion-select-option value="electric-guitar"
             >e-guitar</ion-select-option
           >
           <ion-select-option value="holdsworthian-pad"
-            >holdsworth pad</ion-select-option
+            >ambient pad</ion-select-option
           >
         </ion-select>
         <button
@@ -217,6 +218,8 @@
                 :key="d.value"
                 class="btn-icon-outline toggle-btn"
                 :class="{ active: settingsStore.arpeggioDirection === d.value }"
+                :disabled="isPadInstrument && d.value !== 'chord'"
+                :title="isPadInstrument && d.value !== 'chord' ? 'a pad only really works as a chord — held, not arpeggiated' : undefined"
                 @click="settingsStore.setArpeggioDirection(d.value as any)">
                 <ion-icon :icon="d.icon" />
               </button>
@@ -374,7 +377,7 @@
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
   import { useSequenceStore } from '../stores/sequenceStore'
-  import { useSettingsStore, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS } from '../stores/settingsStore'
+  import { useSettingsStore, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import {
     useAudioEngine,
     INSTRUMENT_NOTE_RANGE,
@@ -434,6 +437,29 @@
     { value: 'random', icon: shuffleOutline },
     { value: 'chord', icon: handRightOutline },
   ]
+
+  // A pad's slow swell reads as unclear/muddy when arpeggiated — held together as a
+  // chord is the only direction that actually suits it (Paul, 2026-09-30). Add any other
+  // pad-type instrument here too.
+  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['holdsworthian-pad'])
+  const isPadInstrument = computed(() => PAD_INSTRUMENTS.has(settingsStore.instrument))
+
+  // Remembers whatever direction was active before a pad forced 'chord', and restores it
+  // on the way back out — same "preserve intent, don't silently clobber it" precedent
+  // already established for latch surviving a trip through chord mode.
+  let directionBeforePad: ArpeggioDirection | null = null
+
+  watch(isPadInstrument, (isPad) => {
+    if (isPad) {
+      if (settingsStore.arpeggioDirection !== 'chord') {
+        directionBeforePad = settingsStore.arpeggioDirection
+        settingsStore.setArpeggioDirection('chord')
+      }
+    } else if (directionBeforePad) {
+      settingsStore.setArpeggioDirection(directionBeforePad)
+      directionBeforePad = null
+    }
+  })
 
   watch(
     () => settingsStore.arpeggioDirection,
