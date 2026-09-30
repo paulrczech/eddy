@@ -12,11 +12,22 @@ export function intervalFromBpm(bpm: number, subdivision: Subdivision = 4): numb
   return 60 / bpm / subdivision
 }
 
-// Humanized velocity — base with slight random variation and arpeggio position taper.
-// Was live-playback-only; moved here so MIDI export can produce the same humanized feel
-// instead of a flat, uniform velocity for every note (previously 0.75 flat — noticeably
-// mechanical next to how a flow actually sounds/plays back as WAV).
+// Started as a diagnostic toggle to isolate whether the VSCO2 piano's low-register
+// "jarring" issue was caused by the random jitter or something else — turned out every
+// instrument sounded better completely flat (no jitter, no arpeggio-position taper
+// either), not just VSCO2, so Paul kept it off app-wide (2026-09-30), a deliberate
+// decision, not just an unresolved test. Affects every instrument — humanVelocity() is
+// shared, no per-instrument hook exists. If this ever comes back, the real version is
+// the "Humanize" dial logged in DOWNRIVER.md — a dial, not just on/off, so a quieter
+// jitter could solve VSCO2's original issue without flattening every instrument's feel.
+const DISABLE_HUMANIZATION = true
+
+// Humanized velocity — base with slight random variation and arpeggio position taper,
+// currently disabled app-wide via DISABLE_HUMANIZATION above (every note plays at a flat
+// baseVelocity). The jitter/taper logic stays in place rather than being deleted, since
+// this was a deliberate "off for now" call, not a decision that the mechanism was wrong.
 export function humanVelocity(baseVelocity: number, noteIdx: number, totalNotes: number): number {
+  if (DISABLE_HUMANIZATION) return baseVelocity
   const jitter = (Math.random() - 0.5) * 0.24  // ±12% random humanization
   const taper = noteIdx === 0 ? 0 : -0.06 * (noteIdx / Math.max(totalNotes - 1, 1))
   return Math.min(1, Math.max(0.3, baseVelocity + jitter + taper))

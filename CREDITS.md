@@ -3,8 +3,7 @@
 Eddy's instrument samples are self-hosted in `public/samples/` rather than fetched from
 their original third-party hosts, so playback doesn't depend on someone else's uptime.
 Most instruments below are sourced from their own sample pack via Pianobook.co.uk
-(royalty-free per Pianobook's standard license); the exception, Salamander Grand Piano,
-is noted individually below.
+(royalty-free per Pianobook's standard license); exceptions are noted individually below.
 
 ## Piano
 
@@ -14,10 +13,16 @@ Two piano voices, kept permanently as of 2026-09-30 (gain-matched to each other)
 engaged, close-miced with a pair of 414s from the nineties through ISA preamps. Soft
 dynamic layer. Sourced from [Pianobook.co.uk](https://www.pianobook.co.uk).
 
-**Piano** — **Salamander Grand Piano V2** (Alexander Holm, CC-BY 3.0). Eddy's original
-piano, briefly replaced by Mikor Piano Felt (which read as warmer/more ambient under
-Eddy's sustained, looping playback) before being brought back permanently as a second,
-brighter voice alongside it.
+**Piano** — **Upright Piano**, from the [Versilian Studios Chamber Orchestra: Community
+Edition (VSCO2 CE)](https://versilstudios.com/vsco-community/), sampled by Simon Dalzell
+of Ivy Audio. Per the pack's own license: "Bearer is granted right to redistribute this
+sample set by Versilian Studios LLC. Credit to both original author and Versilian
+Studios is encouraged." Sourced via Alex Bainter's generative-music course material.
+
+Eddy's original piano in this slot was Salamander Grand Piano V2 (Alexander Holm,
+CC-BY 3.0) — briefly replaced by Mikor Piano Felt, brought back as a second voice
+alongside it, then replaced again by the VSCO2 upright piano above after Paul compared
+the two directly and preferred it.
 
 ## Guitar (acoustic)
 

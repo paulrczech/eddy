@@ -97,18 +97,29 @@ const HOLDSWORTHIAN_PAD_URLS: Record<string, string> = {
   'A#4': 'As4.mp3', 'E5': 'E5.mp3', 'A#5': 'As5.mp3',
 }
 
-// Salamander Grand Piano V2 — the original piano, restored from git history (commit
-// a76fc19, the last commit before it was replaced by Mikor Piano Felt). Paul, 2026-09-30:
-// keeping both permanently rather than as an A/B throwaway — Mikor is now "felt piano",
-// this is "piano". Gain-matched to Mikor via INSTRUMENT_VOLUME below; no reverb/filter
-// treatment beyond that yet.
-const SALAMANDER_URLS: Record<string, string> = {
-  'A0':  'A0.mp3',  'C1':  'C1.mp3',  'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3',
-  'A1':  'A1.mp3',  'C2':  'C2.mp3',  'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3',
-  'A2':  'A2.mp3',  'C3':  'C3.mp3',  'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3',
-  'A3':  'A3.mp3',  'C4':  'C4.mp3',  'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
-  'A4':  'A4.mp3',  'C5':  'C5.mp3',  'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3',
-  'A5':  'A5.mp3',  'C6':  'C6.mp3',
+// Second piano voice — VSCO2 Community Edition's upright piano (Versilian Studios,
+// sampled by Simon Dalzell/Ivy Audio), from Alex Bainter's generative-music course
+// material. Redistribution explicitly permitted per the pack's own Info.txt ("Bearer is
+// granted right to redistribute... Credit to both original author and Versilian Studios
+// is encouraged"). Every fourth semitone (A/C#/F pattern), 11 usable roots F2-A5 within
+// Eddy's range — denser coverage than any other instrument. Unlike every other pack
+// evaluated in this project, filenames measured at true pitch — no octave correction
+// needed (confirmed via FFT across multiple time offsets; the only noisy readings were
+// low notes' well-known "missing fundamental" effect landing exactly on a harmonic of
+// the expected pitch, and fast-decaying high notes with little tonal content left by the
+// time a 1s+ analysis window started — neither is a labeling issue).
+//
+// 2026-09-30: replaced Salamander Grand Piano V2 in this InstrumentType slot ('piano-
+// salamander' key, "piano" label, same public/samples/piano-original/ folder path — kept
+// unchanged for saved-session backward compatibility, same reasoning as every other
+// content swap in this project) after Paul compared it directly against Salamander and
+// preferred it. The UPRIGHT_PIANO_URLS name no longer matches the key/folder's literal
+// "salamander"/"piano-original" naming — that's expected, same drift as holdsworthian-pad
+// no longer being Holdsworth-anything.
+const UPRIGHT_PIANO_URLS: Record<string, string> = {
+  'F2': 'F2.mp3', 'A2': 'A2.mp3', 'C#3': 'Cs3.mp3', 'F3': 'F3.mp3', 'A3': 'A3.mp3',
+  'C#4': 'Cs4.mp3', 'F4': 'F4.mp3', 'A4': 'A4.mp3', 'C#5': 'Cs5.mp3', 'F5': 'F5.mp3',
+  'A5': 'A5.mp3',
 }
 
 // Hoisted out of init() (was rebuilt as a local const on every call) — also needed by
@@ -120,7 +131,7 @@ const SAMPLER_CONFIGS: Record<InstrumentType, { urls: Record<string, string>; ba
   'electric-piano': { urls: ELECTRIC_PIANO_URLS,  baseUrl: '/samples/electric-piano/' },
   'electric-guitar':{ urls: ELECTRIC_GUITAR_URLS, baseUrl: '/samples/electric-guitar/' },
   'holdsworthian-pad':{ urls: HOLDSWORTHIAN_PAD_URLS, baseUrl: '/samples/holdsworthian-pad/' },
-  'piano-salamander': { urls: SALAMANDER_URLS, baseUrl: '/samples/piano-original/' },
+  'piano-salamander': { urls: UPRIGHT_PIANO_URLS, baseUrl: '/samples/piano-original/' },
 }
 
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
@@ -137,7 +148,8 @@ export const INSTRUMENT_NOTE_RANGE: Record<InstrumentType, { min: number; max: n
   'holdsworthian-pad': { min: 52,     max: 82 },       // E3-A#5 — matches the ambient
     // pad's actual 6 usable roots (narrower than the old Blackhole pad's E2 floor, since
     // the lowest sample here is E3; pitch-shifting further down would be too big a stretch)
-  'piano-salamander': { min: 33,      max: MIDI_MAX }, // A1-C6, same range as it had originally
+  'piano-salamander': { min: 41,      max: 81 },       // F2-A5, matches UPRIGHT_PIANO_URLS'
+    // 11 usable roots
 }
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -181,10 +193,8 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
     // 0.1s cutoff, which read as "plucky"/inconsistent since the source recording's own
     // natural sustain varies note to note; a real release masks that instead of fighting it
   'guitar-acoustic': 1.5, // nylon pluck decays naturally, avoid the harsh-cutoff class of bug
-  'piano-salamander': 2.0, // same treatment as felt piano — the original never got this
-    // tuning pass since it was retired before release-time tuning existed; leaving it at
-    // the harsh 0.1s default while felt piano got tuned would be an oversight, not a
-    // deliberate "this is how it sounded" choice worth preserving now that it's a keeper
+  'piano-salamander': 2.0, // same treatment as felt piano — avoids the harsh default
+    // 0.1s cutoff
 }
 
 // Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across
@@ -199,10 +209,11 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
     // targets — try a modest boost first
   'electric-guitar': -6, // was -10 — Paul heard it as a little quieter than the rest after that cut
   'holdsworthian-pad': 12,
-  // Measured: Salamander's raw files average ~-35.3dBFS mean volume vs felt piano's
-  // ~-30.5dBFS (both + their own code trim) — +8dB brings Salamander's effective level in
-  // line with felt piano's.
-  'piano-salamander': 8,
+  // Tuned by ear against the sample content now in this slot (VSCO2 upright piano,
+  // 2026-09-30): 0 -> +6 -> +10. No effects are on this instrument (no REVERB_SETTINGS/
+  // CHORUS_SETTINGS/DELAY_SETTINGS/FILTER_SETTINGS entry exists for it — confirmed by
+  // grep, not assumed), so the trim itself is the only lever.
+  'piano-salamander': 10,
 }
 
 function noteRelease(instrumentType: InstrumentType): number {

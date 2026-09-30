@@ -7,9 +7,14 @@ export type KeyLockMode = 'free' | 'diatonic' | 'modal'
 export type LoopMode = 'auto' | 'manual' | 'capped'
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
 export type InstrumentType =
-  // 'piano' is Mikor Piano Felt (UI label "felt piano"); 'piano-salamander' is the
-  // original Salamander Grand Piano V2, restored from git history and kept permanently
-  // (UI label "piano") — Paul, 2026-09-30: both are staying, gain-matched to each other.
+  // 'piano' is Mikor Piano Felt (UI label "felt piano"); 'piano-salamander' is a second
+  // piano voice (UI label "piano", first in the picker). That key/folder path
+  // (public/samples/piano-original/) originally held Salamander Grand Piano V2, restored
+  // from git history 2026-09-30 — replaced the same day by VSCO2 Community Edition's
+  // upright piano (from Alex Bainter's generative-music course material) after Paul
+  // compared them directly and preferred VSCO2. Key/folder kept unchanged across that
+  // swap for saved-session backward compatibility, same reasoning as every other content
+  // swap in this project (e.g. holdsworthian-pad below).
   | 'piano' | 'piano-salamander'
   // 'holdsworthian-pad' is now "Ultra Ambient Pad" content (Paul's own pack) — replaced
   // the original "Blackhole Guitars" pad entirely 2026-09-30; key/folder path kept
