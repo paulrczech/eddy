@@ -4,6 +4,100 @@ Ideas, possibilities, and future directions. Added to as inspiration strikes. No
 
 ---
 
+## Open Discussion — Handoff (2026-10-01)
+
+Four UX topics Paul raised in one sitting, discussed but **not decided or implemented** —
+pure brainstorming, cut short to start a fresh chat and save context on a long-running
+session. Pick up here rather than re-opening from scratch. (Context for a new chat: read
+this section plus the rest of CLAUDE.md; the full history of *how* v1.0.8 got built —
+audio engineering diagnostics, iOS archiving, etc. — isn't needed to continue this
+particular conversation.)
+
+### 1. Rename "the current" (HomeView settings sheet)?
+Paul's question: is "the current" too poetic/obtuse — should it be something plainer like
+"Settings"?
+
+Claude's take (given, not yet reacted to): keep it. The app's whole vocabulary is
+deliberately poetic and consistent ("the drift," "the flow," "streams," "now"), and "the
+current" earns its place as a metaphor — a current is literally the force that shapes how
+a flow moves, which is exactly what voice count/drift size/instrument do. If the real
+concern is discoverability rather than taste, sharpen the subtitle text under the label
+("3v · ½–1 step · piano" already does real explanatory work) rather than trade the label
+itself for something generic. Reserve "Settings" for an actual literal preferences screen
+if one ever exists, so the word still means something distinct when it shows up.
+
+**Open:** Paul's reaction to this recommendation.
+
+### 2. Mid-playback restart "jarble"
+Paul's observation: changing a playback option or grid point while playing restarts the
+loop, and for a few seconds it sounds jarbled/overlapping before the new pattern takes
+over — doesn't break anything, just sounds bad. Asked whether to hard-mute instantly,
+disable controls during playback until stopped, or (ideally) update in real time with no
+glitch at all.
+
+Claude's take: ruled out disabling controls during playback — fights the core "tweak a
+live flow and hear it immediately" workflow the app is built around. True glitch-free
+real-time updates are the right long-term goal but genuinely hard for *structural*
+changes (direction/grid/latch/time-signature) since they change what notes play and in
+what order, not just speed — no way to update those without re-deriving the whole
+scheduled event list. The professional-tool answer there is to queue the change to land
+on the next bar boundary instead of applying it instantly — a real feature to design
+properly, not a quick fix. Tempo specifically might be more tractable for true live
+update since `Tone.Transport.bpm` is already a live-settable value — worth a separate look.
+
+**Real lead, not yet verified**: "a few seconds" of audible overlap is suspicious on its
+own, since the existing hard-stop (`stopLoop(true)` in `useAudioEngine.ts`) mutes in 15ms
+(`HARD_STOP_MUTE_TIME`). Strong suspicion: that's the **reverb tail**, not notes — muting
+the dry sampler output doesn't retroactively silence reverb that's already decaying in the
+effects chain, and several instruments have 2+ second decay times. If confirmed, the fix
+is cheap (duck the effects-chain output too during a hard stop) and sidesteps the much
+bigger "bar-quantized real-time update" feature entirely.
+
+**Open:** test the reverb-tail hypothesis (e.g. compare the jarble with ambience/reverb
+at 0 vs. its current default) before picking a fix path.
+
+### 3. Play/loop from a selected stream in "the flow"
+Paul's feature idea: while playback is inactive, let the user select a stream in the flow
+history and start playback from there — or select a start *and* end stream to loop just
+that range.
+
+Claude's take: strongly positive, feasible, and a well-understood pattern (DAW loop-region
+selection) that fits Eddy's compositional use case well — focus on one transition and work
+it, rather than always cycling the whole flow. Engine side is simple: `playSequence()`
+already takes a plain `Cluster[]`, so playing a sub-range is just passing a `.slice()`.
+
+**Real constraint found while checking feasibility**: a plain tap on a flow row is
+*already* "audition this cluster" (`onEntryClick` in `SequenceHistory.vue`). Each row
+already juggles four interactions — swipe-to-delete, drag-to-reorder, tap-to-audition, and
+an edit-pencil button — so a fifth ("set as loop start") can't just be a plain tap; it
+needs a deliberate affordance (long-press, or a toggle mode like the existing "multi"
+button pattern used for candidates).
+
+Recommended scope: **v1 = start point only** (loop continues from there through the end
+of the flow) — simpler to build and explain. Treat full start+end loop-*range* selection
+(two markers, a highlighted range, a clear/reset state) as a bigger v2, not bundled in.
+
+**Open:** Paul's reaction to the start-only scoping, and to picking an interaction (e.g.
+long-press) that doesn't collide with the existing tap-to-audition.
+
+### 4. Two-column streams layout
+Paul's observation (with a screenshot): the "streams — tap to hear" candidate pills are
+full-width, single-column, and there's real unused horizontal space — proposed 50%-width
+two-column pills with a gap to save vertical space without losing functionality.
+
+Claude's take: directionally right — confirmed `.candidates-grid` in `SessionView.vue` is
+currently a simple `display: flex; flex-direction: column`, so converting to two columns
+is mechanically easy. The real risk is content width, not layout: Paul's screenshot shows
+3-voice clusters, but **4-voice clusters with sharps** ("A2 · A#2 · C#3 · D#3") are
+meaningfully longer and are the case most likely to wrap or need a cramped font at
+half-width — not the case shown. Recommended testing that specific worst case (4 voices,
+multiple sharps) before committing to the layout, rather than assuming it generalizes
+from the 3-voice example.
+
+**Open:** verify 4-voice/sharp-heavy content at half-width before implementing.
+
+---
+
 ## Near-Term (V2–V3)
 
 ### Per-Voice Instrument Routing
