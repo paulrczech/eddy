@@ -67,6 +67,24 @@ existing latch-disable (latch has no effect there already) and whether a fuller-
 default changes first-impression expectations for new users versus what random/seed starts
 already sound like today.
 
+### 5. Should exports respect an active loop range?
+Paul's question: when a loop range is set in "the flow" (see round 1 #3 above), should MIDI
+export, WAV export, and Copy Text export just the looped section, or always the full flow?
+Not yet decided either way.
+
+Current state, confirmed in code: all three export paths in `SessionView.vue`
+(`exportSequenceAsMidi`, `exportSequenceAsWav` via `audioExport.ts`, `exportSequenceAsText`)
+call with `sequenceStore.sequence` directly — the full flow, unconditionally — same as every
+other call site did before `playbackSequence`/`loopRange` existed. None of them currently
+know a loop range exists at all. If scoped exports are wanted, the natural fix is swapping
+those three call sites to the same `playbackSequence.value` computed that live playback
+already uses, so there's one source of truth for "what does a loop range actually mean"
+rather than three places re-deriving it. Open question is product, not technical: does
+"export" mean "capture what's currently sounding" (range-aware) or "capture everything
+you've built" (always full flow, independent of a transient UI selection state)? Worth
+deciding per export type too — a quick "copy text" during active range-picking might want
+different behavior than a deliberate "export to MIDI for my DAW" action.
+
 ---
 
 ## Resolved — Handoff (2026-10-01, round 1)
