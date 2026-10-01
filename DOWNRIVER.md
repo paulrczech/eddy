@@ -4,97 +4,93 @@ Ideas, possibilities, and future directions. Added to as inspiration strikes. No
 
 ---
 
-## Open Discussion — Handoff (2026-10-01)
+## Open Discussion — Handoff (2026-10-01, round 2)
 
-Four UX topics Paul raised in one sitting, discussed but **not decided or implemented** —
-pure brainstorming, cut short to start a fresh chat and save context on a long-running
-session. Pick up here rather than re-opening from scratch. (Context for a new chat: read
-this section plus the rest of CLAUDE.md; the full history of *how* v1.0.8 got built —
-audio engineering diagnostics, iOS archiving, etc. — isn't needed to continue this
-particular conversation.)
+The previous four-topic handoff below is fully resolved and shipped (loop-range select,
+live tempo ramping, two-column streams, simplified drift card — see commits `5b3e898` /
+`6e624e7`, build 1.0(9)). Paul listed four new items before stepping away for a session
+break — **not started, just queued**. Pick up here.
+
+### 1. Scheduling fix for real-time structural updates
+The deferred half of the mid-playback "jarble" work (see the old #2 below for the full
+original analysis). Tempo is solved — `setTempoLive()` in `useAudioEngine.ts` ramps
+`Transport.bpm` live, no restart. Direction/subdivision/latch/time-signature still do a
+full `stopLoop(true)` + restart, which briefly hard-mutes (`HARD_STOP_MUTE_TIME`, 15ms).
+The reverb-tail duck (ramping `outputReverb`/`outputChorus` wet to 0 and back over the
+decay time) was tried and **reverted** — it traded the overlap glitch for a different,
+also-noticeable problem: audibly quieter playback for the ~2s the wet was ducked. Current
+state is the plain pre-existing mute/restart, unchanged.
+
+The real fix is still the one scoped out originally: queue a structural change to land on
+the next bar boundary instead of applying it instantly, so there's no restart-while-
+sounding moment at all. Also now in scope: the same content-changes-while-playing problem
+exists for sequence edits, not just settings — `editCluster()`, `confirmSelection()`,
+`deleteCluster()`, `reorderClusters()`, and a new loop-range marker tap (`range-tap`) all
+currently just hard-stop playback outright (Paul's explicit call for the loop-range case,
+extended to match for the others) rather than live-patch the already-scheduled `Tone.Part`.
+Worth deciding whether the bar-boundary mechanism, once built, should also absorb some of
+these (e.g. a note edit landing on the next bar) or whether "stop and let the user replay"
+stays the permanent answer for content changes even after structural settings go live.
+
+### 2. Synthesized pad instrument
+Paul has a Tone.js synth already built in a separate file, to replace the sampled
+`holdsworthian-pad` (currently "Ultra Ambient Pad," Paul's own sample pack — see CREDITS.md
+and the V2/deferred section above). Architecture note for whoever picks this up: every
+instrument in `useAudioEngine.ts` today assumes a sample-backed `Tone.Sampler` —
+`createSampler()`/`buildEffectsChain()` are shared between live `init()` and offline
+`renderSequenceToBuffer()`, and per-instrument config (`INSTRUMENT_NOTE_RANGE`,
+`NOTE_DURATIONS`, `REVERB_SETTINGS`, `CHORUS_SETTINGS`) is all keyed off that assumption. A
+synth-based instrument needs a parallel construction path (a `Tone.PolySynth` or similar
+isn't loaded from `public/samples/`, has no `loadBuffers()` step, and may want its own
+note-range/duration defaults rather than inheriting a sampler's). Scope the integration
+before diving in — this touches the one piece of the engine that's never had a second kind
+of instrument before.
+
+### 3. Default starter session in "Past Flows"
+Paul's idea: ship a pre-made flow new users can load without having generated one
+themselves — proposed a voice-led reduction of Chopin's Prelude in E minor (op. 28 no. 4),
+which he notes fits Eddy's voice-leading style well. Two separate pieces of work: (a)
+someone transcribes the piece into a `Cluster[]` sequence respecting Eddy's constraints
+(E2–C6 range, 3 or 4 voices, no crossing, ≤40-semitone spread per cluster), and (b) the app
+needs a *mechanism* for a bundled default that isn't just another row in
+`sessionStorage.ts`'s user-generated list — "Past Flows" today is purely
+localStorage-backed with no concept of an app-shipped template. Needs design: does it
+always appear (even once the user has their own saved flows), is it distinguishable from
+user sessions in the list, can it be dismissed/deleted like a normal one once seen, etc.
+
+### 4. Latch mode on by default?
+Paul's observation: latch (repeat-to-fill-the-bar, see `buildClusterEvents()` in
+`arpeggioEngine.ts`) sounds noticeably nicer than the current default-off behavior, enough
+that he's considering flipping `settingsStore.ts`'s `latchMode` default to `true`. Explicitly
+flagged as "we can discuss" — not decided. Worth weighing against chord-direction's
+existing latch-disable (latch has no effect there already) and whether a fuller-sounding
+default changes first-impression expectations for new users versus what random/seed starts
+already sound like today.
+
+---
+
+## Resolved — Handoff (2026-10-01, round 1)
+
+Four UX topics Paul raised in one sitting; all four are now shipped (see round 2's intro
+above). Kept here for the reasoning trail, not as an open list.
 
 ### 1. Rename "the current" (HomeView settings sheet)?
-Paul's question: is "the current" too poetic/obtuse — should it be something plainer like
-"Settings"?
-
-Claude's take (given, not yet reacted to): keep it. The app's whole vocabulary is
-deliberately poetic and consistent ("the drift," "the flow," "streams," "now"), and "the
-current" earns its place as a metaphor — a current is literally the force that shapes how
-a flow moves, which is exactly what voice count/drift size/instrument do. If the real
-concern is discoverability rather than taste, sharpen the subtitle text under the label
-("3v · ½–1 step · piano" already does real explanatory work) rather than trade the label
-itself for something generic. Reserve "Settings" for an actual literal preferences screen
-if one ever exists, so the word still means something distinct when it shows up.
-
-**Open:** Paul's reaction to this recommendation.
+Resolved: kept the label as-is (poetic vocabulary consistency argument held), not revisited.
 
 ### 2. Mid-playback restart "jarble"
-Paul's observation: changing a playback option or grid point while playing restarts the
-loop, and for a few seconds it sounds jarbled/overlapping before the new pattern takes
-over — doesn't break anything, just sounds bad. Asked whether to hard-mute instantly,
-disable controls during playback until stopped, or (ideally) update in real time with no
-glitch at all.
-
-Claude's take: ruled out disabling controls during playback — fights the core "tweak a
-live flow and hear it immediately" workflow the app is built around. True glitch-free
-real-time updates are the right long-term goal but genuinely hard for *structural*
-changes (direction/grid/latch/time-signature) since they change what notes play and in
-what order, not just speed — no way to update those without re-deriving the whole
-scheduled event list. The professional-tool answer there is to queue the change to land
-on the next bar boundary instead of applying it instantly — a real feature to design
-properly, not a quick fix. Tempo specifically might be more tractable for true live
-update since `Tone.Transport.bpm` is already a live-settable value — worth a separate look.
-
-**Real lead, not yet verified**: "a few seconds" of audible overlap is suspicious on its
-own, since the existing hard-stop (`stopLoop(true)` in `useAudioEngine.ts`) mutes in 15ms
-(`HARD_STOP_MUTE_TIME`). Strong suspicion: that's the **reverb tail**, not notes — muting
-the dry sampler output doesn't retroactively silence reverb that's already decaying in the
-effects chain, and several instruments have 2+ second decay times. If confirmed, the fix
-is cheap (duck the effects-chain output too during a hard stop) and sidesteps the much
-bigger "bar-quantized real-time update" feature entirely.
-
-**Open:** test the reverb-tail hypothesis (e.g. compare the jarble with ambience/reverb
-at 0 vs. its current default) before picking a fix path.
+Partially resolved: tempo now live-ramps with no restart (see round 2 #1 above for what's
+still open — the structural-settings case and the reverb-duck revert).
 
 ### 3. Play/loop from a selected stream in "the flow"
-Paul's feature idea: while playback is inactive, let the user select a stream in the flow
-history and start playback from there — or select a start *and* end stream to loop just
-that range.
-
-Claude's take: strongly positive, feasible, and a well-understood pattern (DAW loop-region
-selection) that fits Eddy's compositional use case well — focus on one transition and work
-it, rather than always cycling the whole flow. Engine side is simple: `playSequence()`
-already takes a plain `Cluster[]`, so playing a sub-range is just passing a `.slice()`.
-
-**Real constraint found while checking feasibility**: a plain tap on a flow row is
-*already* "audition this cluster" (`onEntryClick` in `SequenceHistory.vue`). Each row
-already juggles four interactions — swipe-to-delete, drag-to-reorder, tap-to-audition, and
-an edit-pencil button — so a fifth ("set as loop start") can't just be a plain tap; it
-needs a deliberate affordance (long-press, or a toggle mode like the existing "multi"
-button pattern used for candidates).
-
-Recommended scope: **v1 = start point only** (loop continues from there through the end
-of the flow) — simpler to build and explain. Treat full start+end loop-*range* selection
-(two markers, a highlighted range, a clear/reset state) as a bigger v2, not bundled in.
-
-**Open:** Paul's reaction to the start-only scoping, and to picking an interaction (e.g.
-long-press) that doesn't collide with the existing tap-to-audition.
+Resolved and shipped as full start+end range selection (went beyond the originally
+recommended start-only v1 scope, per Paul's request) — loop-range toggle in
+`SequenceHistory.vue`, unified bar+tint highlight across the whole selected block,
+auto-stop on any marker tap or content change mid-playback.
 
 ### 4. Two-column streams layout
-Paul's observation (with a screenshot): the "streams — tap to hear" candidate pills are
-full-width, single-column, and there's real unused horizontal space — proposed 50%-width
-two-column pills with a gap to save vertical space without losing functionality.
-
-Claude's take: directionally right — confirmed `.candidates-grid` in `SessionView.vue` is
-currently a simple `display: flex; flex-direction: column`, so converting to two columns
-is mechanically easy. The real risk is content width, not layout: Paul's screenshot shows
-3-voice clusters, but **4-voice clusters with sharps** ("A2 · A#2 · C#3 · D#3") are
-meaningfully longer and are the case most likely to wrap or need a cramped font at
-half-width — not the case shown. Recommended testing that specific worst case (4 voices,
-multiple sharps) before committing to the layout, rather than assuming it generalizes
-from the 3-voice example.
-
-**Open:** verify 4-voice/sharp-heavy content at half-width before implementing.
+Resolved and shipped — `.candidates-grid` is a 2-column grid in `SessionView.vue`, pill
+content wraps/tightens to fit 4-voice sharp-heavy clusters, single-candidate pills span
+full width.
 
 ---
 
