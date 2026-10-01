@@ -105,7 +105,7 @@
               v-for="(cluster, i) in candidates"
               :key="clusterKey(cluster)"
               class="candidate-pill"
-              :class="{ selected: selectionOrder(i) > 0 }"
+              :class="{ selected: selectionOrder(i) > 0, 'single-candidate': candidates.length === 1 }"
               @click="selectCandidate(cluster, i)">
               <span class="pill-order" v-if="selectionOrder(i) > 0">{{
                 selectionOrder(i)
@@ -140,12 +140,15 @@
           <SequenceHistory
             :sequence="sequenceStore.sequence"
             :loop-point="sequenceStore.loopPoint"
-            :playing-index="isPlaying ? playingIndex : -1"
+            :playing-index="displayPlayingIndex"
             @audition="auditionHistoryCluster"
             @preview="auditionHistoryCluster"
             @delete="deleteCluster"
             @edit="editCluster"
-            @reorder="reorderClusters" />
+            @reorder="reorderClusters"
+            @range-change="setLoopRange"
+            @range-mode-change="onRangeModeChange"
+            @range-tap="stopIfPlaying" />
         </div>
       </div>
 
@@ -471,12 +474,14 @@
     }
   )
 
+  // Tempo is the one playback setting that can change live without a restart — see
+  // setTempoLive() in useAudioEngine.ts. Unlike direction/subdivision/latch/time-signature
+  // below, a bpm change doesn't alter what plays or in what order, just how fast.
   watch(
     () => settingsStore.tempo,
-    () => {
+    (bpm) => {
       if (isPlaying.value) {
-        audioEngine.stopLoop(true)
-        playLoop()
+        audioEngine.setTempoLive(bpm)
       }
     }
   )
@@ -678,6 +683,7 @@
   function confirmSelection() {
     if (selectedIndices.value.length === 0) return
 
+    audioEngine.stopLoop(true)
     for (let i = 0; i < selectedIndices.value.length; i++) {
       const chosen = candidates.value[selectedIndices.value[i]]
       // Only the first confirm in a multi-select batch takes an undo snapshot — the
@@ -750,9 +756,54 @@
     }
   }
 
+  // Loop-range select (SequenceHistory's "the flow" toggle): once both a start and end
+  // point are marked, playback plays just that slice instead of the whole flow — v1 is
+  // play-this-range only, doesn't touch the separate infiniteOutline loopActive toggle
+  // (whether a range or the full flow repeats forever vs. plays once).
+  const loopRange = ref<[number, number] | null>(null)
+
+  function setLoopRange(range: [number, number] | null) {
+    loopRange.value = range
+  }
+
+  // Entering range-select mode stops whatever's currently playing (Paul, 2026-10-01) —
+  // continuing to play the old full-flow sequence while picking new loop points read as
+  // disconnected from what you were actually doing. Also implies "loop this": auto-enable
+  // the playback-loop button so hitting play afterward repeats the range without a second
+  // toggle. Deliberately one-directional: leaving range-select mode doesn't turn
+  // playback-loop back off, since by then it's just "loop the whole flow from the top,"
+  // which is still what you'd want.
+  function onRangeModeChange(active: boolean) {
+    if (!active) return
+    stopIfPlaying()
+    if (!loopActive.value) loopActive.value = true
+  }
+
+  // Also used whenever a marker tap lands mid-playback (see SequenceHistory's 'range-tap')
+  // — the engine has no live way to re-point an already-scheduled Part at a new range, so
+  // rather than let stale audio keep playing the old selection, force an explicit replay.
+  function stopIfPlaying() {
+    if (isPlaying.value) audioEngine.stopLoop(true)
+  }
+
+  const playbackSequence = computed(() =>
+    loopRange.value
+      ? sequenceStore.sequence.slice(loopRange.value[0], loopRange.value[1] + 1)
+      : sequenceStore.sequence
+  )
+
+  // playingIndex from the engine is relative to whatever was actually scheduled (the
+  // sliced range, when one's active) — offset it back to the full flow's indices so
+  // SequenceHistory highlights the right row instead of always starting at row 1.
+  const displayPlayingIndex = computed(() =>
+    isPlaying.value && playingIndex.value >= 0
+      ? playingIndex.value + (loopRange.value ? loopRange.value[0] : 0)
+      : -1
+  )
+
   function playLoop() {
     audioEngine.playSequence(
-      sequenceStore.sequence,
+      playbackSequence.value,
       playbackSettings.value,
       true
     )
@@ -760,7 +811,7 @@
 
   function playOnce() {
     audioEngine.playSequence(
-      sequenceStore.sequence,
+      playbackSequence.value,
       playbackSettings.value,
       false
     )
@@ -781,6 +832,7 @@
   )
 
   function editCluster(index: number, newCluster: Cluster) {
+    audioEngine.stopLoop(true)
     sequenceStore.editClusterAt(index, newCluster, instrumentRange.value)
     if (index === sequenceStore.sequence.length - 1) {
       sequenceStore.setLoopResolved(false)
@@ -1054,20 +1106,20 @@
   }
 
   .candidates-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
   }
 
   .candidate-pill {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    flex-wrap: wrap;
     background: var(--color-surface);
     border: 1px solid var(--color-border-subtle);
     border-radius: 10px;
     min-height: var(--tap-min);
-    padding: 0.65rem 1rem;
+    padding: 0.65rem 0.75rem;
     cursor: pointer;
     transition:
       border-color 0.15s,
@@ -1097,17 +1149,22 @@
     font-weight: 600;
     flex-shrink: 0;
     font-family: inherit;
+    margin-right: 0.5rem;
   }
 
   .pill-note {
-    font-size: var(--text-base);
+    font-size: var(--text-xs);
     font-family: var(--font-mono);
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
   }
   .pill-note + .pill-note::before {
     content: '·';
     color: var(--color-text-dim);
-    margin-right: 0.4rem;
+    margin: 0 0 0.1rem;
+  }
+
+  .candidate-pill.single-candidate {
+    grid-column: 1 / -1;
   }
 
   .no-candidates {

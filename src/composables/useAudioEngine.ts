@@ -712,6 +712,24 @@ function stopLoop(hardStop = false): void {
   }
 }
 
+// Tempo is the one playback setting that's genuinely live-rampable: Tone.Part events are
+// committed to Transport ticks at schedule time, and ticks are tempo-invariant — ramping
+// Transport.bpm speeds up or slows down everything already scheduled for free, with no
+// restart and therefore none of the hard-stop/reschedule jarble a direction/subdivision/
+// latch/time-signature change needs. The only side effect: currentClusterDuration (seconds,
+// baked in from the old bpm) drives the rAF playhead tracker in playSequence()'s tick()
+// below, so it has to be rescaled by the same ratio to keep playingIndex accurate.
+const TEMPO_RAMP_TIME = 0.1
+
+function setTempoLive(bpm: number): void {
+  if (!isPlaying.value) return
+  const transport = Tone.getTransport()
+  const oldBpm = transport.bpm.value
+  if (oldBpm === bpm) return
+  transport.bpm.rampTo(bpm, TEMPO_RAMP_TIME)
+  currentClusterDuration *= oldBpm / bpm
+}
+
 // Ambience dial: scales whichever effects the current instrument already has (reverb,
 // and chorus for guitar-acoustic) proportionally, rather than exposing separate
 // reverb/chorus/delay sliders — see DOWNRIVER.md's "Ambience Dial" writeup for the full
@@ -773,6 +791,7 @@ export function useAudioEngine() {
     playCluster,
     playSequence,
     stopLoop,
+    setTempoLive,
     setAmbience,
     renderSequenceToBuffer,
     dispose,
