@@ -70,6 +70,7 @@
         <!-- Current cluster — the last confirmed move, always tappable to hear -->
         <button
           v-if="sequenceStore.currentCluster"
+          ref="nowBlockRef"
           class="current-cluster-block"
           @click="playCurrentCluster">
           <p class="section-label">now</p>
@@ -436,18 +437,23 @@
   // A selected stream (and the floating "add to the flow" button it summons) used to
   // persist until confirmed or replaced by another selection — no way to back out, and
   // the button sits right where other taps land, inviting an accidental confirm (Paul,
-  // 2026-10-04). Tapping anywhere outside the candidates grid/header or the confirm
-  // button itself now clears it, same "tap away to dismiss" convention as the rest of
-  // the OS. Candidates re-rendering out from under an open selection (redraw/advance)
-  // already clears selectedIndices on its own — this only covers the *other* paths.
+  // 2026-10-04). Tapping anywhere outside the candidates grid/header, the confirm button,
+  // or the "now" block now clears it — "now" is included deliberately (Paul, 2026-10-05):
+  // comparing the current cluster against a candidate you're considering is a normal part
+  // of evaluating a stream, not a context switch away from it, so it shouldn't cost you
+  // the selection. Every other tap (header, footer playback, the flow list) still clears
+  // it. Candidates re-rendering out from under an open selection (redraw/advance) already
+  // clears selectedIndices on its own — this only covers the *other* paths.
   const candidatesBlockRef = ref<HTMLElement | null>(null)
   const confirmBlockRef = ref<HTMLElement | null>(null)
+  const nowBlockRef = ref<HTMLElement | null>(null)
 
   function handleOutsideClick(event: MouseEvent) {
     if (selectedIndices.value.length === 0) return
     const target = event.target as Node
     if (candidatesBlockRef.value?.contains(target)) return
     if (confirmBlockRef.value?.contains(target)) return
+    if (nowBlockRef.value?.contains(target)) return
     selectedIndices.value = []
   }
 
