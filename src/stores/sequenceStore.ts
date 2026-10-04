@@ -9,6 +9,14 @@ import { MIDI_SEED_MIN, MIDI_SEED_MAX, MIDI_MIN, MIDI_MAX } from '../data/notes'
 // don't, without ever exhausting the retry loop below into the guaranteed fallback.
 const SEED_DISSONANCE_CEILING = 6
 
+// Floor on the random seed's *highest* voice — not a spread minimum. A tight, closely
+// voiced cluster sounds fine once it's sitting at or above octave 3; it's specifically a
+// cluster stuck entirely down in octave 2 that reads as muddy/hard to hear on small
+// speakers (Paul, 2026-10-04). The seed zone's low end (MIDI_SEED_MIN, E2) needs up to 8
+// semitones of lift to clear this — comfortably inside the existing 14-semitone max-spread
+// cap below, so this never needs to loosen that cap, just require it actually gets used.
+const SEED_MIN_TOP_VOICE = 48 // C3
+
 export const useSequenceStore = defineStore('sequence', () => {
   const sequence = ref<Cluster[]>([])
   // Full-array snapshots of `sequence`, taken before each mutation (confirm, edit,
@@ -84,7 +92,8 @@ export const useSequenceStore = defineStore('sequence', () => {
       if (
         notes.length === voiceCount &&
         isValidCluster(notes) &&
-        clusterDissonance(notes) <= SEED_DISSONANCE_CEILING
+        clusterDissonance(notes) <= SEED_DISSONANCE_CEILING &&
+        notes[notes.length - 1] >= SEED_MIN_TOP_VOICE
       ) {
         found = true
         break
