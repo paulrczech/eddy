@@ -261,3 +261,20 @@ iOS only for personal use first. Android is `npx cap add android` when ready —
 Eddy as the **pencil sketch tool of harmonic composition** — the thing you reach for before opening a DAW. Fast, intuitive, no theory gatekeeping. The way GarageBand democratized recording, Eddy could democratize harmony.
 
 The tagline already says it: *"let the music move itself."* That's not just a feature — it's a worldview about how music gets made.
+
+### Native iOS rewrite (SwiftUI, AVFoundation) — discussed, not planned
+Paul asked out of curiosity (2026-10-04), not as a direction he's pursuing. Core take: the
+voice-leading engine (`useVoiceLeading.ts`/`strategies.ts`/`scales.ts`/`noteUtils.ts`/
+`arpeggioEngine.ts`) is already Tone.js/DOM-free and would port nearly 1:1 — the UI layer
+and the audio engine would both be full rebuilds, the audio engine being the harder half
+(Tone.js's Transport/Part scheduling model has no AVFoundation equivalent; every
+bar-quantized/live-tempo/humanization behavior tuned this session would need
+re-architecting on `AVAudioEngine`). Real upside beyond "feels more native": eliminates
+the whole class of Capacitor/WKWebView-specific bugs this project has accumulated, and is
+the same prerequisite the AUv3-plugin-in-Logic idea already needs (see the session
+2026-09-27 memory note / earlier DOWNRIVER discussion). Recommendation: not worth it now
+or even at real scale unless a specific trigger shows up (provable WebView-audio-stack
+latency ceiling, the AUv3 plugin becoming a real priority, or native "feel" becoming a
+genuine competitive edge) — the current architecture's clean logic/UI separation is
+already quietly paying rent toward this being a safe *later* option, so it's worth
+protecting that boundary as the app grows rather than acting on this now.
