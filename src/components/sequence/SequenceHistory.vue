@@ -11,15 +11,7 @@
         <IonIcon :icon="repeatOutline" />
       </button>
     </div>
-    <p v-if="rangeSelectActive" class="range-hint">
-      {{
-        rangeStart === null
-          ? 'tap a start point'
-          : rangeEnd === null
-          ? 'tap an end point'
-          : 'loop set — tap to start a new one'
-      }}
-    </p>
+    <p v-if="rangeSelectActive" class="range-hint">{{ rangeHintText }}</p>
     <div class="history-scroll">
       <IonReorderGroup :disabled="false" @ionItemReorder="onReorder($event)">
         <IonItemSliding
@@ -76,6 +68,7 @@
          near the bottom (Paul, 2026-10-04). Same visibility/disabled rule as the header
          button (no separate "only if long" threshold — one less magic number). -->
     <div class="flow-footer">
+      <p v-if="rangeSelectActive" class="range-hint range-hint--footer">{{ rangeHintText }}</p>
       <button
         class="icon-btn range-toggle-btn"
         :class="{ active: rangeSelectActive }"
@@ -300,6 +293,16 @@ function rangeEdge(i: number): 'start' | 'end' | 'middle' | 'single' | null {
   return 'middle'
 }
 
+// Shared by both the header and footer range-select toggles (same hint, same wording)
+// so the two can't drift out of sync with each other.
+const rangeHintText = computed(() =>
+  rangeStart.value === null
+    ? 'tap a start point'
+    : rangeEnd.value === null
+    ? 'tap an end point'
+    : 'loop set — tap to start a new one'
+)
+
 const pickerOpen = ref(false)
 const editingIndex = ref<number | null>(null)
 const editValues = ref<number[]>([])
@@ -419,8 +422,18 @@ function confirmDelete(index: number) {
 
 .flow-footer {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   padding-top: 0.4rem;
+}
+
+/* flex: 1 fills the leading space so the hint sits to the left of the button, same
+   reading as the header's hint sitting left of its own toggle — and when the hint isn't
+   rendered (range-select off), the button alone still gets pushed to the far right by
+   .flow-footer's justify-content, no separate layout needed for that state. */
+.range-hint--footer {
+  flex: 1;
+  margin: 0;
 }
 
 .range-toggle-btn {
