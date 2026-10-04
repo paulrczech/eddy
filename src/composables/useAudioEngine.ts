@@ -4,7 +4,12 @@ import { App } from '@capacitor/app'
 import type { Cluster } from '../utils/noteUtils'
 import { midiToName, MIDI_MIN, MIDI_MAX } from '../data/notes'
 import type { InstrumentType, Subdivision } from '../stores/settingsStore'
-import { intervalFromBpm, buildArpeggioNotes, buildClusterEvents, humanVelocity } from '../utils/arpeggioEngine'
+import {
+  intervalFromBpm,
+  buildArpeggioNotes,
+  buildClusterEvents,
+  humanVelocity,
+} from '../utils/arpeggioEngine'
 
 // iOS suspends the WebAudio context whenever the app is backgrounded or the screen
 // locks (a real interruption, not just a pause), and nothing resumes it automatically —
@@ -30,8 +35,16 @@ App.addListener('resume', () => {
 // gain-boosted to a comparable level. See CREDITS.md for full attribution.
 const PIANO_BASE = '/samples/piano/'
 const PIANO_URLS: Record<string, string> = {
-  'C1': 'C1.mp3', 'G1': 'G1.mp3', 'D2': 'D2.mp3', 'A2': 'A2.mp3', 'E3': 'E3.mp3',
-  'B3': 'B3.mp3', 'F#4': 'Fs4.mp3', 'C#5': 'Cs5.mp3', 'D#6': 'Ds6.mp3', 'A#6': 'As6.mp3',
+  C1: 'C1.mp3',
+  G1: 'G1.mp3',
+  D2: 'D2.mp3',
+  A2: 'A2.mp3',
+  E3: 'E3.mp3',
+  B3: 'B3.mp3',
+  'F#4': 'Fs4.mp3',
+  'C#5': 'Cs5.mp3',
+  'D#6': 'Ds6.mp3',
+  'A#6': 'As6.mp3',
 }
 
 // Acoustic guitar — "Soft Nylon Guitar Lite" by Mike Georgiades via Pianobook.co.uk.
@@ -49,8 +62,13 @@ const PIANO_URLS: Record<string, string> = {
 // the INSTRUMENT_NOTE_RANGE entry below. Gain-boosted and trimmed to 6s/1s fade-out,
 // same treatment as piano. See CREDITS.md for full attribution.
 const GUITAR_ACOUSTIC_URLS: Record<string, string> = {
-  'C#3': 'Cs3.mp3', 'E3': 'E3.mp3', 'G3': 'G3.mp3', 'A#3': 'As3.mp3',
-  'C#4': 'Cs4.mp3', 'E4': 'E4.mp3', 'G4': 'G4.mp3',
+  'C#3': 'Cs3.mp3',
+  E3: 'E3.mp3',
+  G3: 'G3.mp3',
+  'A#3': 'As3.mp3',
+  'C#4': 'Cs4.mp3',
+  E4: 'E4.mp3',
+  G4: 'G4.mp3',
 }
 
 // Electric piano and electric guitar samples via Pianobook.co.uk (royalty-free per
@@ -60,21 +78,50 @@ const GUITAR_ACOUSTIC_URLS: Record<string, string> = {
 // short run of extra low notes (matching the standard piano's A1 floor) below the
 // otherwise-consistent E2-C6 whole-tone ladder.
 const ELECTRIC_PIANO_URLS: Record<string, string> = {
-  'A1': 'A1.mp3', 'C2': 'C2.mp3', 'D2': 'D2.mp3',
-  'E2': 'E2.mp3', 'F#2': 'Fs2.mp3', 'G#2': 'Gs2.mp3', 'A#2': 'As2.mp3',
-  'C3': 'C3.mp3', 'D3': 'D3.mp3', 'E3': 'E3.mp3', 'F#3': 'Fs3.mp3', 'G#3': 'Gs3.mp3', 'A#3': 'As3.mp3',
-  'C4': 'C4.mp3', 'D4': 'D4.mp3', 'E4': 'E4.mp3', 'F#4': 'Fs4.mp3', 'G#4': 'Gs4.mp3', 'A#4': 'As4.mp3',
-  'C5': 'C5.mp3', 'D5': 'D5.mp3', 'E5': 'E5.mp3', 'F#5': 'Fs5.mp3', 'G#5': 'Gs5.mp3', 'A#5': 'As5.mp3',
-  'C6': 'C6.mp3',
+  A1: 'A1.mp3',
+  C2: 'C2.mp3',
+  D2: 'D2.mp3',
+  E2: 'E2.mp3',
+  'F#2': 'Fs2.mp3',
+  'G#2': 'Gs2.mp3',
+  'A#2': 'As2.mp3',
+  C3: 'C3.mp3',
+  D3: 'D3.mp3',
+  E3: 'E3.mp3',
+  'F#3': 'Fs3.mp3',
+  'G#3': 'Gs3.mp3',
+  'A#3': 'As3.mp3',
+  C4: 'C4.mp3',
+  D4: 'D4.mp3',
+  E4: 'E4.mp3',
+  'F#4': 'Fs4.mp3',
+  'G#4': 'Gs4.mp3',
+  'A#4': 'As4.mp3',
+  C5: 'C5.mp3',
+  D5: 'D5.mp3',
+  E5: 'E5.mp3',
+  'F#5': 'Fs5.mp3',
+  'G#5': 'Gs5.mp3',
+  'A#5': 'As5.mp3',
+  C6: 'C6.mp3',
 }
 
 // Electric guitar (sustained "LONG_MODERN" swell articulation, not plucked) — 12 root
 // notes, minor-3rd spacing, D2-B4. Loud velocity layer, trimmed from the pack's raw
 // 14-31s samples down to 7s with a fade-out (Eddy never sustains a note that long).
 const ELECTRIC_GUITAR_URLS: Record<string, string> = {
-  'D2': 'D2.mp3', 'F2': 'F2.mp3', 'G#2': 'Gs2.mp3', 'B2': 'B2.mp3',
-  'D3': 'D3.mp3', 'F3': 'F3.mp3', 'G#3': 'Gs3.mp3', 'B3': 'B3.mp3',
-  'D4': 'D4.mp3', 'F4': 'F4.mp3', 'G#4': 'Gs4.mp3', 'B4': 'B4.mp3',
+  D2: 'D2.mp3',
+  F2: 'F2.mp3',
+  'G#2': 'Gs2.mp3',
+  B2: 'B2.mp3',
+  D3: 'D3.mp3',
+  F3: 'F3.mp3',
+  'G#3': 'Gs3.mp3',
+  B3: 'B3.mp3',
+  D4: 'D4.mp3',
+  F4: 'F4.mp3',
+  'G#4': 'Gs4.mp3',
+  B4: 'B4.mp3',
 }
 
 // Pad voice — "Ultra Ambient Pad" (Paul's own sample pack), replaced the original
@@ -93,8 +140,12 @@ const ELECTRIC_GUITAR_URLS: Record<string, string> = {
 // land at the previous pad's own shipped file level, same two-stage (file +
 // INSTRUMENT_VOLUME) treatment. Attribution/license TBD — see CREDITS.md.
 const HOLDSWORTHIAN_PAD_URLS: Record<string, string> = {
-  'E3': 'E3.mp3', 'A#3': 'As3.mp3', 'E4': 'E4.mp3',
-  'A#4': 'As4.mp3', 'E5': 'E5.mp3', 'A#5': 'As5.mp3',
+  E3: 'E3.mp3',
+  'A#3': 'As3.mp3',
+  E4: 'E4.mp3',
+  'A#4': 'As4.mp3',
+  E5: 'E5.mp3',
+  'A#5': 'As5.mp3',
 }
 
 // Second piano voice — VSCO2 Community Edition's upright piano (Versilian Studios,
@@ -117,39 +168,73 @@ const HOLDSWORTHIAN_PAD_URLS: Record<string, string> = {
 // "salamander"/"piano-original" naming — that's expected, same drift as holdsworthian-pad
 // no longer being Holdsworth-anything.
 const UPRIGHT_PIANO_URLS: Record<string, string> = {
-  'F2': 'F2.mp3', 'A2': 'A2.mp3', 'C#3': 'Cs3.mp3', 'F3': 'F3.mp3', 'A3': 'A3.mp3',
-  'C#4': 'Cs4.mp3', 'F4': 'F4.mp3', 'A4': 'A4.mp3', 'C#5': 'Cs5.mp3', 'F5': 'F5.mp3',
-  'A5': 'A5.mp3',
+  F2: 'F2.mp3',
+  A2: 'A2.mp3',
+  'C#3': 'Cs3.mp3',
+  F3: 'F3.mp3',
+  A3: 'A3.mp3',
+  'C#4': 'Cs4.mp3',
+  F4: 'F4.mp3',
+  A4: 'A4.mp3',
+  'C#5': 'Cs5.mp3',
+  F5: 'F5.mp3',
+  A5: 'A5.mp3',
 }
 
 // Hoisted out of init() (was rebuilt as a local const on every call) — also needed by
 // renderSequenceToBuffer() below for audio export, which loads its own sample buffers
-// independent of whatever's currently live-loaded.
-const SAMPLER_CONFIGS: Record<InstrumentType, { urls: Record<string, string>; baseUrl: string }> = {
-  piano:            { urls: PIANO_URLS,           baseUrl: PIANO_BASE },
-  'guitar-acoustic':{ urls: GUITAR_ACOUSTIC_URLS, baseUrl: '/samples/guitar-acoustic/' },
-  'electric-piano': { urls: ELECTRIC_PIANO_URLS,  baseUrl: '/samples/electric-piano/' },
-  'electric-guitar':{ urls: ELECTRIC_GUITAR_URLS, baseUrl: '/samples/electric-guitar/' },
-  'holdsworthian-pad':{ urls: HOLDSWORTHIAN_PAD_URLS, baseUrl: '/samples/holdsworthian-pad/' },
-  'piano-salamander': { urls: UPRIGHT_PIANO_URLS, baseUrl: '/samples/piano-original/' },
+// independent of whatever's currently live-loaded. Partial, not Record — 'synth-pad' has
+// no samples at all (see createSynthPad()); every lookup site already falls back to
+// SAMPLER_CONFIGS.piano for an unmapped type, which is also what WAV export will do if
+// attempted while synth-pad is selected (a known gap, not fixed yet).
+const SAMPLER_CONFIGS: Partial<
+  Record<InstrumentType, { urls: Record<string, string>; baseUrl: string }>
+> = {
+  piano: { urls: PIANO_URLS, baseUrl: PIANO_BASE },
+  'guitar-acoustic': {
+    urls: GUITAR_ACOUSTIC_URLS,
+    baseUrl: '/samples/guitar-acoustic/',
+  },
+  'electric-piano': {
+    urls: ELECTRIC_PIANO_URLS,
+    baseUrl: '/samples/electric-piano/',
+  },
+  'electric-guitar': {
+    urls: ELECTRIC_GUITAR_URLS,
+    baseUrl: '/samples/electric-guitar/',
+  },
+  'holdsworthian-pad': {
+    urls: HOLDSWORTHIAN_PAD_URLS,
+    baseUrl: '/samples/holdsworthian-pad/',
+  },
+  'piano-salamander': {
+    urls: UPRIGHT_PIANO_URLS,
+    baseUrl: '/samples/piano-original/',
+  },
 }
 
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
 // register. Does NOT affect the voice-leading engine, which always uses the global MIDI_MIN/
 // MIDI_MAX regardless of instrument, so switching instruments mid-flow never changes which
 // moves are reachable — only what you can type in as a starting cluster.
-export const INSTRUMENT_NOTE_RANGE: Record<InstrumentType, { min: number; max: number }> = {
-  piano:            { min: 33,       max: MIDI_MAX }, // A1–C6
-  'guitar-acoustic': { min: 40,       max: 79 },       // E2-G5 — narrower than the
-    // original steel-string samples' full E2-C6; only 7 usable roots (C#3-G4), see
-    // GUITAR_ACOUSTIC_URLS
-  'electric-piano':  { min: 33,       max: 84 },       // A1-C6
-  'electric-guitar': { min: 38,       max: 71 },       // D2-B4
-  'holdsworthian-pad': { min: 52,     max: 82 },       // E3-A#5 — matches the ambient
-    // pad's actual 6 usable roots (narrower than the old Blackhole pad's E2 floor, since
-    // the lowest sample here is E3; pitch-shifting further down would be too big a stretch)
-  'piano-salamander': { min: 41,      max: 81 },       // F2-A5, matches UPRIGHT_PIANO_URLS'
-    // 11 usable roots
+export const INSTRUMENT_NOTE_RANGE: Record<
+  InstrumentType,
+  { min: number; max: number }
+> = {
+  piano: { min: 33, max: MIDI_MAX }, // A1–C6
+  'guitar-acoustic': { min: 40, max: 79 }, // E2-G5 — narrower than the
+  // original steel-string samples' full E2-C6; only 7 usable roots (C#3-G4), see
+  // GUITAR_ACOUSTIC_URLS
+  'electric-piano': { min: 33, max: 84 }, // A1-C6
+  'electric-guitar': { min: 38, max: 71 }, // D2-B4
+  'holdsworthian-pad': { min: 52, max: 82 }, // E3-A#5 — matches the ambient
+  // pad's actual 6 usable roots (narrower than the old Blackhole pad's E2 floor, since
+  // the lowest sample here is E3; pitch-shifting further down would be too big a stretch)
+  'piano-salamander': { min: 41, max: 81 }, // F2-A5, matches UPRIGHT_PIANO_URLS'
+  // 11 usable roots
+  'synth-pad': { min: MIDI_MIN, max: MIDI_MAX }, // full global range — synthesized, not
+  // sample-based, so there's no "nearest root" to pitch-shift from and no register
+  // where it inherently sounds worse
 }
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -157,27 +242,30 @@ export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
 export interface PlaybackSettings {
   bpm: number
   direction: ArpeggioDirection
-  subdivision?: Subdivision  // notes per beat; defaults to 16th notes
-  latch?: boolean  // repeat the arpeggio to fill the whole bar instead of playing once
-    // and resting. No effect on 'chord' direction — see buildClusterEvents() in
-    // utils/arpeggioEngine.ts.
-  beatsPerBar?: number  // time signature's numerator (4 for 4/4, 3 for 3/4) — defaults
-    // to 4 if omitted. Matches midiUtils.ts's own beatsPerBar option, which shares this
-    // same default, so the two never disagree about what "a bar" means.
+  subdivision?: Subdivision // notes per beat; defaults to 16th notes
+  latch?: boolean // repeat the arpeggio to fill the whole bar instead of playing once
+  // and resting. No effect on 'chord' direction — see buildClusterEvents() in
+  // utils/arpeggioEngine.ts.
+  beatsPerBar?: number // time signature's numerator (4 for 4/4, 3 for 3/4) — defaults
+  // to 4 if omitted. Matches midiUtils.ts's own beatsPerBar option, which shares this
+  // same default, so the two never disagree about what "a bar" means.
 }
 
 // Fixed note durations for plucky/percussive instruments
 const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
-  piano:            '2n',
-  'guitar-acoustic':'2n',
+  piano: '2n',
+  'guitar-acoustic': '2n',
   'electric-piano': '2n', // struck/decaying, same character class as piano
-  'electric-guitar':'2n', // was '1n' — a full bar held at near-full volume before the
-    // release fade even began, so it was still essentially at full volume right up to
-    // the next chord's downbeat and only started fading during the new chord, reading
-    // as "rings through/muddy" even after the release-time cut. Now matches every other
-    // instrument's held duration, giving the release a half-bar head start instead
-  'holdsworthian-pad':'1n', // sustained pad character
-  'piano-salamander':'2n', // same character class as felt piano
+  'electric-guitar': '2n', // was '1n' — a full bar held at near-full volume before the
+  // release fade even began, so it was still essentially at full volume right up to
+  // the next chord's downbeat and only started fading during the new chord, reading
+  // as "rings through/muddy" even after the release-time cut. Now matches every other
+  // instrument's held duration, giving the release a half-bar head start instead
+  'holdsworthian-pad': '1n', // sustained pad character
+  'piano-salamander': '2n', // same character class as felt piano
+  'synth-pad': '1n', // same sustained pad character as holdsworthian-pad — the
+  // PolySynth's own envelope (1.5s attack, 2.5s release) governs the actual sound, this
+  // just keeps the note held long enough for that envelope to matter
 }
 
 // Tone.Sampler's release (the fade-out after triggerRelease) defaults to 0.1s — fine for
@@ -185,16 +273,16 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
 // instruments above get a real fade instead.
 const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   'electric-guitar': 1.2, // was 2.5 — a note was still near full volume when the next
-    // one fired, masking each new note's own (genuinely fast, ~100ms) attack; read as
-    // both "too long a sustain" and "attack isn't sharp" from the same cause
+  // one fired, masking each new note's own (genuinely fast, ~100ms) attack; read as
+  // both "too long a sustain" and "attack isn't sharp" from the same cause
   'holdsworthian-pad': 2.5,
   piano: 2.0, // felt piano rings naturally — default 0.1s cutoff read as harsh
   'electric-piano': 1.2, // same class of bug as piano had — no release meant a hard
-    // 0.1s cutoff, which read as "plucky"/inconsistent since the source recording's own
-    // natural sustain varies note to note; a real release masks that instead of fighting it
+  // 0.1s cutoff, which read as "plucky"/inconsistent since the source recording's own
+  // natural sustain varies note to note; a real release masks that instead of fighting it
   'guitar-acoustic': 1.5, // nylon pluck decays naturally, avoid the harsh-cutoff class of bug
   'piano-salamander': 2.0, // same treatment as felt piano — avoids the harsh default
-    // 0.1s cutoff
+  // 0.1s cutoff
 }
 
 // Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across
@@ -206,7 +294,7 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
 // to the same target when converted, same as piano.
 const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   piano: 3, // Paul heard it as a little quieter than guitar-acoustic despite matching RMS
-    // targets — try a modest boost first
+  // targets — try a modest boost first
   'electric-guitar': -6, // was -10 — Paul heard it as a little quieter than the rest after that cut
   'holdsworthian-pad': 12,
   // Tuned by ear against the sample content now in this slot (VSCO2 upright piano,
@@ -214,6 +302,13 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // CHORUS_SETTINGS/DELAY_SETTINGS/FILTER_SETTINGS entry exists for it — confirmed by
   // grep, not assumed), so the trim itself is the only lever.
   'piano-salamander': 10,
+  // Rough estimate, not RMS-measured like the others above — the chain's been replaced
+  // twice in one day (2026-10-04), most recently to a reference script of Paul's own
+  // (triangle oscillator, lighter chorus/reverb wet than the previous version). The new
+  // chain's own Limiter(-1) in createSynthPad() caps hard clipping regardless of this
+  // trim, so there's more room to push this by ear than the other instruments' untrimmed
+  // headroom allows — it'll just compress rather than distort if pushed too far.
+  'synth-pad': 8,
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
@@ -237,7 +332,9 @@ function noteRelease(instrumentType: InstrumentType): number {
 // dial to scale, so it'd silently do nothing when dialed up. The three added here
 // (electric-piano/electric-guitar/holdsworthian-pad) are provisional ceilings, same as
 // piano/guitar-acoustic were before they were tuned by ear — expect these to move.
-const REVERB_SETTINGS: Partial<Record<InstrumentType, { decay: number; wet: number }>> = {
+const REVERB_SETTINGS: Partial<
+  Record<InstrumentType, { decay: number; wet: number }>
+> = {
   piano: { decay: 2.2, wet: 0.44 },
   'guitar-acoustic': { decay: 2.0, wet: 0.4 },
   // Both bumped further than piano/guitar-acoustic's roughly-2x treatment (Paul: audible
@@ -250,8 +347,8 @@ const REVERB_SETTINGS: Partial<Record<InstrumentType, { decay: number; wet: numb
   'electric-piano': { decay: 2.4, wet: 0.5 },
   'electric-guitar': { decay: 2.6, wet: 0.5 },
   'holdsworthian-pad': { decay: 2.0, wet: 0.25 }, // already the most sustained/spacious
-    // instrument (long release, whole-note held duration), and the "Ultra Ambient Pad"
-    // sample content is already extremely wet/swelling on its own — needs the least on top
+  // instrument (long release, whole-note held duration), and the "Ultra Ambient Pad"
+  // sample content is already extremely wet/swelling on its own — needs the least on top
 }
 
 // Gentle lowpass filter — unlike reverb/chorus (which add space), this directly targets
@@ -263,8 +360,9 @@ const REVERB_SETTINGS: Partial<Record<InstrumentType, { decay: number; wet: numb
 // below being kept empty rather than removed after its own guitar experiment ended. Not
 // dial-scaled like ambience — decay/filtering are both the "harder problem" DOWNRIVER.md's
 // Ambience writeup flagged as out of scope for a live control.
-const FILTER_SETTINGS: Partial<Record<InstrumentType, { frequency: number; rolloff: Tone.FilterRollOff }>> = {
-}
+const FILTER_SETTINGS: Partial<
+  Record<InstrumentType, { frequency: number; rolloff: Tone.FilterRollOff }>
+> = {}
 
 // Chorus (a subtle detune wobble) and ping-pong delay (stereo, alternating left/right
 // echoes) — chorus is genuinely new, no instrument used it before guitar-acoustic. Chorus
@@ -272,10 +370,17 @@ const FILTER_SETTINGS: Partial<Record<InstrumentType, { frequency: number; rollo
 // reasoning and same 0.5-default-equals-original math as REVERB_SETTINGS above) — depth/
 // frequency are unaffected by the dial, only wet scales. Chorus is LFO-driven, so it
 // needs .start() — silent without it. Order: chorus, then delay, then reverb, then dest.
-const CHORUS_SETTINGS: Partial<Record<InstrumentType, { frequency: number; delayTime: number; depth: number; wet: number }>> = {
+const CHORUS_SETTINGS: Partial<
+  Record<
+    InstrumentType,
+    { frequency: number; delayTime: number; depth: number; wet: number }
+  >
+> = {
   'guitar-acoustic': { frequency: 1.2, delayTime: 3.5, depth: 0.5, wet: 0.5 },
 }
-const DELAY_SETTINGS: Partial<Record<InstrumentType, { delayTime: string; feedback: number; wet: number }>> = {
+const DELAY_SETTINGS: Partial<
+  Record<InstrumentType, { delayTime: string; feedback: number; wet: number }>
+> = {
   // guitar-acoustic had { delayTime: '8n.', feedback: 0.3, wet: 0.2 } — removed per
   // Paul's request to hear it without the ping-pong delay first. Easy to bring back (at
   // this same value, or lower) if it turns out to be missed.
@@ -286,13 +391,30 @@ function noteDuration(): string {
   return NOTE_DURATIONS[type] ?? '2n'
 }
 
-type ToneInstrument = Tone.Sampler
+// PolySynth, added for 'synth-pad', satisfies the same surface every call site below
+// actually uses (triggerAttackRelease/volume/dispose/connect) — no Sampler-specific API
+// is used outside createSampler()/loadBuffers() themselves.
+type ToneInstrument = Tone.Sampler | Tone.PolySynth
 
 let instrument: ToneInstrument | null = null
 let outputReverb: Tone.Reverb | null = null
 let outputChorus: Tone.Chorus | null = null
 let outputDelay: Tone.PingPongDelay | null = null
 let outputFilter: Tone.Filter | null = null
+// 'synth-pad' only — its own bespoke chain (lowpass -> chorus -> delay -> reverb ->
+// limiter), entirely separate from outputReverb/outputChorus/the REVERB_SETTINGS/
+// CHORUS_SETTINGS tables above. Deliberately not wired into those — this is Paul's own
+// hand-designed chain (see createSynthPad()), not a generic per-instrument send, and it
+// means the Ambience dial has no effect on it yet. synthPadFilterEnvelope is currently
+// always null (this version of the chain has no filter sweep) — kept as a variable and
+// left wired into the optional-chained triggers in playCluster()/playSequence() so a
+// future version can bring a sweep back without touching those call sites again.
+let synthPadFilterEnvelope: Tone.FrequencyEnvelope | null = null
+let synthPadChorus: Tone.Chorus | null = null
+let synthPadReverb: Tone.Reverb | null = null
+let synthPadMasterFilter: Tone.Filter | null = null
+let synthPadDelay: Tone.FeedbackDelay | null = null
+let synthPadLimiter: Tone.Limiter | null = null
 let currentInstrumentType: InstrumentType | null = null
 let loopPart: Tone.Part | null = null
 let rafId: number | null = null
@@ -319,12 +441,16 @@ function midiToTone(midi: number): string {
 // exported file of a strummed chord will sound very slightly different (a negligible
 // ~25ms/voice, but real) from what was heard live.
 const STRUM_INTERVAL = 0.025 // seconds between adjacent strings
-const GUITAR_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['guitar-acoustic', 'electric-guitar'])
+const GUITAR_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set([
+  'guitar-acoustic',
+  'electric-guitar',
+])
 
 function chordInterval(instrumentType: InstrumentType | null): number {
-  return instrumentType && GUITAR_INSTRUMENTS.has(instrumentType) ? STRUM_INTERVAL : 0
+  return instrumentType && GUITAR_INSTRUMENTS.has(instrumentType)
+    ? STRUM_INTERVAL
+    : 0
 }
-
 
 interface EffectsChain {
   reverb: Tone.Reverb | null
@@ -341,7 +467,10 @@ interface EffectsChain {
 // (today's full, already-tuned sound) and relies on a separate setAmbience() call from
 // the caller to live-ramp it down afterward, since a one-shot offline render has no
 // equivalent "ramp it live" moment; baking the level in at construction is the only option.
-async function buildEffectsChain(instrumentType: InstrumentType, ambienceLevel: number): Promise<EffectsChain> {
+async function buildEffectsChain(
+  instrumentType: InstrumentType,
+  ambienceLevel: number
+): Promise<EffectsChain> {
   const reverbSettings = REVERB_SETTINGS[instrumentType]
   const chorusSettings = CHORUS_SETTINGS[instrumentType]
   const delaySettings = DELAY_SETTINGS[instrumentType]
@@ -366,14 +495,21 @@ async function buildEffectsChain(instrumentType: InstrumentType, ambienceLevel: 
     await reverb.ready
   }
   if (delaySettings) {
-    delay = new Tone.PingPongDelay(delaySettings.delayTime, delaySettings.feedback)
+    delay = new Tone.PingPongDelay(
+      delaySettings.delayTime,
+      delaySettings.feedback
+    )
     delay.wet.value = delaySettings.wet
     if (reverb) delay.connect(reverb)
     else delay.toDestination()
   }
   if (chorusSettings) {
     // Chorus is LFO-driven — silent without it.
-    chorus = new Tone.Chorus(chorusSettings.frequency, chorusSettings.delayTime, chorusSettings.depth).start()
+    chorus = new Tone.Chorus(
+      chorusSettings.frequency,
+      chorusSettings.delayTime,
+      chorusSettings.depth
+    ).start()
     chorus.wet.value = chorusSettings.wet * clamped
     if (delay) chorus.connect(delay)
     else if (reverb) chorus.connect(reverb)
@@ -384,18 +520,31 @@ async function buildEffectsChain(instrumentType: InstrumentType, ambienceLevel: 
     // wet sends — the point is to warm the *dry* signal at the source, which then also
     // warms whatever reverb tail is built from it, rather than filtering only the dry
     // path and leaving a brighter, unfiltered reverb tail behind.
-    filter = new Tone.Filter(filterSettings.frequency, 'lowpass', filterSettings.rolloff)
+    filter = new Tone.Filter(
+      filterSettings.frequency,
+      'lowpass',
+      filterSettings.rolloff
+    )
     const next: Tone.ToneAudioNode | null = chorus ?? delay ?? reverb
     if (next) filter.connect(next)
     else filter.toDestination()
   }
 
-  return { reverb, chorus, delay, filter, firstStage: filter ?? chorus ?? delay ?? reverb }
+  return {
+    reverb,
+    chorus,
+    delay,
+    filter,
+    firstStage: filter ?? chorus ?? delay ?? reverb,
+  }
 }
 
 // Constructs a Sampler from already-decoded buffers and waits for Tone's own onload
 // event — shared by init() (live) and renderSequenceToBuffer() (offline).
-function createSampler(buffers: Record<string, AudioBuffer>, instrumentType: InstrumentType): Promise<Tone.Sampler> {
+function createSampler(
+  buffers: Record<string, AudioBuffer>,
+  instrumentType: InstrumentType
+): Promise<Tone.Sampler> {
   return new Promise((resolve) => {
     const sampler = new Tone.Sampler({
       urls: buffers,
@@ -406,9 +555,70 @@ function createSampler(buffers: Record<string, AudioBuffer>, instrumentType: Ins
   })
 }
 
+// Second rework (2026-10-04, same day as the first): the Camera-Eye-chasing version
+// above still wasn't landing as "lush/calming," even de-resonated. Paul found a different
+// reference pad online, ran it in JSFiddle, confirmed it's close to what he's after, and
+// handed it over — this ports that one in, replacing the first rework's chain and
+// dropping the filter envelope sweep entirely (this reference has no filter movement at
+// all, just a static lowpass — synthPadFilterEnvelope stays null, see its declaration
+// above for why that's safe). Two fixes carried over/applied, same reasoning as before:
+// Tone.Reverb has no `roomSize` option (uses `decay` in seconds) — substituted; and the
+// reference's delay time `"1/4"` isn't valid Tone.Time notation (that parses as a bare
+// arithmetic expression, 1÷4 = 0.25 raw seconds, not a tempo-relative quarter note) —
+// corrected to `"4n"`, which is clearly what was meant. New in this version: a Limiter
+// capping output at -1dB, specifically to guard against a PolySynth stacking several
+// simultaneous additive-oscillator voices (a 4-note chord here) into clipping — a real
+// risk this architecture has that a sample-based instrument, individually level-checked
+// per recorded note, doesn't.
+async function createSynthPad(): Promise<void> {
+  const limiter = new Tone.Limiter(-1).toDestination()
+
+  const filter = new Tone.Filter({ type: 'lowpass', frequency: 850, Q: 1 })
+  const chorus = new Tone.Chorus({ frequency: 1.2, delayTime: 3.5, depth: 0.5, wet: 0.4 }).start()
+  const delay = new Tone.FeedbackDelay({ delayTime: '4n', feedback: 0.3, wet: 0.25 })
+  const reverb = new Tone.Reverb({ decay: 4, wet: 0.5 })
+  await reverb.ready
+
+  filter.connect(chorus)
+  chorus.connect(delay)
+  delay.connect(reverb)
+  reverb.connect(limiter)
+
+  const synth = new Tone.PolySynth(Tone.Synth, {
+    volume: -12 + (INSTRUMENT_VOLUME['synth-pad'] ?? 0),
+    oscillator: { type: 'triangle' },
+    envelope: { attack: 1.8, decay: 2.0, sustain: 0.7, release: 3.5 },
+  })
+  synth.connect(filter)
+
+  instrument = synth
+  synthPadFilterEnvelope = null
+  synthPadChorus = chorus
+  synthPadReverb = reverb
+  synthPadMasterFilter = filter
+  synthPadDelay = delay
+  synthPadLimiter = limiter
+}
+
+function disposeSynthPadNodes(): void {
+  synthPadFilterEnvelope?.dispose()
+  synthPadChorus?.dispose()
+  synthPadReverb?.dispose()
+  synthPadMasterFilter?.dispose()
+  synthPadDelay?.dispose()
+  synthPadLimiter?.dispose()
+  synthPadFilterEnvelope = null
+  synthPadChorus = null
+  synthPadReverb = null
+  synthPadMasterFilter = null
+  synthPadDelay = null
+  synthPadLimiter = null
+}
+
 async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   // No-op if same instrument already loaded
-  if (instrument && isLoaded.value && currentInstrumentType === instrumentType) return
+  if (instrument && isLoaded.value && currentInstrumentType === instrumentType)
+    return
 
   // Dispose previous instrument and any effects chain it had
   if (instrument) {
@@ -432,13 +642,28 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
     outputFilter.dispose()
     outputFilter = null
   }
+  disposeSynthPadNodes()
 
   await Tone.start()
   currentInstrumentType = instrumentType
 
+  if (instrumentType === 'synth-pad') {
+    try {
+      await createSynthPad()
+      isLoaded.value = true
+      loadError.value = null
+    } catch (err) {
+      loadError.value = 'Failed to build synth pad'
+      console.error('Synth pad build error:', err)
+      throw err
+    }
+    return
+  }
+
   // Guards against stale instrument values from old saved sessions/defaults
   // (e.g. 'cello'/'violin' persisted before those were removed)
-  const { urls, baseUrl } = SAMPLER_CONFIGS[instrumentType] ?? SAMPLER_CONFIGS.piano
+  const { urls, baseUrl } =
+    SAMPLER_CONFIGS[instrumentType] ?? SAMPLER_CONFIGS.piano!
   // Fetch + decode ourselves rather than letting Tone.Sampler do it: in Capacitor's iOS
   // WKWebView, fetch() against the capacitor:// scheme returns status 0 / ok=false even
   // though the body is delivered intact, and Tone rejects every sample on !response.ok.
@@ -468,14 +693,14 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
 
 async function loadBuffers(
   urls: Record<string, string>,
-  baseUrl: string,
+  baseUrl: string
 ): Promise<Record<string, AudioBuffer>> {
   const ctx = Tone.getContext().rawContext
   const entries = await Promise.all(
     Object.entries(urls).map(async ([note, file]) => {
       const bytes = await (await fetch(baseUrl + file)).arrayBuffer()
       return [note, await ctx.decodeAudioData(bytes)] as const
-    }),
+    })
   )
   return Object.fromEntries(entries)
 }
@@ -500,22 +725,32 @@ async function renderSequenceToBuffer(
 ): Promise<Tone.ToneAudioBuffer> {
   const beatsPerBar = settings.beatsPerBar ?? 4
   const isChord = settings.direction === 'chord'
-  const interval = isChord ? chordInterval(instrumentType) : intervalFromBpm(settings.bpm, settings.subdivision)
+  const interval = isChord
+    ? chordInterval(instrumentType)
+    : intervalFromBpm(settings.bpm, settings.subdivision)
   const beat = 60 / settings.bpm
-  const maxVoices = Math.max(...sequence.map(c => c.length))
+  const maxVoices = Math.max(...sequence.map((c) => c.length))
   const subdivisionsPerBar = beatsPerBar * (settings.subdivision ?? 4)
-  const barsNeeded = isChord ? 1 : Math.max(1, Math.ceil(maxVoices / subdivisionsPerBar))
+  const barsNeeded = isChord
+    ? 1
+    : Math.max(1, Math.ceil(maxVoices / subdivisionsPerBar))
   const clusterDuration = barsNeeded * beatsPerBar * beat
   const totalDuration = sequence.length * clusterDuration
 
   const events = sequence.flatMap((cluster, i) =>
-    buildClusterEvents(cluster, settings.direction, interval, clusterDuration, settings.latch ?? false)
-      .map(e => ({ time: i * clusterDuration + e.time, notes: e.notes }))
+    buildClusterEvents(
+      cluster,
+      settings.direction,
+      interval,
+      clusterDuration,
+      settings.latch ?? false
+    ).map((e) => ({ time: i * clusterDuration + e.time, notes: e.notes }))
   )
 
   const dur = NOTE_DURATIONS[instrumentType] ?? '2n'
   const release = noteRelease(instrumentType)
-  const { urls, baseUrl } = SAMPLER_CONFIGS[instrumentType] ?? SAMPLER_CONFIGS.piano
+  const { urls, baseUrl } =
+    SAMPLER_CONFIGS[instrumentType] ?? SAMPLER_CONFIGS.piano!
   const buffers = await loadBuffers(urls, baseUrl)
 
   // Pad the render past the last note's trigger time so its full sustain+release tail
@@ -530,11 +765,16 @@ async function renderSequenceToBuffer(
     if (chain.firstStage) sampler.connect(chain.firstStage)
     else sampler.toDestination()
 
-    events.forEach(event => {
+    events.forEach((event) => {
       const total = event.notes.length
       event.notes.forEach((midi, noteIdx) => {
         const vel = humanVelocity(0.72, noteIdx, total)
-        sampler.triggerAttackRelease(midiToTone(midi), dur, event.time + noteIdx * interval, vel)
+        sampler.triggerAttackRelease(
+          midiToTone(midi),
+          dur,
+          event.time + noteIdx * interval,
+          vel
+        )
       })
     })
   }, renderDuration)
@@ -558,24 +798,33 @@ function playCluster(
 
   stopLoop()
 
-  const interval = settings.direction === 'chord'
-    ? chordInterval(currentInstrumentType)
-    : intervalFromBpm(settings.bpm, settings.subdivision)
+  const interval =
+    settings.direction === 'chord'
+      ? chordInterval(currentInstrumentType)
+      : intervalFromBpm(settings.bpm, settings.subdivision)
   const notes = buildArpeggioNotes(cluster, settings.direction)
   const now = Tone.now()
   const dur = noteDuration()
 
   notes.forEach((midi, i) => {
     const vel = humanVelocity(0.72, i, notes.length)
-    instrument!.triggerAttackRelease(midiToTone(midi), dur, now + i * interval, vel)
+    instrument!.triggerAttackRelease(
+      midiToTone(midi),
+      dur,
+      now + i * interval,
+      vel
+    )
   })
+  // synth-pad is forced into 'chord' direction (see PAD_INSTRUMENTS in SessionView.vue),
+  // so every voice above already fired together at `now` — one envelope trigger per
+  // audition, not per note.
+  synthPadFilterEnvelope?.triggerAttackRelease(dur, now)
 
   if (onComplete) {
     const totalTime = (notes.length - 1) * interval + Tone.Time(dur).toSeconds()
     setTimeout(onComplete, totalTime * 1000)
   }
 }
-
 
 function playSequence(
   sequence: Cluster[],
@@ -599,7 +848,9 @@ function playSequence(
   stopLoop()
 
   const isChord = settings.direction === 'chord'
-  const interval = isChord ? chordInterval(currentInstrumentType) : intervalFromBpm(settings.bpm, settings.subdivision)
+  const interval = isChord
+    ? chordInterval(currentInstrumentType)
+    : intervalFromBpm(settings.bpm, settings.subdivision)
   const beat = 60 / settings.bpm
 
   // Bar-quantized, matching exportSequenceAsMidi()'s barsNeeded math exactly — a cluster
@@ -609,16 +860,23 @@ function playSequence(
   // on when a chord changed for every direction except 'chord' (which already happened
   // to occupy exactly one bar either way).
   const beatsPerBar = settings.beatsPerBar ?? 4
-  const maxVoices = Math.max(...sequence.map(c => c.length))
+  const maxVoices = Math.max(...sequence.map((c) => c.length))
   const subdivisionsPerBar = beatsPerBar * (settings.subdivision ?? 4)
-  const barsNeeded = isChord ? 1 : Math.max(1, Math.ceil(maxVoices / subdivisionsPerBar))
+  const barsNeeded = isChord
+    ? 1
+    : Math.max(1, Math.ceil(maxVoices / subdivisionsPerBar))
   const clusterDuration = barsNeeded * beatsPerBar * beat
 
   const dur = noteDuration()
 
   const events = sequence.flatMap((cluster, i) =>
-    buildClusterEvents(cluster, settings.direction, interval, clusterDuration, settings.latch ?? false)
-      .map(e => ({ time: i * clusterDuration + e.time, notes: e.notes }))
+    buildClusterEvents(
+      cluster,
+      settings.direction,
+      interval,
+      clusterDuration,
+      settings.latch ?? false
+    ).map((e) => ({ time: i * clusterDuration + e.time, notes: e.notes }))
   )
 
   const totalDuration = sequence.length * clusterDuration
@@ -634,8 +892,20 @@ function playSequence(
     const total = event.notes.length
     event.notes.forEach((midi: number, noteIdx: number) => {
       const vel = humanVelocity(0.72, noteIdx, total)
-      instrument!.triggerAttackRelease(midiToTone(midi), dur, time + noteIdx * interval, vel)
+      instrument!.triggerAttackRelease(
+        midiToTone(midi),
+        dur,
+        time + noteIdx * interval,
+        vel
+      )
     })
+    // synth-pad is forced into 'chord' direction, so buildClusterEvents() above produces
+    // exactly one event per cluster (every voice together, one callback firing per
+    // cluster boundary) — retriggering the filter sweep here lands it once per chord
+    // change, same as the source script's per-chord filterEnvelope.triggerAttackRelease()
+    // calls, generalized to whatever clusterDuration this sequence actually computed to
+    // instead of a hardcoded 4s.
+    synthPadFilterEnvelope?.triggerAttackRelease(clusterDuration, time)
   }, events)
 
   loopPart.loop = loop
@@ -719,7 +989,15 @@ function stopLoop(hardStop = false): void {
 // latch/time-signature change needs. The only side effect: currentClusterDuration (seconds,
 // baked in from the old bpm) drives the rAF playhead tracker in playSequence()'s tick()
 // below, so it has to be rescaled by the same ratio to keep playingIndex accurate.
-const TEMPO_RAMP_TIME = 0.1
+//
+// Must stay comfortably shorter than SessionView.vue's tempo-hold interval (100ms, see
+// startTempoHold()) — held +/- fires a new call every 100ms, and if the ramp window were
+// anywhere near that long, each new rampTo() would retarget the previous one while it was
+// still mid-flight, stacking jagged back-to-back automation curves on Transport.bpm.
+// Ticks scheduled during that turbulent window land unevenly in real time even after the
+// final bpm settles (Paul's "8th notes sound irregular" report, 2026-10-04) — keeping the
+// ramp well under 100ms means each one fully completes before the next call can arrive.
+const TEMPO_RAMP_TIME = 0.05
 
 function setTempoLive(bpm: number): void {
   if (!isPlaying.value) return
@@ -779,6 +1057,7 @@ function dispose(): void {
     outputFilter.dispose()
     outputFilter = null
   }
+  disposeSynthPadNodes()
 }
 
 export function useAudioEngine() {

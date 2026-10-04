@@ -82,6 +82,7 @@
         <!-- Candidates -->
         <div
           v-if="!sequenceStore.loopResolved && candidates.length > 0"
+          ref="candidatesBlockRef"
           class="candidates-block">
           <div class="candidates-header">
             <p class="section-label">streams — tap to hear</p>
@@ -157,6 +158,7 @@
            via an internal shadow-DOM element that CSS position:sticky can't reach. -->
       <div
         v-if="selectedIndices.length > 0 && !sequenceStore.loopResolved"
+        ref="confirmBlockRef"
         slot="fixed"
         class="confirm-block">
         <button class="btn-primary" @click="confirmSelection">
@@ -200,6 +202,9 @@
           >
           <ion-select-option value="holdsworthian-pad"
             >ambient pad</ion-select-option
+          >
+          <ion-select-option v-if="SHOW_SYNTH_PAD" value="synth-pad"
+            >synth pad</ion-select-option
           >
         </ion-select>
         <button
@@ -333,7 +338,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, onUnmounted } from 'vue'
+  import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
   import { onIonViewWillEnter } from '@ionic/vue'
   import { useRouter } from 'vue-router'
   import {
@@ -380,16 +385,13 @@
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
   import { useSequenceStore } from '../stores/sequenceStore'
-  import { useSettingsStore, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
-  import {
-    useAudioEngine,
-    INSTRUMENT_NOTE_RANGE,
-  } from '../composables/useAudioEngine'
+  import { useSettingsStore, SHOW_SYNTH_PAD, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'
   import { generateCandidates } from '../composables/useVoiceLeading'
 
-  import { midiToName } from '../data/notes'
+  import { midiToName, MIDI_MIN, MIDI_MAX } from '../data/notes'
   import type { Strategy } from '../data/strategies'
   import type { Cluster } from '../utils/noteUtils'
   import { sortCluster } from '../utils/noteUtils'
@@ -431,6 +433,27 @@
   const multiSelect = ref(false)
   const voiceColors = VOICE_COLORS
 
+  // A selected stream (and the floating "add to the flow" button it summons) used to
+  // persist until confirmed or replaced by another selection — no way to back out, and
+  // the button sits right where other taps land, inviting an accidental confirm (Paul,
+  // 2026-10-04). Tapping anywhere outside the candidates grid/header or the confirm
+  // button itself now clears it, same "tap away to dismiss" convention as the rest of
+  // the OS. Candidates re-rendering out from under an open selection (redraw/advance)
+  // already clears selectedIndices on its own — this only covers the *other* paths.
+  const candidatesBlockRef = ref<HTMLElement | null>(null)
+  const confirmBlockRef = ref<HTMLElement | null>(null)
+
+  function handleOutsideClick(event: MouseEvent) {
+    if (selectedIndices.value.length === 0) return
+    const target = event.target as Node
+    if (candidatesBlockRef.value?.contains(target)) return
+    if (confirmBlockRef.value?.contains(target)) return
+    selectedIndices.value = []
+  }
+
+  onMounted(() => document.addEventListener('click', handleOutsideClick))
+  onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
+
   const loopActive = ref(false)
 
   const directionOptions = [
@@ -443,8 +466,13 @@
 
   // A pad's slow swell reads as unclear/muddy when arpeggiated — held together as a
   // chord is the only direction that actually suits it (Paul, 2026-09-30). Add any other
-  // pad-type instrument here too.
-  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['holdsworthian-pad'])
+  // pad-type instrument here too. synth-pad additionally *relies* on chord direction
+  // being forced here, not just benefiting from it: its filter-envelope sweep retriggers
+  // once per Tone.Part callback, which only lines up with "once per chord change" when
+  // buildClusterEvents() collapses a cluster into a single simultaneous event — i.e.
+  // only true for chord direction (see the synthPadFilterEnvelope trigger in
+  // useAudioEngine.ts's playSequence()).
+  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['holdsworthian-pad', 'synth-pad'])
   const isPadInstrument = computed(() => PAD_INSTRUMENTS.has(settingsStore.instrument))
 
   // Remembers whatever direction was active before a pad forced 'chord', and restores it
@@ -774,9 +802,13 @@
   // playback-loop back off, since by then it's just "loop the whole flow from the top,"
   // which is still what you'd want.
   function onRangeModeChange(active: boolean) {
-    if (!active) return
+    // Turning range-select mode OFF mid-loop-playback needs the same stop as turning it
+    // on: the engine is still scheduled against the old sliced range, loopRange just went
+    // null, and nothing re-triggers a reschedule — left running, the playhead highlight
+    // reverts to sweeping the full flow from the top while the audio keeps playing only
+    // the old range (Paul, 2026-10-04).
     stopIfPlaying()
-    if (!loopActive.value) loopActive.value = true
+    if (active && !loopActive.value) loopActive.value = true
   }
 
   // Also used whenever a marker tap lands mid-playback (see SequenceHistory's 'range-tap')
@@ -827,13 +859,16 @@
     sequenceStore.setLoopResolved(false)
   }
 
-  const instrumentRange = computed(
-    () => INSTRUMENT_NOTE_RANGE[settingsStore.instrument]
-  )
+  // Global range, not the current instrument's narrower picker range — matches
+  // SequenceHistory.vue's edit-picker bounds, see its editRange comment for why: the
+  // voice-leading engine already generates candidates across the full global range
+  // regardless of instrument, so an edit shouldn't be validated more strictly than what
+  // the engine could already have placed there.
+  const editBounds = { min: MIDI_MIN, max: MIDI_MAX }
 
   function editCluster(index: number, newCluster: Cluster) {
     audioEngine.stopLoop(true)
-    sequenceStore.editClusterAt(index, newCluster, instrumentRange.value)
+    sequenceStore.editClusterAt(index, newCluster, editBounds)
     if (index === sequenceStore.sequence.length - 1) {
       sequenceStore.setLoopResolved(false)
       advance()

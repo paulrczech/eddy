@@ -22,6 +22,25 @@ export type InstrumentType =
   // above. A parallel guitar experiment (nbrosowsky original + lowpass filter, to tame
   // its harshness) was tried the same day and shelved — kept the current Nylon guitar.
   | 'guitar-acoustic' | 'electric-piano' | 'electric-guitar' | 'holdsworthian-pad'
+  // 'synth-pad' — a from-scratch Tone.js synth pad (PolySynth -> lowpass -> chorus ->
+  // feedback delay -> reverb -> limiter, see useAudioEngine.ts's createSynthPad()),
+  // added 2026-10-04 as an A/B test alongside holdsworthian-pad, not a replacement. Still
+  // being tuned by ear — gated behind SHOW_SYNTH_PAD below so it's in the codebase for
+  // Paul to keep tweaking without being selectable in a shipped build. No sample files at
+  // all, so none of the usual sample-pack/pitch-verification baggage applies; also not in
+  // SAMPLER_CONFIGS, so WAV export (which renders from sample buffers) isn't wired up for
+  // it yet and will silently fall back to piano's samples if attempted — a known gap for
+  // this test pass, not an oversight.
+  | 'synth-pad'
+
+// Hides synth-pad from both instrument pickers (HomeView's settings sheet and
+// SessionView's footer selector) without touching any of the engine/store code behind
+// it — same "keep the mechanism, hide the control" pattern as SessionView.vue's
+// SHOW_AMBIENCE_CONTROL. A single shared flag rather than one per picker: two instrument
+// pickers duplicating this independently risked one getting flipped without the other,
+// which would leave it selectable in one place and not the other. Flip to true to bring
+// it back into both pickers at once.
+export const SHOW_SYNTH_PAD = false
 // Arpeggio note grid, in notes per beat — 0.5 = half, 1 = quarter, 2 = 8th,
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.

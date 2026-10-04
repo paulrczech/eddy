@@ -1,5 +1,5 @@
 <template>
-  <div class="sequence-history">
+  <div class="sequence-history" ref="rootRef">
     <div class="flow-header">
       <p class="section-label">the flow</p>
       <button
@@ -25,6 +25,7 @@
         <IonItemSliding
           v-for="(cluster, i) in sequence"
           :key="i"
+          :ref="(el) => setSlidingRef(i, el)"
           class="history-row"
           :class="{
             'range-block-start': rangeEdge(i) === 'start',
@@ -68,6 +69,21 @@
           </IonItemOptions>
         </IonItemSliding>
       </IonReorderGroup>
+    </div>
+    <!-- Same toggle as the header one — both bind the same rangeSelectActive ref, so
+         they're inherently in sync, no separate coordination needed. Exists purely so a
+         long flow doesn't force a scroll back to the top just to start a range selection
+         near the bottom (Paul, 2026-10-04). Same visibility/disabled rule as the header
+         button (no separate "only if long" threshold — one less magic number). -->
+    <div class="flow-footer">
+      <button
+        class="icon-btn range-toggle-btn"
+        :class="{ active: rangeSelectActive }"
+        :disabled="sequence.length < 2"
+        :title="rangeSelectActive ? 'cancel loop range' : 'loop a range of the flow'"
+        @click="toggleRangeSelect">
+        <IonIcon :icon="repeatOutline" />
+      </button>
     </div>
   </div>
 
@@ -130,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import {
   IonReorderGroup,
   IonReorder,
@@ -152,9 +168,7 @@ import {
 import { trashOutline, createOutline, playOutline, repeatOutline } from 'ionicons/icons'
 import type { Cluster } from '../../utils/noteUtils'
 import { sortCluster, isValidCluster, canTransposeOctave } from '../../utils/noteUtils'
-import { midiToName, MAX_CLUSTER_SPREAD } from '../../data/notes'
-import { INSTRUMENT_NOTE_RANGE } from '../../composables/useAudioEngine'
-import { useSettingsStore } from '../../stores/settingsStore'
+import { midiToName, MAX_CLUSTER_SPREAD, MIDI_MIN, MIDI_MAX } from '../../data/notes'
 
 const VOICE_COLORS = ['var(--voice-1)', 'var(--voice-2)', 'var(--voice-3)', 'var(--voice-4)']
 
@@ -176,14 +190,50 @@ const emit = defineEmits<{
 }>()
 
 const voiceColors = VOICE_COLORS
-const settingsStore = useSettingsStore()
-const instrumentRange = computed(() => INSTRUMENT_NOTE_RANGE[settingsStore.instrument])
+
+// The edit picker deliberately uses the global MIDI range, not the current instrument's
+// narrower INSTRUMENT_NOTE_RANGE — the voice-leading engine already generates candidates
+// across the full global range regardless of instrument (by design: switching instruments
+// mid-flow never changes which moves are reachable, see INSTRUMENT_NOTE_RANGE's comment in
+// useAudioEngine.ts), so a note like E2 on piano-salamander (whose picker range starts at
+// F2) can already be offered as a candidate and confirmed into the flow today. Validating
+// edits against the narrower instrument range created a real dead end Paul hit: a note the
+// engine legitimately placed into the flow couldn't be re-selected or even left unchanged
+// through the edit picker. Matching the engine's own range here closes that gap rather than
+// narrowing the engine to match the picker (which would make instrument choice silently
+// shrink which moves are available — the thing INSTRUMENT_NOTE_RANGE's design explicitly
+// avoids).
+const editRange = { min: MIDI_MIN, max: MIDI_MAX }
 const validMidiRange = computed(() => {
-  const { min, max } = instrumentRange.value
+  const { min, max } = editRange
   return Array.from({ length: max - min + 1 }, (_, i) => min + i)
 })
 
 const activeIndex = ref(props.sequence.length - 1)
+
+// A swiped-open delete (trash can) row only closed when you manually slid it back or
+// swiped a different row open — tapping anywhere else in the app (play, a header button,
+// another section entirely) left it sitting open (Paul, 2026-10-04). IonItemSliding has
+// no built-in "close on any outside tap" behavior of its own (only "opening another row
+// closes the previous one"), so this tracks every row's element and closes whichever is
+// open the moment a click lands outside this component's own root.
+const rootRef = ref<HTMLElement | null>(null)
+const slidingRefs: Record<number, { $el: HTMLElement & { close: () => void } } | null> = {}
+
+function setSlidingRef(i: number, el: unknown) {
+  slidingRefs[i] = el as { $el: HTMLElement & { close: () => void } } | null
+}
+
+function closeAllSliding() {
+  Object.values(slidingRefs).forEach((el) => el?.$el?.close?.())
+}
+
+function handleOutsideClick(event: MouseEvent) {
+  if (!rootRef.value?.contains(event.target as Node)) closeAllSliding()
+}
+
+onMounted(() => document.addEventListener('click', handleOutsideClick))
+onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 
 // Loop-range select: a flag toggle (not a plain tap, which is already "audition this
 // cluster") that puts row taps into start/end-marking mode instead — first tap sets the
@@ -267,11 +317,11 @@ function onColumnChange(voiceIndex: number, event: CustomEvent) {
   editError.value = ''
 }
 
-const canTransposeUp = computed(() => canTransposeOctave(editValues.value, 1, instrumentRange.value))
-const canTransposeDown = computed(() => canTransposeOctave(editValues.value, -1, instrumentRange.value))
+const canTransposeUp = computed(() => canTransposeOctave(editValues.value, 1, editRange))
+const canTransposeDown = computed(() => canTransposeOctave(editValues.value, -1, editRange))
 
 function transposeEdit(direction: 1 | -1) {
-  if (!canTransposeOctave(editValues.value, direction, instrumentRange.value)) return
+  if (!canTransposeOctave(editValues.value, direction, editRange)) return
   editValues.value = editValues.value.map(n => n + direction * 12)
   editError.value = ''
 }
@@ -283,11 +333,11 @@ function emitPreview() {
 function commitEdit() {
   const newCluster = [...editValues.value] as Cluster
   const sorted = sortCluster(newCluster)
-  const range = instrumentRange.value
+  const range = editRange
 
   const outOfRange = sorted.find(n => n < range.min || n > range.max)
   if (outOfRange !== undefined) {
-    editError.value = `note out of range for this instrument (${midiToName(range.min)}–${midiToName(range.max)})`
+    editError.value = `note out of range (${midiToName(range.min)}–${midiToName(range.max)})`
     return
   }
   const spread = sorted[sorted.length - 1] - sorted[0]
@@ -365,6 +415,12 @@ function confirmDelete(index: number) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.flow-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.4rem;
 }
 
 .range-toggle-btn {
