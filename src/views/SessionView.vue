@@ -50,7 +50,7 @@
 
     <ion-alert
       :is-open="showExportScopeConfirm"
-      header="export this loop, or the whole flow?"
+      :header="`${exportScopeVerb} this loop, or the whole flow?`"
       :buttons="exportScopeAlertButtons"
       @didDismiss="showExportScopeConfirm = false; pendingExportRun = null" />
 
@@ -334,7 +334,7 @@
               @click="requestExport(exportAudio)">
               <ion-icon :icon="downloadOutline" /> {{ exportingAudio ? 'rendering…' : 'wav' }}
             </button>
-            <button class="btn-outline export-btn" @click="requestExport(copyText)">
+            <button class="btn-outline export-btn" @click="requestExport(copyText, 'copy')">
               {{ copiedFlash ? 'copied!' : 'copy text' }}
             </button>
           </div>
@@ -1002,13 +1002,17 @@
   // reading sequenceStore.sequence directly, so this is the one place that decides it.
   const pendingExportRun = ref<((sequence: Cluster[]) => void | Promise<void>) | null>(null)
   const showExportScopeConfirm = ref(false)
+  // Copy-text isn't really an "export" in the user's own vocabulary — it's a copy. The
+  // alert's header verb follows whichever action actually triggered it.
+  const exportScopeVerb = ref('export')
 
-  function requestExport(run: (sequence: Cluster[]) => void | Promise<void>) {
+  function requestExport(run: (sequence: Cluster[]) => void | Promise<void>, verb = 'export') {
     if (!loopRange.value) {
       run(sequenceStore.sequence)
       return
     }
     pendingExportRun.value = run
+    exportScopeVerb.value = verb
     showExportScopeConfirm.value = true
   }
 
