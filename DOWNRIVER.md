@@ -32,13 +32,29 @@ log showed it failing once (`InvalidStateError`, still backgrounded) and never t
 again even after the real resume succeeded moments later. It now retries every ~500ms
 until it succeeds or playback is explicitly stopped.
 
-**Not yet confirmed on a real device** — this was diagnosed and fixed from one log, not
-reproduced locally (can't simulate a real screen-lock interruption). Next session: has
-Paul hit this again since updating? If the stuck-mute symptom is gone but something else
-surfaces, the diagnostic log is still shipping, so the next export should narrow it
-further rather than starting over. Loop-mode dropout specifically is still unconfirmed as
-the same root cause vs. a separate issue — no engineered loop-count limit exists anywhere
-in the code, so if it's still reproducing, it needs its own log.
+**Round 2 (same day, build 1.0(12))**: Paul sent a second export. First ~8 lines were
+byte-identical to the first report — stale, not a recurrence (the log persists across app
+restarts by design and had no "clear" affordance, so it was silently accumulating across
+test sessions; added a "clear log" button in AboutModal.vue to fix that going forward).
+The genuinely new data revealed a worse problem than the one just fixed: **three resume
+events in a row never produced a success or failure log at all** before the next pause —
+`Tone.start()` (really `AudioContext.resume()`) can apparently hang indefinitely after
+repeated background/foreground cycling, neither resolving nor rejecting. Every recovery
+path (app resume handler, `playCluster`/`playSequence`/`tick`'s guards) was gated on that
+promise settling, so a hang silently defeated all of them — including the retry logic
+from round 1, which only runs from a `.catch()` that a hung promise never reaches.
+
+**Fixed**: `startToneWithTimeout()` races every `Tone.start()` call against a 2s timeout,
+so a hang is now treated as a failure and retried the same as an explicit rejection,
+wired into all four call sites. The section of the same log from *after* this class of
+fix would apply (`tick` failing once with `InvalidStateError` then succeeding on its own
+~500ms retry, fully automatic, no user action needed) confirms round 1's retry-loop fix
+works correctly when `Tone.start()` does settle — the timeout fix specifically targets the
+case where it doesn't.
+
+**Still not confirmed on a real device** — same caveat as round 1, diagnosed from logs,
+not reproduced locally. Next session: did build 1.0(12)'s fixes hold? Clear the log before
+a fresh test session now that there's a button for it, so the next export is unambiguous.
 
 ---
 
