@@ -32,15 +32,25 @@ export type InstrumentType =
   // it yet and will silently fall back to piano's samples if attempted — a known gap for
   // this test pass, not an oversight.
   | 'synth-pad'
+  // 'retro-pad' — Paul's own recording of a Logic RetroSynth patch, printed to audio note
+  // by note rather than synthesized live (see RETRO_PAD_URLS in useAudioEngine.ts),
+  // added 2026-10-05 as a second, sample-based A/B alternative to holdsworthian-pad —
+  // independent of synth-pad above, which is the live-synthesis alternative. Same
+  // test-only treatment: gated behind SHOW_RETRO_PAD below. Raw 8s WAV bounces, not yet
+  // trimmed/faded/gain-matched — that production pass happens once (if) this is the one
+  // that's kept, same sequencing as every other instrument swap in this project.
+  | 'retro-pad'
 
-// Hides synth-pad from both instrument pickers (HomeView's settings sheet and
+// Hides synth-pad/retro-pad from both instrument pickers (HomeView's settings sheet and
 // SessionView's footer selector) without touching any of the engine/store code behind
-// it — same "keep the mechanism, hide the control" pattern as SessionView.vue's
-// SHOW_AMBIENCE_CONTROL. A single shared flag rather than one per picker: two instrument
-// pickers duplicating this independently risked one getting flipped without the other,
-// which would leave it selectable in one place and not the other. Flip to true to bring
-// it back into both pickers at once.
+// them — same "keep the mechanism, hide the control" pattern as SessionView.vue's
+// SHOW_AMBIENCE_CONTROL. A single shared flag per instrument rather than one per picker:
+// two instrument pickers duplicating this independently risked one getting flipped
+// without the other, which would leave it selectable in one place and not the other.
+// Flip to true to bring either back into both pickers at once.
 export const SHOW_SYNTH_PAD = false
+export const SHOW_RETRO_PAD = true // temporarily on for testing (2026-10-05) — flip back
+  // to false before any release build, same as SHOW_SYNTH_PAD above
 // Arpeggio note grid, in notes per beat — 0.5 = half, 1 = quarter, 2 = 8th,
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.

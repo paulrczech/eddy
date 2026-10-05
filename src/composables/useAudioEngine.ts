@@ -148,6 +148,29 @@ const HOLDSWORTHIAN_PAD_URLS: Record<string, string> = {
   'A#5': 'As5.mp3',
 }
 
+// 'retro-pad' — Paul's own recording of a Logic RetroSynth patch (printed to audio note
+// by note, not synthesized live), 2026-10-05, test-only — see SHOW_RETRO_PAD in
+// settingsStore.ts. MIDI-triggered at a fixed velocity across all 12 roots (every major
+// third, E2-C6) for consistent levels — see useAudioEngine.ts chat history/DOWNRIVER.md
+// for the sampling-interval reasoning. Raw bounces as recorded: 44.1kHz/24-bit/stereo
+// WAV, 8s each, untrimmed and unfaded — deliberately not processed yet, same "test the
+// captured tone first, only do the trim/fade/gain-match production pass once it's the
+// one being kept" sequencing as every other instrument swap in this project.
+const RETRO_PAD_URLS: Record<string, string> = {
+  E2: 'E2.wav',
+  'G#2': 'Gs2.wav',
+  C3: 'C3.wav',
+  E3: 'E3.wav',
+  'G#3': 'Gs3.wav',
+  C4: 'C4.wav',
+  E4: 'E4.wav',
+  'G#4': 'Gs4.wav',
+  C5: 'C5.wav',
+  E5: 'E5.wav',
+  'G#5': 'Gs5.wav',
+  C6: 'C6.wav',
+}
+
 // Second piano voice — VSCO2 Community Edition's upright piano (Versilian Studios,
 // sampled by Simon Dalzell/Ivy Audio), from Alex Bainter's generative-music course
 // material. Redistribution explicitly permitted per the pack's own Info.txt ("Bearer is
@@ -211,6 +234,10 @@ const SAMPLER_CONFIGS: Partial<
     urls: UPRIGHT_PIANO_URLS,
     baseUrl: '/samples/piano-original/',
   },
+  'retro-pad': {
+    urls: RETRO_PAD_URLS,
+    baseUrl: '/samples/retro-pad/',
+  },
 }
 
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
@@ -235,6 +262,8 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   'synth-pad': { min: MIDI_MIN, max: MIDI_MAX }, // full global range — synthesized, not
   // sample-based, so there's no "nearest root" to pitch-shift from and no register
   // where it inherently sounds worse
+  'retro-pad': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, matches all 12 recorded roots
+  // exactly (every major third) — no need to narrow the picker range at all
 }
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -266,6 +295,7 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   'synth-pad': '1n', // same sustained pad character as holdsworthian-pad — the
   // PolySynth's own envelope (1.5s attack, 2.5s release) governs the actual sound, this
   // just keeps the note held long enough for that envelope to matter
+  'retro-pad': '1n', // same sustained pad character
 }
 
 // Tone.Sampler's release (the fade-out after triggerRelease) defaults to 0.1s — fine for
@@ -283,6 +313,9 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   'guitar-acoustic': 1.5, // nylon pluck decays naturally, avoid the harsh-cutoff class of bug
   'piano-salamander': 2.0, // same treatment as felt piano — avoids the harsh default
   // 0.1s cutoff
+  'retro-pad': 2.5, // starting guess, matching holdsworthian-pad's — the raw files are
+  // untrimmed/unfaded 8s bounces (see RETRO_PAD_URLS), so this is unverified by ear yet;
+  // adjust once there's something to listen to
 }
 
 // Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across

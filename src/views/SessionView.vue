@@ -213,6 +213,9 @@
           <ion-select-option v-if="SHOW_SYNTH_PAD" value="synth-pad"
             >synth pad</ion-select-option
           >
+          <ion-select-option v-if="SHOW_RETRO_PAD" value="retro-pad"
+            >retro pad</ion-select-option
+          >
         </ion-select>
         <button
           class="icon-btn footer-expand-btn"
@@ -392,7 +395,7 @@
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
   import { useSequenceStore } from '../stores/sequenceStore'
-  import { useSettingsStore, SHOW_SYNTH_PAD, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_SYNTH_PAD, SHOW_RETRO_PAD, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'
@@ -484,7 +487,7 @@
   // buildClusterEvents() collapses a cluster into a single simultaneous event — i.e.
   // only true for chord direction (see the synthPadFilterEnvelope trigger in
   // useAudioEngine.ts's playSequence()).
-  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['holdsworthian-pad', 'synth-pad'])
+  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['holdsworthian-pad', 'synth-pad', 'retro-pad'])
   const isPadInstrument = computed(() => PAD_INSTRUMENTS.has(settingsStore.instrument))
 
   // Remembers whatever direction was active before a pad forced 'chord', and restores it
