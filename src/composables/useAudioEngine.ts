@@ -149,13 +149,13 @@ const HOLDSWORTHIAN_PAD_URLS: Record<string, string> = {
 }
 
 // 'retro-pad' — Paul's own recording of a Logic RetroSynth patch (printed to audio note
-// by note, not synthesized live), 2026-10-05, test-only — see SHOW_RETRO_PAD in
-// settingsStore.ts. MIDI-triggered at a fixed velocity across all 12 roots (every major
-// third, E2-C6) for consistent levels — see useAudioEngine.ts chat history/DOWNRIVER.md
-// for the sampling-interval reasoning. Raw bounces as recorded: 44.1kHz/24-bit/stereo
-// WAV, 8s each, untrimmed and unfaded — deliberately not processed yet, same "test the
-// captured tone first, only do the trim/fade/gain-match production pass once it's the
-// one being kept" sequencing as every other instrument swap in this project.
+// by note, not synthesized live), 2026-10-05. Confirmed by ear as the pad to keep —
+// replaced an earlier from-scratch Tone.js synth-pad attempt outright (see InstrumentType
+// in settingsStore.ts). MIDI-triggered at a fixed velocity across all 12 roots (every
+// major third, E2-C6) for consistent levels. Raw bounces as recorded: 44.1kHz/24-bit/
+// stereo WAV, 8s each, untrimmed and unfaded — still pending the same trim/fade/
+// gain-match production pass every other instrument in this project went through before
+// shipping (file size alone argues for it: WAV here vs. every other instrument's MP3).
 const RETRO_PAD_URLS: Record<string, string> = {
   E2: 'E2.wav',
   'G#2': 'Gs2.wav',
@@ -206,10 +206,7 @@ const UPRIGHT_PIANO_URLS: Record<string, string> = {
 
 // Hoisted out of init() (was rebuilt as a local const on every call) — also needed by
 // renderSequenceToBuffer() below for audio export, which loads its own sample buffers
-// independent of whatever's currently live-loaded. Partial, not Record — 'synth-pad' has
-// no samples at all (see createSynthPad()); every lookup site already falls back to
-// SAMPLER_CONFIGS.piano for an unmapped type, which is also what WAV export will do if
-// attempted while synth-pad is selected (a known gap, not fixed yet).
+// independent of whatever's currently live-loaded.
 const SAMPLER_CONFIGS: Partial<
   Record<InstrumentType, { urls: Record<string, string>; baseUrl: string }>
 > = {
@@ -259,9 +256,6 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   // the lowest sample here is E3; pitch-shifting further down would be too big a stretch)
   'piano-salamander': { min: 41, max: 81 }, // F2-A5, matches UPRIGHT_PIANO_URLS'
   // 11 usable roots
-  'synth-pad': { min: MIDI_MIN, max: MIDI_MAX }, // full global range — synthesized, not
-  // sample-based, so there's no "nearest root" to pitch-shift from and no register
-  // where it inherently sounds worse
   'retro-pad': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, matches all 12 recorded roots
   // exactly (every major third) — no need to narrow the picker range at all
 }
@@ -292,9 +286,6 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   // instrument's held duration, giving the release a half-bar head start instead
   'holdsworthian-pad': '1n', // sustained pad character
   'piano-salamander': '2n', // same character class as felt piano
-  'synth-pad': '1n', // same sustained pad character as holdsworthian-pad — the
-  // PolySynth's own envelope (1.5s attack, 2.5s release) governs the actual sound, this
-  // just keeps the note held long enough for that envelope to matter
   'retro-pad': '1n', // same sustained pad character
 }
 
@@ -313,9 +304,8 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   'guitar-acoustic': 1.5, // nylon pluck decays naturally, avoid the harsh-cutoff class of bug
   'piano-salamander': 2.0, // same treatment as felt piano — avoids the harsh default
   // 0.1s cutoff
-  'retro-pad': 2.5, // starting guess, matching holdsworthian-pad's — the raw files are
-  // untrimmed/unfaded 8s bounces (see RETRO_PAD_URLS), so this is unverified by ear yet;
-  // adjust once there's something to listen to
+  'retro-pad': 2.5, // matched holdsworthian-pad's as a starting guess — confirmed sounding
+  // good by ear (Paul, 2026-10-05), left as-is
 }
 
 // Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across
@@ -335,13 +325,8 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // CHORUS_SETTINGS/DELAY_SETTINGS/FILTER_SETTINGS entry exists for it — confirmed by
   // grep, not assumed), so the trim itself is the only lever.
   'piano-salamander': 10,
-  // Rough estimate, not RMS-measured like the others above — the chain's been replaced
-  // twice in one day (2026-10-04), most recently to a reference script of Paul's own
-  // (triangle oscillator, lighter chorus/reverb wet than the previous version). The new
-  // chain's own Limiter(-1) in createSynthPad() caps hard clipping regardless of this
-  // trim, so there's more room to push this by ear than the other instruments' untrimmed
-  // headroom allows — it'll just compress rather than distort if pushed too far.
-  'synth-pad': 8,
+  'retro-pad': 3, // Paul heard it as good but asked for "a tad" louder (2026-10-05) —
+  // same modest-boost treatment as piano's +3 above for the same kind of feedback
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
@@ -424,30 +409,13 @@ function noteDuration(): string {
   return NOTE_DURATIONS[type] ?? '2n'
 }
 
-// PolySynth, added for 'synth-pad', satisfies the same surface every call site below
-// actually uses (triggerAttackRelease/volume/dispose/connect) — no Sampler-specific API
-// is used outside createSampler()/loadBuffers() themselves.
-type ToneInstrument = Tone.Sampler | Tone.PolySynth
+type ToneInstrument = Tone.Sampler
 
 let instrument: ToneInstrument | null = null
 let outputReverb: Tone.Reverb | null = null
 let outputChorus: Tone.Chorus | null = null
 let outputDelay: Tone.PingPongDelay | null = null
 let outputFilter: Tone.Filter | null = null
-// 'synth-pad' only — its own bespoke chain (lowpass -> chorus -> delay -> reverb ->
-// limiter), entirely separate from outputReverb/outputChorus/the REVERB_SETTINGS/
-// CHORUS_SETTINGS tables above. Deliberately not wired into those — this is Paul's own
-// hand-designed chain (see createSynthPad()), not a generic per-instrument send, and it
-// means the Ambience dial has no effect on it yet. synthPadFilterEnvelope is currently
-// always null (this version of the chain has no filter sweep) — kept as a variable and
-// left wired into the optional-chained triggers in playCluster()/playSequence() so a
-// future version can bring a sweep back without touching those call sites again.
-let synthPadFilterEnvelope: Tone.FrequencyEnvelope | null = null
-let synthPadChorus: Tone.Chorus | null = null
-let synthPadReverb: Tone.Reverb | null = null
-let synthPadMasterFilter: Tone.Filter | null = null
-let synthPadDelay: Tone.FeedbackDelay | null = null
-let synthPadLimiter: Tone.Limiter | null = null
 let currentInstrumentType: InstrumentType | null = null
 let loopPart: Tone.Part | null = null
 let rafId: number | null = null
@@ -588,66 +556,6 @@ function createSampler(
   })
 }
 
-// Second rework (2026-10-04, same day as the first): the Camera-Eye-chasing version
-// above still wasn't landing as "lush/calming," even de-resonated. Paul found a different
-// reference pad online, ran it in JSFiddle, confirmed it's close to what he's after, and
-// handed it over — this ports that one in, replacing the first rework's chain and
-// dropping the filter envelope sweep entirely (this reference has no filter movement at
-// all, just a static lowpass — synthPadFilterEnvelope stays null, see its declaration
-// above for why that's safe). Two fixes carried over/applied, same reasoning as before:
-// Tone.Reverb has no `roomSize` option (uses `decay` in seconds) — substituted; and the
-// reference's delay time `"1/4"` isn't valid Tone.Time notation (that parses as a bare
-// arithmetic expression, 1÷4 = 0.25 raw seconds, not a tempo-relative quarter note) —
-// corrected to `"4n"`, which is clearly what was meant. New in this version: a Limiter
-// capping output at -1dB, specifically to guard against a PolySynth stacking several
-// simultaneous additive-oscillator voices (a 4-note chord here) into clipping — a real
-// risk this architecture has that a sample-based instrument, individually level-checked
-// per recorded note, doesn't.
-async function createSynthPad(): Promise<void> {
-  const limiter = new Tone.Limiter(-1).toDestination()
-
-  const filter = new Tone.Filter({ type: 'lowpass', frequency: 850, Q: 1 })
-  const chorus = new Tone.Chorus({ frequency: 1.2, delayTime: 3.5, depth: 0.5, wet: 0.4 }).start()
-  const delay = new Tone.FeedbackDelay({ delayTime: '4n', feedback: 0.3, wet: 0.25 })
-  const reverb = new Tone.Reverb({ decay: 4, wet: 0.5 })
-  await reverb.ready
-
-  filter.connect(chorus)
-  chorus.connect(delay)
-  delay.connect(reverb)
-  reverb.connect(limiter)
-
-  const synth = new Tone.PolySynth(Tone.Synth, {
-    volume: -12 + (INSTRUMENT_VOLUME['synth-pad'] ?? 0),
-    oscillator: { type: 'triangle' },
-    envelope: { attack: 1.8, decay: 2.0, sustain: 0.7, release: 3.5 },
-  })
-  synth.connect(filter)
-
-  instrument = synth
-  synthPadFilterEnvelope = null
-  synthPadChorus = chorus
-  synthPadReverb = reverb
-  synthPadMasterFilter = filter
-  synthPadDelay = delay
-  synthPadLimiter = limiter
-}
-
-function disposeSynthPadNodes(): void {
-  synthPadFilterEnvelope?.dispose()
-  synthPadChorus?.dispose()
-  synthPadReverb?.dispose()
-  synthPadMasterFilter?.dispose()
-  synthPadDelay?.dispose()
-  synthPadLimiter?.dispose()
-  synthPadFilterEnvelope = null
-  synthPadChorus = null
-  synthPadReverb = null
-  synthPadMasterFilter = null
-  synthPadDelay = null
-  synthPadLimiter = null
-}
-
 async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   // No-op if same instrument already loaded
   if (instrument && isLoaded.value && currentInstrumentType === instrumentType)
@@ -675,23 +583,9 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
     outputFilter.dispose()
     outputFilter = null
   }
-  disposeSynthPadNodes()
 
   await Tone.start()
   currentInstrumentType = instrumentType
-
-  if (instrumentType === 'synth-pad') {
-    try {
-      await createSynthPad()
-      isLoaded.value = true
-      loadError.value = null
-    } catch (err) {
-      loadError.value = 'Failed to build synth pad'
-      console.error('Synth pad build error:', err)
-      throw err
-    }
-    return
-  }
 
   // Guards against stale instrument values from old saved sessions/defaults
   // (e.g. 'cello'/'violin' persisted before those were removed)
@@ -848,10 +742,6 @@ function playCluster(
       vel
     )
   })
-  // synth-pad is forced into 'chord' direction (see PAD_INSTRUMENTS in SessionView.vue),
-  // so every voice above already fired together at `now` — one envelope trigger per
-  // audition, not per note.
-  synthPadFilterEnvelope?.triggerAttackRelease(dur, now)
 
   if (onComplete) {
     const totalTime = (notes.length - 1) * interval + Tone.Time(dur).toSeconds()
@@ -932,13 +822,6 @@ function playSequence(
         vel
       )
     })
-    // synth-pad is forced into 'chord' direction, so buildClusterEvents() above produces
-    // exactly one event per cluster (every voice together, one callback firing per
-    // cluster boundary) — retriggering the filter sweep here lands it once per chord
-    // change, same as the source script's per-chord filterEnvelope.triggerAttackRelease()
-    // calls, generalized to whatever clusterDuration this sequence actually computed to
-    // instead of a hardcoded 4s.
-    synthPadFilterEnvelope?.triggerAttackRelease(clusterDuration, time)
   }, events)
 
   loopPart.loop = loop
@@ -1090,7 +973,6 @@ function dispose(): void {
     outputFilter.dispose()
     outputFilter = null
   }
-  disposeSynthPadNodes()
 }
 
 export function useAudioEngine() {

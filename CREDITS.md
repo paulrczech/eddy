@@ -50,3 +50,10 @@ Sourced from [Pianobook.co.uk](https://www.pianobook.co.uk).
 [Pianobook.co.uk](https://www.pianobook.co.uk). Replaced the original "Blackhole
 Guitars" pad (by JWB) entirely 2026-09-30 — Paul felt the original wasn't musically
 accurate.
+
+## retro pad
+
+Paul's own recording — a Logic RetroSynth patch of his own design, printed to audio note
+by note (not a third-party sample pack, no external attribution needed). Added
+2026-10-05, replacing an earlier from-scratch Tone.js live-synthesis attempt at a second
+pad voice that never quite landed by ear.

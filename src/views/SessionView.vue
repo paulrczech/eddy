@@ -210,10 +210,7 @@
           <ion-select-option value="holdsworthian-pad"
             >ambient pad</ion-select-option
           >
-          <ion-select-option v-if="SHOW_SYNTH_PAD" value="synth-pad"
-            >synth pad</ion-select-option
-          >
-          <ion-select-option v-if="SHOW_RETRO_PAD" value="retro-pad"
+          <ion-select-option value="retro-pad"
             >retro pad</ion-select-option
           >
         </ion-select>
@@ -395,7 +392,7 @@
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
   import { useSequenceStore } from '../stores/sequenceStore'
-  import { useSettingsStore, SHOW_SYNTH_PAD, SHOW_RETRO_PAD, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'
@@ -481,13 +478,8 @@
 
   // A pad's slow swell reads as unclear/muddy when arpeggiated — held together as a
   // chord is the only direction that actually suits it (Paul, 2026-09-30). Add any other
-  // pad-type instrument here too. synth-pad additionally *relies* on chord direction
-  // being forced here, not just benefiting from it: its filter-envelope sweep retriggers
-  // once per Tone.Part callback, which only lines up with "once per chord change" when
-  // buildClusterEvents() collapses a cluster into a single simultaneous event — i.e.
-  // only true for chord direction (see the synthPadFilterEnvelope trigger in
-  // useAudioEngine.ts's playSequence()).
-  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['holdsworthian-pad', 'synth-pad', 'retro-pad'])
+  // pad-type instrument here too.
+  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['holdsworthian-pad', 'retro-pad'])
   const isPadInstrument = computed(() => PAD_INSTRUMENTS.has(settingsStore.instrument))
 
   // Remembers whatever direction was active before a pad forced 'chord', and restores it

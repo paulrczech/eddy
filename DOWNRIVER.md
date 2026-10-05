@@ -49,19 +49,18 @@ problem exists for sequence edits, not just settings — `editCluster()`, `confi
 rather than live-patch — that's an intentional, separate, already-settled choice (Paul's own
 call for the loop-range case), not something this entry's revert touches.
 
-### 2. Synthesized pad instrument
-Paul has a Tone.js synth already built in a separate file, to replace the sampled
-`holdsworthian-pad` (currently "Ultra Ambient Pad," Paul's own sample pack — see CREDITS.md
-and the V2/deferred section above). Architecture note for whoever picks this up: every
-instrument in `useAudioEngine.ts` today assumes a sample-backed `Tone.Sampler` —
-`createSampler()`/`buildEffectsChain()` are shared between live `init()` and offline
-`renderSequenceToBuffer()`, and per-instrument config (`INSTRUMENT_NOTE_RANGE`,
-`NOTE_DURATIONS`, `REVERB_SETTINGS`, `CHORUS_SETTINGS`) is all keyed off that assumption. A
-synth-based instrument needs a parallel construction path (a `Tone.PolySynth` or similar
-isn't loaded from `public/samples/`, has no `loadBuffers()` step, and may want its own
-note-range/duration defaults rather than inheriting a sampler's). Scope the integration
-before diving in — this touches the one piece of the engine that's never had a second kind
-of instrument before.
+### 2. Synthesized pad instrument — resolved, superseded by a sampled one (2026-10-05)
+A from-scratch Tone.js synth pad (`PolySynth` + effects chain) was built and went through
+two full reworks chasing "lush/calming" — never fully landed by ear even after the second
+rework. In parallel, Paul recorded his own Logic RetroSynth patch note-by-note (MIDI-
+triggered, fixed velocity, 12 roots every major third E2–C6) and had it wired up as a
+sample-based alternative (`retro-pad`) for an A/B listen. It won decisively ("sounds so
+much better than the ambient synth") — the live-synthesis attempt was removed entirely
+(not kept as a second option) and `retro-pad` is now the shipped second pad, alongside
+the original `holdsworthian-pad`, not a replacement of it. Still pending before a real
+release: the raw 8s WAV bounces need the same trim/fade/gain-match production pass every
+other instrument in this project went through (currently just a +3dB `INSTRUMENT_VOLUME`
+bump, per Paul's "a tad louder" — not yet RMS-measured or converted to MP3 like the rest).
 
 ### 3. Default starter session in "Past Flows"
 Paul's idea: ship a pre-made flow new users can load without having generated one
