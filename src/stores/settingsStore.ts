@@ -76,7 +76,12 @@ const PLAYBACK_FALLBACK = {
   tempo: 100,
   arpeggioDirection: 'up' as ArpeggioDirection,
   subdivision: 2 as Subdivision,  // 8th notes
-  latchMode: false,
+  // Defaulted on 2026-10-05 (was false) — Paul's ear: a cluster playing once and resting
+  // through most of the bar reads as sparse/uncertain on a first "let it flow," before a
+  // new user has found the playback tray to turn it on themselves. Only affects users who
+  // haven't saved their own default yet (see saveAsDefault()/StoredDefaults above) —
+  // anyone who already has reverts to nothing, their saved value still wins.
+  latchMode: true,
   // 0.5, not 1 — REVERB_SETTINGS/CHORUS_SETTINGS in useAudioEngine.ts define "100%" as
   // roughly double each instrument's original always-on wet value (needed real headroom
   // for the dial to do anything audible), so 50% is what lands back on the exact
@@ -101,8 +106,9 @@ export const useSettingsStore = defineStore('settings', () => {
   // through once and resting. Deliberately independent of arpeggioDirection — chord mode
   // has no effect for latch (see chordInterval-based guard in useAudioEngine.ts), but
   // switching to chord and back must not silently clear this; it's the user's intent,
-  // not a per-direction setting.
-  const latchMode = ref<boolean>(false)
+  // not a per-direction setting. Defaults true — see PLAYBACK_FALLBACK's latchMode
+  // comment above for why.
+  const latchMode = ref<boolean>(true)
   // 0-1 — scales whichever reverb/chorus sends the current instrument has (see
   // setAmbience() in useAudioEngine.ts). 0.5 reproduces the shipped, already-tuned wet
   // level for every instrument (see REVERB_SETTINGS's comment for why); 0 is fully dry,
