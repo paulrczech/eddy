@@ -22,7 +22,10 @@ import { logDiag } from '../utils/diagLog'
 App.addListener('resume', () => {
   logDiag('app.resume', { contextState: Tone.getContext().state })
   Tone.start().then(
-    () => logDiag('app.resume.toneStart.ok'),
+    () => {
+      logDiag('app.resume.toneStart.ok')
+      resetInstrumentVolume('app.resume.toneStart.ok')
+    },
     (err) => logDiag('app.resume.toneStart.fail', { err: String(err) })
   )
 })
@@ -867,15 +870,26 @@ function playSequence(
       Tone.start().then(
         () => {
           logDiag('tick.toneStart.ok')
+          resetInstrumentVolume('tick.toneStart.ok')
           if (isPlaying.value) playSequence(sequence, settings, loop)
         },
         (err) => {
-          // Previously unhandled — a rejection here left rafId null forever with no
-          // further recovery attempt and nothing surfaced anywhere, which would look
-          // exactly like "playback just silently stopped and never came back." Logging
-          // it now rather than fixing it blind — need to see whether this actually
-          // happens on-device before guessing at a retry strategy.
+          // Confirmed on-device (Paul, 2026-10-05 diagnostic log): this rejects with
+          // InvalidStateError while the app is still backgrounded — Tone.start() can't
+          // actually resume the context until iOS hands audio focus back, so a retry
+          // attempted the instant "not running" is detected is often premature. Previously
+          // this just logged and gave up, leaving rafId null forever with no further
+          // attempt — even once the *real* resume succeeded moments later (the app-level
+          // 'resume' handler's own Tone.start() call), nothing ever told this dead loop to
+          // check again. Now it keeps retrying every ~500ms instead of dying after one
+          // failure — cheap (a timer, not a tight loop) and self-limiting (stops as soon
+          // as isPlaying goes false, e.g. the user gives up and hits stop).
           logDiag('tick.toneStart.fail', { err: String(err) })
+          setTimeout(() => {
+            if (isPlaying.value) {
+              rafId = requestAnimationFrame(tick)
+            }
+          }, 500)
         }
       )
       return
@@ -886,6 +900,19 @@ function playSequence(
     rafId = requestAnimationFrame(tick)
   }
   rafId = requestAnimationFrame(tick)
+}
+
+// Resets the live instrument's volume to its correct configured trim — a safety net
+// callable from anywhere audio might have been left muted for any reason, not just the
+// one mechanism below. `reason` is just for the diagnostic log, so a stuck-mute report
+// can be traced back to which recovery path caught it.
+function resetInstrumentVolume(reason: string): void {
+  if (!instrument || !currentInstrumentType) return
+  const target = INSTRUMENT_VOLUME[currentInstrumentType] ?? 0
+  if (instrument.volume.value !== target) {
+    logDiag('resetInstrumentVolume', { reason, from: instrument.volume.value, to: target })
+    instrument.volume.value = target
+  }
 }
 
 // Stopping the Transport only stops SCHEDULING new notes — any note already triggered
@@ -920,9 +947,20 @@ function stopLoop(hardStop = false): void {
   playingIndex.value = -1
 
   if (hardStop && instrument) {
+    // Confirmed on-device (Paul, 2026-10-05 diagnostic log): a hard stop landed while the
+    // audio context was still mid-recovery from a backgrounding interruption (not yet
+    // confirmed 'running'). The restore step below used to be a *second* audio-clock-
+    // scheduled event 15ms after the mute — if the clock itself is unstable right when
+    // that gets scheduled, the restore can silently never fire, leaving the instrument
+    // permanently muted at -Infinity with everything else in the engine working normally.
+    // The mute-down stays a Tone-scheduled ramp (immediate, low risk) — the restore now
+    // runs on a plain JS timer instead, independent of the audio clock's own stability,
+    // plus targets this instrument's actual configured trim rather than a hardcoded 0
+    // (separate, smaller bug: every hard stop was quietly resetting e.g.
+    // holdsworthian-pad's +12dB trim to unity gain).
     const now = Tone.now()
     instrument.volume.rampTo(-Infinity, HARD_STOP_MUTE_TIME, now)
-    instrument.volume.rampTo(0, 0.001, now + HARD_STOP_MUTE_TIME)
+    setTimeout(() => resetInstrumentVolume('stopLoop.hardStop'), HARD_STOP_MUTE_TIME * 1000)
   }
 }
 
