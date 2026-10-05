@@ -207,7 +207,7 @@
           <ion-select-option value="electric-guitar"
             >e-guitar</ion-select-option
           >
-          <ion-select-option value="holdsworthian-pad"
+          <ion-select-option v-if="SHOW_HOLDSWORTHIAN_PAD" value="holdsworthian-pad"
             >ambient pad</ion-select-option
           >
           <ion-select-option value="retro-pad"
@@ -392,7 +392,7 @@
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
   import { useSequenceStore } from '../stores/sequenceStore'
-  import { useSettingsStore, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'

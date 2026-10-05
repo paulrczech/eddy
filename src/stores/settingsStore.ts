@@ -16,21 +16,33 @@ export type InstrumentType =
   // swap for saved-session backward compatibility, same reasoning as every other content
   // swap in this project (e.g. holdsworthian-pad below).
   | 'piano' | 'piano-salamander'
-  // 'holdsworthian-pad' is now "Ultra Ambient Pad" content (Paul's own pack) — replaced
-  // the original "Blackhole Guitars" pad entirely 2026-09-30; key/folder path kept
-  // unchanged for saved-session backward compatibility, same reasoning as the piano swap
-  // above. A parallel guitar experiment (nbrosowsky original + lowpass filter, to tame
-  // its harshness) was tried the same day and shelved — kept the current Nylon guitar.
+  // 'holdsworthian-pad' is "Ultra Ambient Pad" content (Julian Morgan via Pianobook) —
+  // replaced the original "Blackhole Guitars" pad entirely 2026-09-30; key/folder path
+  // kept unchanged for saved-session backward compatibility, same reasoning as the piano
+  // swap above. A parallel guitar experiment (nbrosowsky original + lowpass filter, to
+  // tame its harshness) was tried the same day and shelved — kept the current Nylon
+  // guitar. Superseded as the *default/shown* pad by 'retro-pad' below (2026-10-05, see
+  // SHOW_HOLDSWORTHIAN_PAD) — key/type kept, same backward-compatibility reasoning, so an
+  // existing saved session still resolves to real audio instead of silently falling back
+  // to piano.
   | 'guitar-acoustic' | 'electric-piano' | 'electric-guitar' | 'holdsworthian-pad'
   // 'retro-pad' — Paul's own recording of a Logic RetroSynth patch, printed to audio note
   // by note (see RETRO_PAD_URLS in useAudioEngine.ts) rather than synthesized live. Added
-  // 2026-10-05 as a second pad alongside holdsworthian-pad, not a replacement of it — a
-  // genuinely different instrument/character choice, same as every other multi-instrument
-  // precedent in this project. Won out over an earlier from-scratch Tone.js synth-pad
-  // attempt (live PolySynth + effects chain, chased through two full reworks trying to
-  // land "lush/calming" and never fully got there) — that approach was removed entirely
-  // once this sampled one proved better by ear, rather than kept as a second option.
+  // 2026-10-05, confirmed by ear as the pad to keep going forward — won out over both
+  // holdsworthian-pad (now hidden, see above) and an earlier from-scratch Tone.js
+  // synth-pad attempt (live PolySynth + effects chain, chased through two full reworks
+  // trying to land "lush/calming" and never fully got there — removed entirely, not kept
+  // as a second option, since it never shipped and had no saved-session compatibility to
+  // protect).
   | 'retro-pad'
+
+// Hides holdsworthian-pad from both instrument pickers now that retro-pad has replaced
+// it as the pad of choice — same "keep the mechanism, hide the control" pattern as
+// SHOW_AMBIENCE_CONTROL in SessionView.vue. Not a full deletion like synth-pad got:
+// holdsworthian-pad actually shipped (TestFlight 1.0(5) through 1.0(10)), so an existing
+// saved session may already reference it — the type/samples/config all stay fully intact,
+// just not selectable as a new choice going forward.
+export const SHOW_HOLDSWORTHIAN_PAD = false
 // Arpeggio note grid, in notes per beat — 0.5 = half, 1 = quarter, 2 = 8th,
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.
