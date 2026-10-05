@@ -38,6 +38,10 @@
           holdsworth pad: Blackhole Guitars by JWB. See CREDITS.md.
         </p>
 
+        <button class="btn-outline diag-btn" @click="exportDiagnostics">
+          {{ diagExported ? 'sent' : 'export diagnostics' }}
+        </button>
+
         <button class="btn-outline close-btn" @click="$emit('close')">close</button>
       </div>
     </ion-content>
@@ -45,10 +49,27 @@
 </template>
 
 <script setup lang="ts">
+  import { ref } from 'vue'
   import { IonModal, IonContent } from '@ionic/vue'
+  import { getDiagLogText } from '../../utils/diagLog'
+  import { saveAndShareBytes } from '../../utils/fileExport'
 
   defineProps<{ isOpen: boolean }>()
   defineEmits<{ close: [] }>()
+
+  // For sending to Claude after noticing a dropout (audio stopping after the screen
+  // locks, during a long loop, etc.) — not a user-facing feature, just a plain-text dump
+  // of diagLog.ts's recorded entries via the same native share sheet MIDI/WAV export
+  // already use, so there's no viewer UI to build here.
+  const diagExported = ref(false)
+
+  async function exportDiagnostics() {
+    const text = getDiagLogText()
+    const bytes = new TextEncoder().encode(text)
+    await saveAndShareBytes(bytes, 'eddy-diagnostics.txt', 'text/plain', 'export diagnostics')
+    diagExported.value = true
+    setTimeout(() => { diagExported.value = false }, 1500)
+  }
 </script>
 
 <style scoped>
@@ -113,6 +134,13 @@
   }
 
   /* .btn-outline (box model, touch target) comes from theme/buttons.css */
+  .diag-btn {
+    align-self: center;
+    font-size: var(--text-label);
+    color: var(--color-text-dim);
+    letter-spacing: 0.08em;
+  }
+
   .close-btn {
     align-self: center;
     letter-spacing: 0.12em;

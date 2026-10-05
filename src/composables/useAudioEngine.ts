@@ -10,6 +10,7 @@ import {
   buildClusterEvents,
   humanVelocity,
 } from '../utils/arpeggioEngine'
+import { logDiag } from '../utils/diagLog'
 
 // iOS suspends the WebAudio context whenever the app is backgrounded or the screen
 // locks (a real interruption, not just a pause), and nothing resumes it automatically —
@@ -19,7 +20,14 @@ import {
 // Registered once at module load (this file is a documented singleton), rather than once
 // per useAudioEngine() call, which would otherwise stack up duplicate listeners.
 App.addListener('resume', () => {
-  Tone.start()
+  logDiag('app.resume', { contextState: Tone.getContext().state })
+  Tone.start().then(
+    () => logDiag('app.resume.toneStart.ok'),
+    (err) => logDiag('app.resume.toneStart.fail', { err: String(err) })
+  )
+})
+App.addListener('pause', () => {
+  logDiag('app.pause', { contextState: Tone.getContext().state, isPlaying: isPlaying.value })
 })
 
 // Piano — "Mikor Piano Felt" (Burger&Jacobi piano, felt pedal engaged) via
@@ -719,6 +727,7 @@ function playCluster(
   // emit it), retry once the resume completes rather than silently scheduling into a
   // dead context.
   if (Tone.getContext().state !== 'running') {
+    logDiag('playCluster.contextNotRunning', { state: Tone.getContext().state })
     Tone.start().then(() => playCluster(cluster, settings, onComplete))
     return
   }
@@ -760,6 +769,7 @@ function playSequence(
   // Deliberately ahead of the debounce check below: it stamps lastPlaySequenceTime, which
   // would otherwise make the retried call swallow itself as a false "too-soon" repeat.
   if (Tone.getContext().state !== 'running') {
+    logDiag('playSequence.contextNotRunning', { state: Tone.getContext().state })
     Tone.start().then(() => playSequence(sequence, settings, loop))
     return
   }
@@ -852,10 +862,22 @@ function playSequence(
     // Restarts from the top of the sequence rather than attempting to resume the exact
     // position — a small jump is a better tradeoff than staying broken.
     if (Tone.getContext().state !== 'running') {
+      logDiag('tick.contextNotRunning', { state: Tone.getContext().state })
       rafId = null
-      Tone.start().then(() => {
-        if (isPlaying.value) playSequence(sequence, settings, loop)
-      })
+      Tone.start().then(
+        () => {
+          logDiag('tick.toneStart.ok')
+          if (isPlaying.value) playSequence(sequence, settings, loop)
+        },
+        (err) => {
+          // Previously unhandled — a rejection here left rafId null forever with no
+          // further recovery attempt and nothing surfaced anywhere, which would look
+          // exactly like "playback just silently stopped and never came back." Logging
+          // it now rather than fixing it blind — need to see whether this actually
+          // happens on-device before guessing at a retry strategy.
+          logDiag('tick.toneStart.fail', { err: String(err) })
+        }
+      )
       return
     }
     const pos = Tone.getTransport().seconds
@@ -875,6 +897,12 @@ function playSequence(
 const HARD_STOP_MUTE_TIME = 0.015
 
 function stopLoop(hardStop = false): void {
+  // Only log a "real" stop (something was actually playing) — every playSequence()/
+  // playCluster() call also calls this first as routine pre-start cleanup, which would
+  // otherwise spam the log on every single stream audition.
+  if (isPlaying.value) {
+    logDiag('stopLoop', { hardStop })
+  }
   if (rafId !== null) {
     cancelAnimationFrame(rafId)
     rafId = null

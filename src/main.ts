@@ -2,8 +2,20 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router';
+import { logDiag } from './utils/diagLog';
 
 import { IonicVue } from '@ionic/vue';
+
+// Catches anything uncaught, anywhere in the app — not just audio-context issues.
+// Playback "just stopping" could just as easily be a plain JS error silently killing the
+// rAF tick loop or an event handler, with no audio-context-level symptom at all. See
+// diagLog.ts and AboutModal.vue's export button.
+window.addEventListener('error', (e) => {
+  logDiag('window.error', { message: e.message, filename: e.filename, lineno: e.lineno })
+})
+window.addEventListener('unhandledrejection', (e) => {
+  logDiag('window.unhandledrejection', { reason: String(e.reason) })
+})
 
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/vue/css/core.css';
