@@ -12,6 +12,22 @@ import {
 } from '../utils/arpeggioEngine'
 import { logDiag } from '../utils/diagLog'
 
+// Confirmed from a real on-device diagnostic log (Paul, 2026-10-05): after repeated
+// background/foreground cycling, Tone.start() (really AudioContext.resume()) can simply
+// never settle at all — neither resolving nor rejecting. Every recovery path below is
+// gated on that promise settling, so a hang silently defeats all of them; the explicit-
+// rejection retry added for the first fix (InvalidStateError while still backgrounded)
+// never even triggers if the promise just hangs instead of rejecting. Racing against a
+// timeout turns "hangs forever" into "treated as a failure, retried like any other."
+function startToneWithTimeout(timeoutMs = 2000): Promise<void> {
+  return Promise.race([
+    Tone.start(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Tone.start() timed out after ${timeoutMs}ms`)), timeoutMs)
+    ),
+  ])
+}
+
 // iOS suspends the WebAudio context whenever the app is backgrounded or the screen
 // locks (a real interruption, not just a pause), and nothing resumes it automatically —
 // every scheduled note would then silently do nothing until the app was force-restarted.
@@ -21,7 +37,7 @@ import { logDiag } from '../utils/diagLog'
 // per useAudioEngine() call, which would otherwise stack up duplicate listeners.
 App.addListener('resume', () => {
   logDiag('app.resume', { contextState: Tone.getContext().state })
-  Tone.start().then(
+  startToneWithTimeout().then(
     () => {
       logDiag('app.resume.toneStart.ok')
       resetInstrumentVolume('app.resume.toneStart.ok')
@@ -731,7 +747,10 @@ function playCluster(
   // dead context.
   if (Tone.getContext().state !== 'running') {
     logDiag('playCluster.contextNotRunning', { state: Tone.getContext().state })
-    Tone.start().then(() => playCluster(cluster, settings, onComplete))
+    startToneWithTimeout().then(
+      () => playCluster(cluster, settings, onComplete),
+      (err) => logDiag('playCluster.toneStart.fail', { err: String(err) })
+    )
     return
   }
 
@@ -773,7 +792,10 @@ function playSequence(
   // would otherwise make the retried call swallow itself as a false "too-soon" repeat.
   if (Tone.getContext().state !== 'running') {
     logDiag('playSequence.contextNotRunning', { state: Tone.getContext().state })
-    Tone.start().then(() => playSequence(sequence, settings, loop))
+    startToneWithTimeout().then(
+      () => playSequence(sequence, settings, loop),
+      (err) => logDiag('playSequence.toneStart.fail', { err: String(err) })
+    )
     return
   }
 
@@ -867,7 +889,7 @@ function playSequence(
     if (Tone.getContext().state !== 'running') {
       logDiag('tick.contextNotRunning', { state: Tone.getContext().state })
       rafId = null
-      Tone.start().then(
+      startToneWithTimeout().then(
         () => {
           logDiag('tick.toneStart.ok')
           resetInstrumentVolume('tick.toneStart.ok')
@@ -875,15 +897,18 @@ function playSequence(
         },
         (err) => {
           // Confirmed on-device (Paul, 2026-10-05 diagnostic log): this rejects with
-          // InvalidStateError while the app is still backgrounded — Tone.start() can't
-          // actually resume the context until iOS hands audio focus back, so a retry
-          // attempted the instant "not running" is detected is often premature. Previously
-          // this just logged and gave up, leaving rafId null forever with no further
-          // attempt — even once the *real* resume succeeded moments later (the app-level
-          // 'resume' handler's own Tone.start() call), nothing ever told this dead loop to
-          // check again. Now it keeps retrying every ~500ms instead of dying after one
-          // failure — cheap (a timer, not a tight loop) and self-limiting (stops as soon
-          // as isPlaying goes false, e.g. the user gives up and hits stop).
+          // InvalidStateError while the app is still backgrounded (a retry attempted the
+          // instant "not running" is detected is often premature — Tone.start() can't
+          // actually resume until iOS hands audio focus back), or — confirmed in a second
+          // diagnostic log the same day — the promise can hang and never settle at all,
+          // which is what startToneWithTimeout() above exists to catch and turn into this
+          // same rejection path. Previously a rejection here just logged and gave up,
+          // leaving rafId null forever with no further attempt — even once the *real*
+          // resume succeeded moments later (the app-level 'resume' handler's own
+          // Tone.start() call), nothing ever told this dead loop to check again. Now it
+          // keeps retrying every ~500ms instead of dying after one failure — cheap (a
+          // timer, not a tight loop) and self-limiting (stops as soon as isPlaying goes
+          // false, e.g. the user gives up and hits stop).
           logDiag('tick.toneStart.fail', { err: String(err) })
           setTimeout(() => {
             if (isPlaying.value) {

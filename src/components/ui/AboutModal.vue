@@ -38,9 +38,14 @@
           holdsworth pad: Blackhole Guitars by JWB. See CREDITS.md.
         </p>
 
-        <button class="btn-outline diag-btn" @click="exportDiagnostics">
-          {{ diagExported ? 'sent' : 'export diagnostics' }}
-        </button>
+        <div class="diag-row">
+          <button class="btn-outline diag-btn" @click="exportDiagnostics">
+            {{ diagExported ? 'sent' : 'export diagnostics' }}
+          </button>
+          <button class="icon-btn diag-clear-btn" title="clear diagnostic log" @click="clearDiagnostics">
+            {{ diagCleared ? 'cleared' : 'clear log' }}
+          </button>
+        </div>
 
         <button class="btn-outline close-btn" @click="$emit('close')">close</button>
       </div>
@@ -51,7 +56,7 @@
 <script setup lang="ts">
   import { ref } from 'vue'
   import { IonModal, IonContent } from '@ionic/vue'
-  import { getDiagLogText } from '../../utils/diagLog'
+  import { getDiagLogText, clearDiagLog } from '../../utils/diagLog'
   import { saveAndShareBytes } from '../../utils/fileExport'
 
   defineProps<{ isOpen: boolean }>()
@@ -62,6 +67,7 @@
   // of diagLog.ts's recorded entries via the same native share sheet MIDI/WAV export
   // already use, so there's no viewer UI to build here.
   const diagExported = ref(false)
+  const diagCleared = ref(false)
 
   async function exportDiagnostics() {
     const text = getDiagLogText()
@@ -69,6 +75,16 @@
     await saveAndShareBytes(bytes, 'eddy-diagnostics.txt', 'text/plain', 'export diagnostics')
     diagExported.value = true
     setTimeout(() => { diagExported.value = false }, 1500)
+  }
+
+  // The log persists across app restarts by design (so it survives whatever crashed) —
+  // but that means it silently accumulates across unrelated test sessions too, with no
+  // way to tell old entries from new ones in an export. This starts fresh after sending
+  // a report, so the next export only reflects what happens from here.
+  function clearDiagnostics() {
+    clearDiagLog()
+    diagCleared.value = true
+    setTimeout(() => { diagCleared.value = false }, 1500)
   }
 </script>
 
@@ -133,12 +149,26 @@
     margin: 0;
   }
 
+  .diag-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+  }
+
   /* .btn-outline (box model, touch target) comes from theme/buttons.css */
   .diag-btn {
-    align-self: center;
     font-size: var(--text-label);
     color: var(--color-text-dim);
     letter-spacing: 0.08em;
+  }
+
+  /* .icon-btn (box model, touch target) comes from theme/buttons.css — plain text here,
+     not an icon, but it's a minor/secondary action next to diag-btn so the borderless
+     treatment reads as lower-emphasis */
+  .diag-clear-btn {
+    font-size: var(--text-label);
+    letter-spacing: 0.06em;
   }
 
   .close-btn {
