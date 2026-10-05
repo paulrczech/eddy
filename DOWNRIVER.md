@@ -11,26 +11,43 @@ live tempo ramping, two-column streams, simplified drift card — see commits `5
 `6e624e7`, build 1.0(9)). Paul listed four new items before stepping away for a session
 break — **not started, just queued**. Pick up here.
 
-### 1. Scheduling fix for real-time structural updates
-The deferred half of the mid-playback "jarble" work (see the old #2 below for the full
-original analysis). Tempo is solved — `setTempoLive()` in `useAudioEngine.ts` ramps
-`Transport.bpm` live, no restart. Direction/subdivision/latch/time-signature still do a
-full `stopLoop(true)` + restart, which briefly hard-mutes (`HARD_STOP_MUTE_TIME`, 15ms).
-The reverb-tail duck (ramping `outputReverb`/`outputChorus` wet to 0 and back over the
-decay time) was tried and **reverted** — it traded the overlap glitch for a different,
-also-noticeable problem: audibly quieter playback for the ~2s the wet was ducked. Current
-state is the plain pre-existing mute/restart, unchanged.
+### 1. Scheduling fix for real-time structural updates — tried, reverted (2026-10-05)
+Tempo is still solved — `setTempoLive()` in `useAudioEngine.ts` ramps `Transport.bpm` live,
+no restart, unaffected by this entry. Direction/subdivision/latch/time-signature are back
+to the plain pre-existing `stopLoop(true)` + restart-from-cluster-0, same as before any of
+this round's work — **deliberately reverted**, not an oversight.
 
-The real fix is still the one scoped out originally: queue a structural change to land on
-the next bar boundary instead of applying it instantly, so there's no restart-while-
-sounding moment at all. Also now in scope: the same content-changes-while-playing problem
-exists for sequence edits, not just settings — `editCluster()`, `confirmSelection()`,
-`deleteCluster()`, `reorderClusters()`, and a new loop-range marker tap (`range-tap`) all
-currently just hard-stop playback outright (Paul's explicit call for the loop-range case,
-extended to match for the others) rather than live-patch the already-scheduled `Tone.Part`.
-Worth deciding whether the bar-boundary mechanism, once built, should also absorb some of
-these (e.g. a note edit landing on the next bar) or whether "stop and let the user replay"
-stays the permanent answer for content changes even after structural settings go live.
+**What was tried**: a bar-boundary continuation — wait for the current bar to finish, then
+continue into the *next* cluster under the new setting (no restart, no jump back to
+cluster 0; the loop re-anchors to wherever playback was, via a `startIndex`/rotation param
+added to `playSequence()`). Paul explicitly chose this position-preserving design over the
+narrower "just delay the existing restart" option when scoped. Built, and a real bug was
+found and fixed along the way (the boundary handoff was missing the hard-mute step the
+original restart always had, causing audible overlap with old ringing notes).
+
+**Why it was reverted anyway**: diagnosed with a throwaway Playwright script (driving the
+real app in headless Chromium, capturing `console.log` traces of the actual
+`Tone.Transport`/scheduling timing — not guessed) rather than guessing blind. The trace
+proved the mechanism was working *exactly* as designed — correct boundary timing, correct
+rotation math, correct mute-then-rebuild sequencing. The problem was the design itself, not
+a bug: waiting for the current bar to finish before a change becomes audible means up to a
+full bar's delay (in the traced repro, ~2 seconds) between tapping a direction button and
+hearing anything change. That reads as "did this even work?" / "the old direction is stuck"
+rather than "waiting for a natural pause" — a genuinely worse experience than the original
+abrupt-but-immediate restart, not a better one. Confirmed by Paul's own real-device testing
+after the mute fix landed — still "clunky," for this latency reason, not an audio-quality one.
+
+**If revisited later**: the actual hard problem isn't audio-splice quality (that part works)
+— it's that *any* scheduling fix which waits for a bar boundary trades an audio glitch for
+input latency, and the latency may just be the worse tradeoff for how Eddy is actually used
+(tweaking live, expecting to hear the result immediately). A genuinely different approach —
+applying a change close to instantly while still avoiding a glitch, e.g. by crossfading
+between old and new schedules rather than stop/mute/rebuild — would be a bigger rethink, not
+a tweak. Also still true from the original analysis: the same content-changes-while-playing
+problem exists for sequence edits, not just settings — `editCluster()`, `confirmSelection()`,
+`deleteCluster()`, `reorderClusters()`, and loop-range marker taps all hard-stop outright
+rather than live-patch — that's an intentional, separate, already-settled choice (Paul's own
+call for the loop-range case), not something this entry's revert touches.
 
 ### 2. Synthesized pad instrument
 Paul has a Tone.js synth already built in a separate file, to replace the sampled
