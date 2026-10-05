@@ -4,28 +4,41 @@ Ideas, possibilities, and future directions. Added to as inspiration strikes. No
 
 ---
 
-## Next session priority (2026-10-05): playback dropout diagnosis — before any new feature work
+## Playback dropout diagnosis — real fix shipped (2026-10-05), awaiting on-device confirmation
 
-Paul's explicit call: understand and fix the real-device playback dropout issues before
-picking up anything else on this list (the Chopin starter session, latch/export follow-
-ups, anything new). Build 1.0(11) ships `src/utils/diagLog.ts` — an on-device diagnostic
-log (app pause/resume, every AudioContext-not-running detection and recovery attempt,
-real `stopLoop()` calls, any uncaught JS error) exportable via AboutModal.vue's "export
-diagnostics" button. The actual symptoms reported: audio stops after the screen
-locks/app backgrounds, and a drop observed during loop-mode playback (confirmed: no
-engineered loop-count limit exists anywhere in the code, so that's not the literal cause,
-whatever it turns out to be). This is a known, previously-only-partially-fixed issue —
-see the 2026-09-27 session notes (iOS suspends the WebAudio context on
-backgrounding/locking, fixed with a Capacitor resume listener + an `AVAudioSession`
-category in `AppDelegate.swift`, but never confirmed fully resolved on-device. One
-concrete lead already found while wiring up the logging: `tick()`'s self-healing
-recovery had no `.catch()` on its `Tone.start()` call — a silent rejection there would
-leave the rAF loop dead forever with no further attempt and nothing surfaced, which would
-look exactly like "it just stopped and never came back." Logged now, not yet fixed —
-wait for a real exported log before committing to a retry strategy rather than guessing.
+Paul's explicit priority call: understand and fix the real-device playback dropout issues
+before any other feature work. Build 1.0(11) shipped `src/utils/diagLog.ts` (on-device
+diagnostic log, exportable via AboutModal.vue's "export diagnostics" button); Paul sent
+the first real exported log the same day, from a genuine repro (loop playing, screen
+locked, came back to total silence — "nothing sounds when I tap a stream or click the
+play button").
 
-**Next session starts here**: read whatever diagnostic log Paul sends, find the actual
-pattern, then fix it.
+**Root cause found from that log, not guessed**: a hard stop landed while the audio
+context was still mid-recovery from the backgrounding interruption (confirmed not yet
+`running` at that moment). `stopLoop(true)`'s mute-restore step was a *second*
+audio-clock-scheduled event 15ms after the mute — if the clock itself is unstable right
+when that gets scheduled, the restore can silently never fire, leaving the instrument's
+volume parameter permanently at `-Infinity` while everything else in the engine (UI,
+buttons, the rAF loop) keeps working normally. That matches the symptom exactly.
+
+**Fixed**: the restore now runs on a plain JS `setTimeout`, independent of the audio
+clock, via a new `resetInstrumentVolume()` safety net also wired into both resume-success
+paths (`App.addListener('resume', ...)`, `tick()`'s own recovery). Also fixed in the same
+pass: the restore was targeting a hardcoded `0` instead of the instrument's actual
+`INSTRUMENT_VOLUME` trim (a separate bug — any hard stop, not just during an
+interruption, was quietly flattening e.g. `holdsworthian-pad`'s +12dB to unity gain), and
+`tick()`'s recovery no longer gives up permanently after one failed `Tone.start()` — the
+log showed it failing once (`InvalidStateError`, still backgrounded) and never trying
+again even after the real resume succeeded moments later. It now retries every ~500ms
+until it succeeds or playback is explicitly stopped.
+
+**Not yet confirmed on a real device** — this was diagnosed and fixed from one log, not
+reproduced locally (can't simulate a real screen-lock interruption). Next session: has
+Paul hit this again since updating? If the stuck-mute symptom is gone but something else
+surfaces, the diagnostic log is still shipping, so the next export should narrow it
+further rather than starting over. Loop-mode dropout specifically is still unconfirmed as
+the same root cause vs. a separate issue — no engineered loop-count limit exists anywhere
+in the code, so if it's still reproducing, it needs its own log.
 
 ---
 
