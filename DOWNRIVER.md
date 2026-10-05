@@ -4,6 +4,31 @@ Ideas, possibilities, and future directions. Added to as inspiration strikes. No
 
 ---
 
+## Next session priority (2026-10-05): playback dropout diagnosis — before any new feature work
+
+Paul's explicit call: understand and fix the real-device playback dropout issues before
+picking up anything else on this list (the Chopin starter session, latch/export follow-
+ups, anything new). Build 1.0(11) ships `src/utils/diagLog.ts` — an on-device diagnostic
+log (app pause/resume, every AudioContext-not-running detection and recovery attempt,
+real `stopLoop()` calls, any uncaught JS error) exportable via AboutModal.vue's "export
+diagnostics" button. The actual symptoms reported: audio stops after the screen
+locks/app backgrounds, and a drop observed during loop-mode playback (confirmed: no
+engineered loop-count limit exists anywhere in the code, so that's not the literal cause,
+whatever it turns out to be). This is a known, previously-only-partially-fixed issue —
+see the 2026-09-27 session notes (iOS suspends the WebAudio context on
+backgrounding/locking, fixed with a Capacitor resume listener + an `AVAudioSession`
+category in `AppDelegate.swift`, but never confirmed fully resolved on-device. One
+concrete lead already found while wiring up the logging: `tick()`'s self-healing
+recovery had no `.catch()` on its `Tone.start()` call — a silent rejection there would
+leave the rAF loop dead forever with no further attempt and nothing surfaced, which would
+look exactly like "it just stopped and never came back." Logged now, not yet fixed —
+wait for a real exported log before committing to a retry strategy rather than guessing.
+
+**Next session starts here**: read whatever diagnostic log Paul sends, find the actual
+pattern, then fix it.
+
+---
+
 ## Open Discussion — Handoff (2026-10-01, round 2)
 
 The previous four-topic handoff below is fully resolved and shipped (loop-range select,
