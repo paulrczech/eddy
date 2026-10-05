@@ -487,6 +487,12 @@
   // already established for latch surviving a trip through chord mode.
   let directionBeforePad: ArpeggioDirection | null = null
 
+  // immediate: true — without it, this only reacts to isPadInstrument *changing*, never
+  // to it already being true when the session starts (e.g. a pad saved as the default
+  // instrument). Without a transition into "pad" to react to, the saved arpeggioDirection
+  // just sat there uncorrected until the user manually touched a direction button (Paul,
+  // 2026-10-05). Safe to run on every mount — the non-pad startup case is a no-op
+  // (directionBeforePad is still null, isPad is false, neither branch does anything).
   watch(isPadInstrument, (isPad) => {
     if (isPad) {
       if (settingsStore.arpeggioDirection !== 'chord') {
@@ -497,7 +503,7 @@
       settingsStore.setArpeggioDirection(directionBeforePad)
       directionBeforePad = null
     }
-  })
+  }, { immediate: true })
 
   watch(
     () => settingsStore.arpeggioDirection,
