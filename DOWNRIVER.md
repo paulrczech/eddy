@@ -58,14 +58,13 @@ localStorage-backed with no concept of an app-shipped template. Needs design: do
 always appear (even once the user has their own saved flows), is it distinguishable from
 user sessions in the list, can it be dismissed/deleted like a normal one once seen, etc.
 
-### 4. Latch mode on by default?
-Paul's observation: latch (repeat-to-fill-the-bar, see `buildClusterEvents()` in
-`arpeggioEngine.ts`) sounds noticeably nicer than the current default-off behavior, enough
-that he's considering flipping `settingsStore.ts`'s `latchMode` default to `true`. Explicitly
-flagged as "we can discuss" — not decided. Worth weighing against chord-direction's
-existing latch-disable (latch has no effect there already) and whether a fuller-sounding
-default changes first-impression expectations for new users versus what random/seed starts
-already sound like today.
+### 4. Latch mode on by default? — resolved, shipped (2026-10-05)
+Flipped `settingsStore.ts`'s `latchMode` default to `true` — a cluster playing once and
+resting through most of the bar read as sparse before a new user finds the playback tray.
+Only affects users without a saved default of their own (`saveAsDefault()` already means a
+saved preference always wins). Confirmed `buildClusterEvents()` reshuffles `'random'`
+direction fresh on every repeat rather than looping the same pattern, so latch doesn't
+undercut that direction's character either.
 
 ### 5. Should exports respect an active loop range? — resolved, shipped (2026-10-05)
 Resolved without picking a fixed default either way: `requestExport()` in `SessionView.vue`
