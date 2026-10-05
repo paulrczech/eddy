@@ -48,6 +48,12 @@
       :buttons="saveAlertButtons"
       @didDismiss="showSaveConfirm = false" />
 
+    <ion-alert
+      :is-open="showExportScopeConfirm"
+      header="export this loop, or the whole flow?"
+      :buttons="exportScopeAlertButtons"
+      @didDismiss="showExportScopeConfirm = false; pendingExportRun = null" />
+
     <IonToast
       :is-open="savedFlash"
       message="saved"
@@ -319,16 +325,16 @@
           <div
             v-if="sequenceStore.sequence.length > 1"
             class="tray-row export-row">
-            <button class="btn-outline export-btn" @click="exportMidi">
+            <button class="btn-outline export-btn" @click="requestExport(exportMidi)">
               <ion-icon :icon="downloadOutline" /> midi
             </button>
             <button
               class="btn-outline export-btn"
               :disabled="exportingAudio"
-              @click="exportAudio">
+              @click="requestExport(exportAudio)">
               <ion-icon :icon="downloadOutline" /> {{ exportingAudio ? 'rendering…' : 'wav' }}
             </button>
-            <button class="btn-outline export-btn" @click="copyText">
+            <button class="btn-outline export-btn" @click="requestExport(copyText)">
               {{ copiedFlash ? 'copied!' : 'copy text' }}
             </button>
           </div>
@@ -988,8 +994,36 @@
     clearTempoHold()
   }
 
-  async function exportMidi() {
-    await exportSequenceAsMidi(sequenceStore.sequence, {
+  // MIDI/WAV/copy-text export all default to the full flow — but if a loop range is set,
+  // "export" becomes genuinely ambiguous (capture what's currently sounding vs. everything
+  // you've built), so ask rather than silently picking one (Paul, 2026-10-05). Skipped
+  // entirely when no range is active, since there's nothing to disambiguate — the three
+  // export functions below all take the sequence to export as a parameter rather than
+  // reading sequenceStore.sequence directly, so this is the one place that decides it.
+  const pendingExportRun = ref<((sequence: Cluster[]) => void | Promise<void>) | null>(null)
+  const showExportScopeConfirm = ref(false)
+
+  function requestExport(run: (sequence: Cluster[]) => void | Promise<void>) {
+    if (!loopRange.value) {
+      run(sequenceStore.sequence)
+      return
+    }
+    pendingExportRun.value = run
+    showExportScopeConfirm.value = true
+  }
+
+  function runPendingExport(sequence: Cluster[]) {
+    pendingExportRun.value?.(sequence)
+    pendingExportRun.value = null
+  }
+
+  const exportScopeAlertButtons = [
+    { text: 'this loop', handler: () => runPendingExport(playbackSequence.value) },
+    { text: 'whole flow', handler: () => runPendingExport(sequenceStore.sequence) },
+  ]
+
+  async function exportMidi(sequence: Cluster[]) {
+    await exportSequenceAsMidi(sequence, {
       bpm: settingsStore.tempo,
       direction: settingsStore.arpeggioDirection,
       subdivision: settingsStore.subdivision,
@@ -1003,7 +1037,7 @@
   // itself while it runs rather than looking like a dead tap.
   const exportingAudio = ref(false)
 
-  async function exportAudio() {
+  async function exportAudio(sequence: Cluster[]) {
     if (exportingAudio.value) return
     // Tone.Offline() temporarily swaps the *global* Tone context for the duration of the
     // render — if live playback's per-frame tick loop read Tone.getContext() mid-render,
@@ -1014,7 +1048,7 @@
     try {
       await exportSequenceAsWav(
         audioEngine.renderSequenceToBuffer,
-        sequenceStore.sequence,
+        sequence,
         settingsStore.instrument,
         playbackSettings.value,
         settingsStore.ambience
@@ -1026,8 +1060,8 @@
     }
   }
 
-  function copyText() {
-    const text = exportSequenceAsText(sequenceStore.sequence)
+  function copyText(sequence: Cluster[]) {
+    const text = exportSequenceAsText(sequence)
     navigator.clipboard.writeText(text)
     copiedFlash.value = true
     setTimeout(() => {
