@@ -136,10 +136,20 @@ audio, the whole JS engine, including anything that would recover it — gets fr
 the instant the screen locks. That's arguably the real root mechanism behind every dropout
 in this whole investigation: every fix so far has been about recovering gracefully *after*
 the freeze; none has tried preventing the freeze. Adding that capability is a cheap,
-one-line `Info.plist` change + Xcode toggle — **queued as a to-do, not yet done** — versus
-a full native rewrite, which would be the same scope of effort as the already-parked AU/VST
-plugin idea (re-implementing Transport/Part/scheduling from scratch). Try the background
-capability first; treat the full rewrite as the fallback if that doesn't hold up on-device.
+one-line `Info.plist` change + Xcode toggle — versus a full native rewrite, which would be
+the same scope of effort as the already-parked AU/VST plugin idea (re-implementing
+Transport/Part/scheduling from scratch). Try the background capability first; treat the
+full rewrite as the fallback if that doesn't hold up on-device.
+
+**Shipped build 1.0(17)**: `UIBackgroundModes` → `audio` added to `Info.plist`. One real
+caveat surfaced partway through the live-tempo-ramp side-check (below) that applies here
+too: Paul confirmed dropouts have happened in sessions where he never touched tempo at all,
+which already rules out live-tempo-ramp as *the* cause — the background-audio-capability
+fix is the stronger remaining candidate for the core bug precisely because it's not gated
+on any specific setting or feature, it targets whether the WKWebView process gets frozen
+on lock at all, regardless of what's playing. Still unconfirmed whether a Capacitor-hosted
+WKWebView's JS thread actually stays alive the same way a pure-native render thread would
+with this capability declared — that's the thing this build needs to confirm on-device.
 
 **Loop-range / live-tempo-ramping hypothesis (2026-10-06)**: Paul suspected the loop-range
 feature (shipped build 1.0(9), commit `5b3e898`, 2026-10-01) introduced this bug class.
@@ -156,6 +166,15 @@ ship until build 1.0(11), four days after loop-range/live-tempo landed at 1.0(9)
 no instrumented before/after for this question, only Paul's recollection, which could also
 just be a usage-frequency confound (noted two rounds ago, still live). **Flip
 `DISABLE_LIVE_TEMPO_RAMP` back to `false` once this build's test concludes.**
+
+**Downgraded same day, before the build even shipped**: `setTempoLive()` has exactly one
+call site (confirmed by grep) — the `settingsStore.tempo` watcher in `SessionView.vue`,
+which only fires on an actual tempo change during playback. Paul confirmed dropouts have
+happened in sessions where he never touched tempo at all, meaning that code path was never
+invoked in those sessions either. Live tempo ramping can't be the cause of dropouts that
+happen without it ever running — so this is now a low-priority side-check left in because
+it was already built and harmless, not the leading hypothesis. The background-audio-
+capability fix above is the stronger candidate for the core, tempo-independent case.
 
 ---
 

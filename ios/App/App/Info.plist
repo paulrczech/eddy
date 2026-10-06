@@ -24,6 +24,16 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Without this, iOS fully freezes the WKWebView process (not just audio — the whole
+	     JS engine, including anything that would recover a dropped AudioContext) the
+	     instant the screen locks, which is the real root mechanism behind the on-device
+	     playback dropouts documented in DOWNRIVER.md. Declaring this background mode is
+	     how real audio/music apps keep their render thread (and here, the whole WebView)
+	     alive through a lock screen instead of relying on recovering after the freeze. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
