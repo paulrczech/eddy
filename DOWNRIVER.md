@@ -80,6 +80,38 @@ frequency confound (more active testing this week = more chances to notice it, n
 necessarily a higher underlying rate) — worth keeping both hypotheses live rather than
 anchoring on the code-regression one just because it's the more actionable-feeling story.
 
+**Round 3 (2026-10-06): two real bugs found directly in round 1/2's own recovery code,
+from a fresh on-device log plus Paul's own clue** — "when I wake the phone, the loop has
+stopped but the play button is still toggled on." That's `isPlaying` stuck `true` with
+nothing audible, which `tick()`'s self-healing retry loop (added in round 1) can cause
+directly: it only gates on the shared `isPlaying` boolean and never gives up, so if
+`Tone.start()` keeps failing it just retries every ~500ms forever. Real-world cause
+confirmed from the log: the context lands in WebKit's `'interrupted'` state (distinct from
+`'suspended'`, iOS's name for an OS-level audio-session interruption), and `resume()` calls
+made from non-gesture code (a `setTimeout`/`rAF` callback, which every recovery path here
+is) can apparently never clear that state — only a real user tap can. So the retry loop
+wasn't broken, it was doing exactly what it was told, forever, against a lock it could
+never pick. **Fixed**: a 20s wall-clock cap on continuous recovery failure — past it, give
+up explicitly (`stopLoop()`, logged as `tick.recovery.gaveUp`) so `isPlaying` honestly
+flips to `false` and the play button stops lying. The user's next tap is a real gesture,
+which is what can actually unstick WebKit.
+
+Second bug, same session, found by code review rather than the log directly: no
+session/generation token existed anywhere in this retry machinery — only the single shared
+`isPlaying` ref. If playback stopped and restarted (any structural-setting change, or the
+user manually recovering) while an old retry chain from a *previous* `tick()` closure was
+still mid-backoff, that stale closure could later win a race for the shared `rafId`
+variable against the new, legitimate loop — `stopLoop()` only ever cancels whichever
+`rafId` is currently assigned, orphaning the other. This is a plausible second contributor
+to "continuous loop sometimes drops out" independent of any sleep/wake event. **Fixed**: a
+`playbackGeneration` counter, bumped by every `stopLoop()` and minted fresh by every
+`playSequence()` call; every retry closure checks it before touching `rafId` again, so a
+stale chain is structurally inert instead of relying on `isPlaying` as the only guard.
+
+Both fixes are in `useAudioEngine.ts`, not yet built/bumped/archived — next session's
+first move once Paul's ready. **Not yet confirmed on a real device** — same caveat as
+rounds 1 and 2.
+
 ---
 
 ## Open Discussion — Handoff (2026-10-01, round 2)

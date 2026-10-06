@@ -450,6 +450,14 @@ let currentClusterDuration = 0
 let currentSequenceLength = 0
 let lastPlaySequenceTime = 0
 
+// Bumped by every stopLoop() and every fresh playSequence() start. tick()'s self-healing
+// retry closures (below) capture their own value and check it before ever touching the
+// shared rafId again — confirmed from a real diagnostic log (Paul, 2026-10-06) that without
+// this, a stale retry chain from a *previous* playSequence() call (still waiting out its
+// 500ms backoff when playback was stopped/restarted) can win a later race for rafId against
+// the new, legitimate tick() loop, orphaning one of them silently.
+let playbackGeneration = 0
+
 const isLoaded = ref(false)
 const isPlaying = ref(false)
 const loadError = ref<string | null>(null)
@@ -871,6 +879,12 @@ function playSequence(
   currentSequenceLength = sequence.length
   playingIndex.value = 0
 
+  // Mint this session's own id — see the playbackGeneration declaration above. Captured
+  // by tick()'s closures below; stopLoop() bumps the counter again on any real stop, which
+  // this check catches even if that stop/restart happens while a retry is mid-backoff.
+  const myGeneration = ++playbackGeneration
+  let recoveryStartedAt: number | null = null
+
   // When not looping, stop cleanly after one pass
   if (!loop) {
     transport.scheduleOnce(() => {
@@ -878,7 +892,21 @@ function playSequence(
     }, totalDuration)
   }
 
+  // A continuous failure streak longer than this gives up rather than retrying forever.
+  // Confirmed on-device (Paul, 2026-10-06 diagnostic log): after the context lands in
+  // WebKit's 'interrupted' state, Tone.start() calls made from here — a setTimeout/rAF
+  // callback, never a direct user tap — can apparently fail (or hang, see
+  // startToneWithTimeout) indefinitely; no amount of retrying from non-gesture code ever
+  // clears it. Retrying for a while is still correct (plenty of real interruptions do
+  // clear within a few seconds on their own), but silently spinning forever leaves
+  // isPlaying stuck true with the play button lit and nothing audible — exactly the "stuck
+  // on" report. Giving up explicitly flips isPlaying false so the UI tells the truth; the
+  // user's next tap on play is a real gesture, which actually can unstick WebKit.
+  const RECOVERY_TIMEOUT_MS = 20000
+
   function tick() {
+    if (playbackGeneration !== myGeneration) return // superseded by a stop or a newer session
+
     // Self-healing: the resume-and-retry guard at the top of this function only catches
     // a suspended context at the moment playback *starts* — it can't catch one that dies
     // mid-loop (screen lock, a call, or anything else) while this rAF loop is already
@@ -888,14 +916,17 @@ function playSequence(
     // position — a small jump is a better tradeoff than staying broken.
     if (Tone.getContext().state !== 'running') {
       logDiag('tick.contextNotRunning', { state: Tone.getContext().state })
+      if (recoveryStartedAt === null) recoveryStartedAt = Date.now()
       rafId = null
       startToneWithTimeout().then(
         () => {
+          if (playbackGeneration !== myGeneration) return
           logDiag('tick.toneStart.ok')
           resetInstrumentVolume('tick.toneStart.ok')
           if (isPlaying.value) playSequence(sequence, settings, loop)
         },
         (err) => {
+          if (playbackGeneration !== myGeneration) return
           // Confirmed on-device (Paul, 2026-10-05 diagnostic log): this rejects with
           // InvalidStateError while the app is still backgrounded (a retry attempted the
           // instant "not running" is detected is often premature — Tone.start() can't
@@ -908,10 +939,16 @@ function playSequence(
           // Tone.start() call), nothing ever told this dead loop to check again. Now it
           // keeps retrying every ~500ms instead of dying after one failure — cheap (a
           // timer, not a tight loop) and self-limiting (stops as soon as isPlaying goes
-          // false, e.g. the user gives up and hits stop).
+          // false, e.g. the user gives up and hits stop, or the recovery timeout below
+          // gives up on its own).
           logDiag('tick.toneStart.fail', { err: String(err) })
+          if (recoveryStartedAt !== null && Date.now() - recoveryStartedAt > RECOVERY_TIMEOUT_MS) {
+            logDiag('tick.recovery.gaveUp', { afterMs: Date.now() - recoveryStartedAt })
+            stopLoop()
+            return
+          }
           setTimeout(() => {
-            if (isPlaying.value) {
+            if (playbackGeneration === myGeneration && isPlaying.value) {
               rafId = requestAnimationFrame(tick)
             }
           }, 500)
@@ -919,6 +956,7 @@ function playSequence(
       )
       return
     }
+    recoveryStartedAt = null
     const pos = Tone.getTransport().seconds
     const idx = Math.floor(pos / currentClusterDuration) % currentSequenceLength
     playingIndex.value = idx
@@ -949,6 +987,11 @@ function resetInstrumentVolume(reason: string): void {
 const HARD_STOP_MUTE_TIME = 0.015
 
 function stopLoop(hardStop = false): void {
+  // Invalidate any tick() retry chain still mid-backoff from a previous playSequence()
+  // call — see the playbackGeneration declaration up top. Unconditional (not gated on
+  // isPlaying) since a stale chain can still be waiting out its 500ms setTimeout even
+  // after isPlaying has already gone false some other way.
+  playbackGeneration++
   // Only log a "real" stop (something was actually playing) — every playSequence()/
   // playCluster() call also calls this first as routine pre-start cleanup, which would
   // otherwise spam the log on every single stream audition.
