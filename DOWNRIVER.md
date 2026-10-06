@@ -63,6 +63,23 @@ button for it, so the next export is unambiguous. Picking up a *new* exported lo
 clean place for a fresh chat to start — this file plus CLAUDE.md should be enough context,
 no need to replay this whole thread.
 
+**A lead worth checking, not yet investigated**: Paul's own recollection (2026-10-06) is
+that dropouts have gotten noticeably *more frequent* recently — not something he remembers
+happening this often before — which points at the last 3-4 builds specifically rather than
+treating this as a constant, platform-level iOS quirk Eddy has always been equally exposed
+to. Worth correlating against what actually shipped in that window rather than assuming:
+roughly builds 1.0(9)-1.0(12) added loop-range select (a second `playSequence()` call
+shape via `playbackSequence`), live tempo ramping (`setTempoLive()` manipulating
+`Transport.bpm` directly, new territory — nothing else in the engine touches Transport
+state live like that), the synth-pad/retro-pad instrument churn, and the diagnostic
+logging itself. None of these obviously touch the AudioContext/interruption-recovery path
+this session's fixes targeted, but "worth checking" isn't "ruled out" — a real
+correlation (e.g. `git log` timestamps on these commits vs. when Paul started noticing it
+more) would be a stronger basis than either of us guessing. Could also be a pure usage-
+frequency confound (more active testing this week = more chances to notice it, not
+necessarily a higher underlying rate) — worth keeping both hypotheses live rather than
+anchoring on the code-regression one just because it's the more actionable-feeling story.
+
 ---
 
 ## Open Discussion — Handoff (2026-10-01, round 2)
