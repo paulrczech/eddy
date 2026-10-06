@@ -515,13 +515,26 @@
     }
   )
 
+  // Diagnostic toggle (Paul, 2026-10-06) — temporarily routes tempo changes through a full
+  // stop/restart instead of setTempoLive()'s live Transport.bpm ramp, to test a hypothesis
+  // on the real-device playback-dropout bug: live tempo ramping (shipped the same build as
+  // loop-range select, 1.0(9)) is the one thing that touches Transport state live mid-loop,
+  // a path nothing else in the engine exercises. If dropouts still happen with this true,
+  // that clears live tempo ramping as a cause. Flip back to false to restore the live ramp
+  // once this build's test is done — see DOWNRIVER.md's playback-dropout entry.
+  const DISABLE_LIVE_TEMPO_RAMP = true
+
   // Tempo is the one playback setting that can change live without a restart — see
   // setTempoLive() in useAudioEngine.ts. Unlike direction/subdivision/latch/time-signature
   // below, a bpm change doesn't alter what plays or in what order, just how fast.
   watch(
     () => settingsStore.tempo,
     (bpm) => {
-      if (isPlaying.value) {
+      if (!isPlaying.value) return
+      if (DISABLE_LIVE_TEMPO_RAMP) {
+        audioEngine.stopLoop(true)
+        playLoop()
+      } else {
         audioEngine.setTempoLive(bpm)
       }
     }

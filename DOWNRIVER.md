@@ -108,9 +108,54 @@ to "continuous loop sometimes drops out" independent of any sleep/wake event. **
 `playSequence()` call; every retry closure checks it before touching `rafId` again, so a
 stale chain is structurally inert instead of relying on `isPlaying` as the only guard.
 
-Both fixes are in `useAudioEngine.ts`, not yet built/bumped/archived — next session's
-first move once Paul's ready. **Not yet confirmed on a real device** — same caveat as
-rounds 1 and 2.
+Both fixes shipped as build 1.0(15). **Confirmed not sufficient** — Paul's build 1.0(15)
+log (same day) still showed the stuck-button symptom, with a real anomaly: zero `tick.*`
+log lines anywhere in that session despite a loop reportedly dying mid-playback, and every
+single `app.pause` entry showed `isPlaying:false` (never `true`) — meaning playback had
+already stopped by the time the phone actually locked, not as a sleep/wake recovery
+failure. Not yet root-caused; see the Simulator and architecture discussion below for what
+got investigated instead while that anomaly sat unresolved.
+
+**Confirmed real-device-only**: Paul reproduced the exact repro steps (lock during loop
+playback) in the iOS Simulator and got clean recovery — audio paused, resumed seamlessly on
+wake, button never stuck. Root cause: the Simulator runs on the Mac's own CoreAudio stack
+and only fakes the `pause`/`resume` *lifecycle* events; it never generates a genuine
+AVAudioSession interruption, so the WebAudio context likely never actually lands in
+WebKit's `'interrupted'` state at all (the one state present in every real-device log).
+This bug class cannot be validated in the Simulator — real-device testing is the only
+option, no shortcut available.
+
+**Architecture question raised (2026-10-06)**: would a fully-native (AVAudioEngine, no
+Capacitor/WKWebView) rewrite avoid this entirely? Likely yes in kind — native
+`AVAudioSession.interruptionNotification` is a mature, synchronous, officially-documented
+recovery path, versus WebAudio-in-WKWebView's `resume()` hanging/failing indefinitely from
+non-gesture code, which is the specific quirk every round of this bug has been fighting.
+But checked `Info.plist` directly first: Eddy declares **no background audio capability**
+(`UIBackgroundModes` → `audio`) at all, which means the entire WKWebView process — not just
+audio, the whole JS engine, including anything that would recover it — gets frozen by iOS
+the instant the screen locks. That's arguably the real root mechanism behind every dropout
+in this whole investigation: every fix so far has been about recovering gracefully *after*
+the freeze; none has tried preventing the freeze. Adding that capability is a cheap,
+one-line `Info.plist` change + Xcode toggle — **queued as a to-do, not yet done** — versus
+a full native rewrite, which would be the same scope of effort as the already-parked AU/VST
+plugin idea (re-implementing Transport/Part/scheduling from scratch). Try the background
+capability first; treat the full rewrite as the fallback if that doesn't hold up on-device.
+
+**Loop-range / live-tempo-ramping hypothesis (2026-10-06)**: Paul suspected the loop-range
+feature (shipped build 1.0(9), commit `5b3e898`, 2026-10-01) introduced this bug class.
+Checked the actual diff directly: loop-range itself added **zero** code to
+`useAudioEngine.ts` — it's pure UI-layer slicing (`SequenceHistory.vue`/`SessionView.vue`)
+that hands a shorter array to the exact same `playSequence()`/`tick()` every full-flow loop
+has always used. The one genuinely new thing that commit *did* add to the engine is
+`setTempoLive()` — live `Transport.bpm` ramping mid-playback, the first and only code that
+touches live Transport state outside a full stop/restart. Build 1.0(16) ships a diagnostic
+toggle (`DISABLE_LIVE_TEMPO_RAMP` in `SessionView.vue`, default `true` for this test)
+routing tempo changes through the normal stop/restart path instead of the live ramp, to
+test whether live tempo ramping specifically is implicated. Caveat: `diagLog.ts` didn't
+ship until build 1.0(11), four days after loop-range/live-tempo landed at 1.0(9) — there's
+no instrumented before/after for this question, only Paul's recollection, which could also
+just be a usage-frequency confound (noted two rounds ago, still live). **Flip
+`DISABLE_LIVE_TEMPO_RAMP` back to `false` once this build's test concludes.**
 
 ---
 
