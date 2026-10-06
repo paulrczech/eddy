@@ -53,8 +53,15 @@ works correctly when `Tone.start()` does settle — the timeout fix specifically
 case where it doesn't.
 
 **Still not confirmed on a real device** — same caveat as round 1, diagnosed from logs,
-not reproduced locally. Next session: did build 1.0(12)'s fixes hold? Clear the log before
-a fresh test session now that there's a button for it, so the next export is unambiguous.
+not reproduced locally. The `startToneWithTimeout()` fix shipped as build 1.0(12), but
+Paul had already independently archived/installed a build 13 outside this chat's
+visibility (App Store Connect requires strictly increasing build numbers regardless), so
+the actual one carrying this fix to his phone is **build 1.0(14)** — bumped twice in a row
+near end of session purely to dodge that conflict, not for any code reason. Next session:
+did 1.0(14)'s fixes hold? Clear the log before a fresh test session now that there's a
+button for it, so the next export is unambiguous. Picking up a *new* exported log is a
+clean place for a fresh chat to start — this file plus CLAUDE.md should be enough context,
+no need to replay this whole thread.
 
 ---
 
