@@ -463,6 +463,14 @@ const isPlaying = ref(false)
 const loadError = ref<string | null>(null)
 const playingIndex = ref<number>(-1)
 
+// Surfaces whatever the context-recovery guards below (playCluster/playSequence/tick) are
+// doing, so a real-device dropout reads as "something's happening" instead of silence —
+// see DOWNRIVER.md's playback-dropout entry. Deliberately not wired into the bare
+// App.addListener('resume', ...) handler above: that one fires on every lock/unlock
+// regardless of whether anything was ever being played, and showing recovery messaging
+// for an attempt the user never initiated would be confusing rather than reassuring.
+const recoveryStatus = ref<'idle' | 'recovering' | 'failed'>('idle')
+
 function midiToTone(midi: number): string {
   return midiToName(midi)
 }
@@ -755,9 +763,16 @@ function playCluster(
   // dead context.
   if (Tone.getContext().state !== 'running') {
     logDiag('playCluster.contextNotRunning', { state: Tone.getContext().state })
+    recoveryStatus.value = 'recovering'
     startToneWithTimeout().then(
-      () => playCluster(cluster, settings, onComplete),
-      (err) => logDiag('playCluster.toneStart.fail', { err: String(err) })
+      () => {
+        recoveryStatus.value = 'idle'
+        playCluster(cluster, settings, onComplete)
+      },
+      (err) => {
+        logDiag('playCluster.toneStart.fail', { err: String(err) })
+        recoveryStatus.value = 'failed'
+      }
     )
     return
   }
@@ -800,9 +815,16 @@ function playSequence(
   // would otherwise make the retried call swallow itself as a false "too-soon" repeat.
   if (Tone.getContext().state !== 'running') {
     logDiag('playSequence.contextNotRunning', { state: Tone.getContext().state })
+    recoveryStatus.value = 'recovering'
     startToneWithTimeout().then(
-      () => playSequence(sequence, settings, loop),
-      (err) => logDiag('playSequence.toneStart.fail', { err: String(err) })
+      () => {
+        recoveryStatus.value = 'idle'
+        playSequence(sequence, settings, loop)
+      },
+      (err) => {
+        logDiag('playSequence.toneStart.fail', { err: String(err) })
+        recoveryStatus.value = 'failed'
+      }
     )
     return
   }
@@ -917,11 +939,13 @@ function playSequence(
     if (Tone.getContext().state !== 'running') {
       logDiag('tick.contextNotRunning', { state: Tone.getContext().state })
       if (recoveryStartedAt === null) recoveryStartedAt = Date.now()
+      recoveryStatus.value = 'recovering'
       rafId = null
       startToneWithTimeout().then(
         () => {
           if (playbackGeneration !== myGeneration) return
           logDiag('tick.toneStart.ok')
+          recoveryStatus.value = 'idle'
           resetInstrumentVolume('tick.toneStart.ok')
           if (isPlaying.value) playSequence(sequence, settings, loop)
         },
@@ -944,6 +968,7 @@ function playSequence(
           logDiag('tick.toneStart.fail', { err: String(err) })
           if (recoveryStartedAt !== null && Date.now() - recoveryStartedAt > RECOVERY_TIMEOUT_MS) {
             logDiag('tick.recovery.gaveUp', { afterMs: Date.now() - recoveryStartedAt })
+            recoveryStatus.value = 'failed'
             stopLoop()
             return
           }
@@ -963,6 +988,12 @@ function playSequence(
     rafId = requestAnimationFrame(tick)
   }
   rafId = requestAnimationFrame(tick)
+}
+
+// UI-callable clear for the "failed" recovery toast — its own auto-dismiss duration is a
+// presentational concern that belongs in SessionView.vue, not baked into the engine.
+function resetRecoveryStatus(): void {
+  recoveryStatus.value = 'idle'
 }
 
 // Resets the live instrument's volume to its correct configured trim — a safety net
@@ -1115,6 +1146,8 @@ export function useAudioEngine() {
     isPlaying: readonly(isPlaying),
     loadError: readonly(loadError),
     playingIndex: readonly(playingIndex),
+    recoveryStatus: readonly(recoveryStatus),
+    resetRecoveryStatus,
     init,
     playCluster,
     playSequence,

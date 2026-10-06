@@ -61,6 +61,13 @@
       position="bottom"
       @did-dismiss="savedFlash = false" />
 
+    <IonToast
+      :is-open="recoveryToastOpen"
+      :message="recoveryToastMessage"
+      :duration="recoveryStatus === 'failed' ? 3000 : undefined"
+      position="bottom"
+      @did-dismiss="onRecoveryToastDismiss" />
+
     <ion-content class="ion-padding" fullscreen>
       <div class="session-layout">
         <!-- Loop resolved banner -->
@@ -424,7 +431,24 @@
   const sequenceStore = useSequenceStore()
   const settingsStore = useSettingsStore()
   const audioEngine = useAudioEngine()
-  const { isPlaying, playingIndex } = audioEngine
+  const { isPlaying, playingIndex, recoveryStatus } = audioEngine
+
+  // Surfaces the audio engine's context-recovery guards (dead AudioContext after a
+  // screen lock/interruption) instead of leaving a dropout silent and unexplained — see
+  // DOWNRIVER.md's playback-dropout entry. "recovering" has no fixed duration since it
+  // tracks a real in-flight attempt; "failed" auto-dismisses via the toast's own duration
+  // (handled below) since that's just a one-time notice, not an ongoing state.
+  const recoveryToastOpen = computed(() => recoveryStatus.value !== 'idle')
+  const recoveryToastMessage = computed(() =>
+    recoveryStatus.value === 'failed'
+      ? 'lost the thread — tap play'
+      : 'finding the current again…'
+  )
+  function onRecoveryToastDismiss() {
+    if (recoveryStatus.value === 'failed') {
+      audioEngine.resetRecoveryStatus()
+    }
+  }
 
   const { draw, reset: resetDeck } = useStrategyDeck(
     () => settingsStore.keyLockActive

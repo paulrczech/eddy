@@ -176,6 +176,60 @@ happen without it ever running — so this is now a low-priority side-check left
 it was already built and harmless, not the leading hypothesis. The background-audio-
 capability fix above is the stronger candidate for the core, tempo-independent case.
 
+**Build 1.0(17) confirmed insufficient, and a real new data point (2026-10-06)**: a
+dropout reproduced with **no loop active at all** — a plain stream tap right after waking,
+isPlaying false throughout. This rules the loop/tick()/generation-race code out as the
+explanation for every dropout — `playCluster()`'s guard is a simple one-shot retry, none of
+the looping machinery was involved. Whatever's failing lives upstream of all the scheduling
+code, at the raw `Tone.start()`/`AudioContext.resume()` layer itself.
+
+Also confirmed: **locking the screen and merely backgrounding the app (switching to
+another app) are not the same failure mode.** App-switching works fine on 1.0(17); locking
+still drops. Researched this directly rather than guessing further — it's a well-documented,
+long-standing WebKit/WKWebView behavior, not anything introduced by Eddy's own code:
+WKWebView halts **all JavaScript execution** once backgrounded (Apache Cordova bugs
+CB-10657, CB-12815, among others), which is a different, additional layer on top of
+whatever `UIBackgroundModes: audio` provides — that capability keeps the native process and
+audio session alive, but doesn't by itself keep the WebView's JS thread (and therefore
+Tone.js's scheduling) running. WebKit did fix the underlying AudioContext-suspension-on-
+background bug (landed WebKit main 2024-03-01, confirmed on iOS 17.5+) — but Paul's test
+device is on iOS 26.6.2, far past that fix, and it still reproduces, so that lead is ruled
+out. Community consensus (Capawesome, Capgo, both reputable Capacitor-ecosystem sources):
+reliable lock-screen audio in a Capacitor app requires **native playback**, not
+WebView-hosted WebAudio — independent validation of the native-rewrite direction, not just
+reasoning from this thread alone.
+
+**Decision**: Paul doesn't consider pausing during the lock itself a problem — silence
+while locked, reliable recovery on wake, is an acceptable ceiling for this architecture. So
+the next code lever isn't "never drop," it's "always recover once you're back," which
+reframes the open question as resume()-retry (what exists today) vs. a more invasive full
+AudioContext-and-node rebuild on wake (a documented workaround others have used for this
+exact bug — discard the stuck context, recreate it and the whole Sampler/effects chain from
+scratch, reusing Eddy's own already-re-callable `createSampler()`/`buildEffectsChain()`).
+Not yet built — real cost is a noticeably longer silent gap after unlocking (rebuilding
+`Tone.Reverb`'s impulse response alone is async and non-trivial), not a decision to make
+lightly, and like everything else in this investigation, only testable on a real device.
+
+**Shipped build 1.0(18) first, independent of that decision**: a `recoveryStatus` ('idle' |
+'recovering' | 'failed') surfaced from `useAudioEngine.ts`, wired into all three recovery
+guards (`playCluster`, `playSequence`, `tick`) — deliberately *not* into the bare
+`App.addListener('resume', ...)` handler, which fires on every lock/unlock regardless of
+whether anything was being played, so showing messaging there would flag attempts the user
+never made. Shows a toast ("finding the current again…" / "lost the thread — tap play" on
+the 20s give-up) in `SessionView.vue`. This works identically regardless of which recovery
+mechanism wins — its real value is turning every future test into a diagnostic: if the
+"recovering" toast reliably resolves into working audio, resume()-retry was already good
+enough and the rebuild isn't needed; if it hangs or keeps flipping to "failed," that's the
+clean signal to build the heavier rebuild.
+
+**Also queued, not yet run**: a worktree at `/Users/paulczech/note-threader-build6-test`,
+checked out at commit `c150554` (build 1.0(6), 2026-09-29) — predates loop-range,
+live-tempo-ramp, and all diagLog/recovery code entirely. Built and synced, ready for Paul
+to run directly to his device via Xcode (not archive/TestFlight) to check whether this is a
+pure platform-level WKWebView limitation that's been present since the very first Capacitor
+builds, independent of anything shipped in this whole investigation. Given the research
+above, expect it to reproduce — but that's a prediction, not a result yet.
+
 ---
 
 ## Open Discussion — Handoff (2026-10-01, round 2)
