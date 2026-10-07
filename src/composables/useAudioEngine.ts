@@ -142,21 +142,66 @@ async function rebuildAudioContext(): Promise<void> {
   setAmbience(currentAmbienceLevel)
 }
 
+// Single-flight guard around rebuildAudioContext() — it mutates shared module state
+// (instrument, the effects nodes) with no protection against two overlapping calls
+// stepping on each other mid-construction. Now that the app-resume handler below also
+// rebuilds unconditionally on every wake (not just tick()'s own reactive path), both can
+// genuinely fire within the same moment on a real wake. Every caller goes through this
+// instead of calling rebuildAudioContext() directly — if one's already in flight, the
+// rest just await that same attempt rather than starting a second, colliding one.
+let rebuildPromise: Promise<void> | null = null
+function ensureFreshAudioContext(): Promise<void> {
+  if (!rebuildPromise) {
+    rebuildPromise = rebuildAudioContext().finally(() => {
+      rebuildPromise = null
+    })
+  }
+  return rebuildPromise
+}
+
 // iOS suspends the WebAudio context whenever the app is backgrounded or the screen
 // locks (a real interruption, not just a pause), and nothing resumes it automatically —
 // every scheduled note would then silently do nothing until the app was force-restarted.
-// Tone.start() is what actually resumes a suspended context (it's not just a first-run
-// unlock), and it's idempotent — resolves immediately if the context is already running.
 // Registered once at module load (this file is a documented singleton), rather than once
 // per useAudioEngine() call, which would otherwise stack up duplicate listeners.
+//
+// Unconditional rebuild — not gated on checking .state first. Confirmed on-device (Paul,
+// 2026-10-07): AudioContext.state can report 'running' while the context is completely
+// dead underneath — a bare Tone.start() on an already-'running'-reporting context hung for
+// a full 2s and timed out, three minutes after an entirely unremarkable pause/resume pair
+// (both logged 'running', nothing flagged as wrong). Every reactive, detection-gated
+// recovery path in this file depends on that same .state read being trustworthy, which
+// this disproves — so the only reliable fix is to stop checking and just always rebuild on
+// every real wake. ensureFreshAudioContext() dedupes against tick()'s own reactive rebuild
+// if both happen to fire around the same moment — but a shared rebuild still resolves both
+// callers' .then() callbacks independently, so without the generation check below, both
+// this handler and tick() could each replay the sequence off the same successful rebuild,
+// a double-trigger. Capturing playbackGeneration before the rebuild starts and comparing
+// after catches it: whichever of the two replays first bumps the generation (every
+// playSequence() call does, via stopLoop()), and the other then sees a mismatch and skips
+// its own redundant replay — symmetric with tick()'s own existing generation guard.
 App.addListener('resume', () => {
   logDiag('app.resume', { contextState: Tone.getContext().state })
-  startToneWithTimeout().then(
+  if (!currentInstrumentType || !cachedBuffers) return // nothing loaded yet this session
+  const generationAtResumeTime = playbackGeneration
+  recoveryStatus.value = 'recovering'
+  ensureFreshAudioContext().then(
     () => {
-      logDiag('app.resume.toneStart.ok')
-      resetInstrumentVolume('app.resume.toneStart.ok')
+      logDiag('app.resume.rebuild.ok')
+      recoveryStatus.value = 'idle'
+      if (
+        isPlaying.value &&
+        currentPlaybackParams &&
+        playbackGeneration === generationAtResumeTime
+      ) {
+        const { sequence, settings, loop } = currentPlaybackParams
+        safeRecoveryReplay('app.resume', () => playSequence(sequence, settings, loop))
+      }
     },
-    (err) => logDiag('app.resume.toneStart.fail', { err: String(err) })
+    (err) => {
+      logDiag('app.resume.rebuild.fail', { err: String(err) })
+      recoveryStatus.value = 'failed'
+    }
   )
 })
 App.addListener('pause', () => {
@@ -578,6 +623,16 @@ let cachedBuffers: Record<string, AudioBuffer> | null = null
 // same as init()'s own default), and nothing else would otherwise know to ramp them back
 // down to whatever the user's ambience dial was actually set to.
 let currentAmbienceLevel = 1
+// Whatever the most recent playSequence() call was actually asked to play — the app-resume
+// handler needs this to replay the loop after an unconditional rebuild, since it's a
+// module-level listener with no closure over any particular playSequence() call's
+// arguments the way tick()'s own recovery does. Only meaningful when isPlaying is true;
+// stale values when it's false are harmless since nothing reads this without that guard.
+let currentPlaybackParams: {
+  sequence: Cluster[]
+  settings: PlaybackSettings
+  loop: boolean
+} | null = null
 let loopPart: Tone.Part | null = null
 let rafId: number | null = null
 let currentClusterDuration = 0
@@ -890,16 +945,22 @@ function playCluster(
   settings: PlaybackSettings = { bpm: 80, direction: 'up' },
   onComplete?: () => void
 ): void {
-  if (!instrument || !isLoaded.value) return
+  if (!currentInstrumentType || !cachedBuffers) return // init() never ran this session
 
   // Belt-and-suspenders alongside the 'resume' listener above: if the context is still
   // suspended for any reason (the listener hasn't fired yet, or this platform doesn't
   // emit it), retry once the resume completes rather than silently scheduling into a
-  // dead context.
-  if (Tone.getContext().state !== 'running') {
-    logDiag('playCluster.contextNotRunning', { state: Tone.getContext().state })
+  // dead context. Also covers instrument being null — a previous rebuild attempt that
+  // failed partway through leaves it that way, and without this check here too, this
+  // function would silently no-op forever on the old `if (!instrument...) return` guard,
+  // never reaching recovery again (confirmed on-device, 2026-10-07).
+  if (!instrument || !isLoaded.value || Tone.getContext().state !== 'running') {
+    logDiag('playCluster.contextNotRunning', {
+      state: Tone.getContext().state,
+      hasInstrument: !!instrument,
+    })
     recoveryStatus.value = 'recovering'
-    rebuildAudioContext().then(
+    ensureFreshAudioContext().then(
       () => {
         recoveryStatus.value = 'idle'
         safeRecoveryReplay('playCluster', () => playCluster(cluster, settings, onComplete))
@@ -943,15 +1004,22 @@ function playSequence(
   settings: PlaybackSettings = { bpm: 80, direction: 'up' },
   loop = true
 ): void {
-  if (!instrument || !isLoaded.value || sequence.length === 0) return
+  if (sequence.length === 0) return
+  if (!currentInstrumentType || !cachedBuffers) return // init() never ran this session
 
-  // See playCluster() above — same resume-and-retry guard against a suspended context.
-  // Deliberately ahead of the debounce check below: it stamps lastPlaySequenceTime, which
-  // would otherwise make the retried call swallow itself as a false "too-soon" repeat.
-  if (Tone.getContext().state !== 'running') {
-    logDiag('playSequence.contextNotRunning', { state: Tone.getContext().state })
+  // Covers context-not-running AND instrument-is-null (a previous rebuild attempt failed
+  // partway through and left it that way — confirmed on-device, 2026-10-07: without the
+  // !instrument check, a failed rebuild left this function silently no-op'ing forever on
+  // the old `if (!instrument...) return` guard, never reaching recovery again). Deliberately
+  // ahead of the debounce check below: it stamps lastPlaySequenceTime, which would
+  // otherwise make the retried call swallow itself as a false "too-soon" repeat.
+  if (!instrument || !isLoaded.value || Tone.getContext().state !== 'running') {
+    logDiag('playSequence.contextNotRunning', {
+      state: Tone.getContext().state,
+      hasInstrument: !!instrument,
+    })
     recoveryStatus.value = 'recovering'
-    rebuildAudioContext().then(
+    ensureFreshAudioContext().then(
       () => {
         recoveryStatus.value = 'idle'
         safeRecoveryReplay('playSequence', () => playSequence(sequence, settings, loop))
@@ -967,6 +1035,7 @@ function playSequence(
   const now = Date.now()
   if (now - lastPlaySequenceTime < 100) return
   lastPlaySequenceTime = now
+  currentPlaybackParams = { sequence, settings, loop }
 
   stopLoop()
 
@@ -1079,15 +1148,18 @@ function playSequence(
     // cheap probe, or even rebuildAudioContext() itself reporting success) while the
     // underlying hardware audio route stays dead. Only a confirmed-successful rebuild
     // below clears recoveryStartedAt, so a stale 'running' reading alone can't skip it.
-    if (Tone.getContext().state !== 'running' || recoveryStartedAt !== null) {
-      logDiag('tick.contextNotRunning', { state: Tone.getContext().state })
+    if (!instrument || Tone.getContext().state !== 'running' || recoveryStartedAt !== null) {
+      logDiag('tick.contextNotRunning', {
+        state: Tone.getContext().state,
+        hasInstrument: !!instrument,
+      })
       if (recoveryStartedAt === null) recoveryStartedAt = Date.now()
       recoveryStatus.value = 'recovering'
       rafId = null
-      // rebuildAudioContext() (not a plain resume) — confirmed on-device the same day:
+      // ensureFreshAudioContext() (not a plain resume) — confirmed on-device the same day:
       // even a fully clean, exception-free resume-and-reschedule doesn't reliably bring
       // real audio back, so resuming the same context is no longer trusted at all here.
-      rebuildAudioContext().then(
+      ensureFreshAudioContext().then(
         () => {
           if (playbackGeneration !== myGeneration) return
           logDiag('tick.rebuild.ok')

@@ -331,6 +331,50 @@ once triggered.
 
 Shipped as build **1.0(104)** — not yet confirmed on a real device.
 
+**Build 1.0(104) result (2026-10-07) — real progress, one real gap left**: looping
+playback now reliably recovers after sleep/wake (confirmed working on-device, no stuck
+toast, no errors) — the race fix and the loopPart-disposal fix both held. But a different
+case failed: phone left to sleep for ~5 minutes with *nothing* playing (`isPlaying: false`
+the whole time), then tapping a stream on wake produced no sound, no error, no log entry at
+all. Root cause confirmed directly from the log, and it's conclusive: `app.pause` and
+`app.resume` both logged `contextState: "running"` — nothing ever looked wrong — and yet a
+bare `Tone.start()` on that "running" context hung for a full 2 seconds and timed out. Every
+reactive recovery path in this file is gated on reading `.state !== 'running'`, and this
+proves that read can't be trusted at all, not just in the already-known 'interrupted' case.
+`playCluster()`'s guard literally never triggered because the state it was checking lied.
+
+**Fixed — the detection-gated model is retired, not patched again**: rather than finding
+yet another edge case in *when* to rebuild, the app-resume handler now rebuilds
+**unconditionally on every real wake**, regardless of what `.state` reports. This sidesteps
+the entire class of bug this whole investigation has been chasing — a signal that can't be
+trusted stops mattering once nothing depends on it. Paul's own field data made this
+affordable: the conditional rebuild (when it did trigger) was already fast enough to be
+imperceptible, so paying that same small cost on every wake, not just detected failures,
+isn't a new tax worth worrying about.
+
+Two structural things had to be built to make this safe, not just flipping a condition:
+- **A single-flight guard** (`ensureFreshAudioContext()`): `rebuildAudioContext()` mutates
+  shared module state with no protection against two overlapping calls — and now that the
+  resume handler rebuilds unconditionally alongside `tick()`'s own reactive path, they can
+  genuinely fire within the same moment on a real wake. Every caller now goes through this
+  instead of calling `rebuildAudioContext()` directly; a second caller just awaits the
+  first's in-flight attempt rather than colliding with it.
+- **A double-replay guard**: a shared rebuild still resolves every caller's own `.then()`
+  independently, so without this, both the resume handler and `tick()` could each replay
+  the sequence off the same successful rebuild. Fixed symmetrically with `tick()`'s
+  existing `playbackGeneration` check — the resume handler captures the generation before
+  its rebuild starts, and skips its own replay if something else (tick's own callback)
+  already bumped it by replaying first.
+
+Also closed a quieter gap found while making this unconditional: `playCluster()`/
+`playSequence()`/`tick()` all originally guarded on `!instrument` as a simple "nothing
+loaded, no-op" check — but a *failed* rebuild attempt leaves `instrument` null too
+(disposal happens before reconstruction), and that old guard would then silently no-op
+forever, never reaching recovery again. All three now treat `!instrument` as part of the
+same "needs rebuild" condition, not a separate early return.
+
+Shipped as build **1.0(105)** — not yet confirmed on a real device.
+
 ---
 
 ## Open Discussion — Handoff (2026-10-01, round 2)
