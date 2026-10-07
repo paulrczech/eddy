@@ -52,6 +52,68 @@ function safeRecoveryReplay(label: string, fn: () => void): void {
   }
 }
 
+// Discards the current AudioContext entirely and builds a fresh one, rather than trying
+// to resume the stuck one. Confirmed on-device (Paul, 2026-10-07): even a fully clean,
+// exception-free resume-and-reschedule (tick()'s own forced rebuild, see
+// playbackGeneration above) doesn't reliably bring real audio back — the context can
+// report 'running' while the underlying hardware route stays dead, a documented WebKit
+// behavior with no fix short of discarding the context. `Tone.setContext(..., true)`
+// disposes and closes the old native context as part of the swap (confirmed in Tone's own
+// source — Context.dispose() calls close() on the underlying AudioContext), so this
+// doesn't leak a context per failed attempt even under tick()'s ~500ms retry cadence.
+// Reuses cachedBuffers (see its declaration above) so only the node graph is rebuilt, not
+// the network fetch — and reapplies currentAmbienceLevel, since a fresh effects chain
+// always constructs at ceiling (see buildEffectsChain's ambienceLevel=1 default, same as
+// init()) and nothing else here knows what the user's ambience dial is actually set to.
+async function rebuildAudioContext(): Promise<void> {
+  if (!currentInstrumentType || !cachedBuffers) {
+    throw new Error('rebuildAudioContext: no instrument loaded to rebuild')
+  }
+  const instrumentType = currentInstrumentType
+  const buffers = cachedBuffers
+
+  if (instrument) {
+    instrument.dispose()
+    instrument = null
+    isLoaded.value = false
+  }
+  if (outputReverb) {
+    outputReverb.dispose()
+    outputReverb = null
+  }
+  if (outputChorus) {
+    outputChorus.dispose()
+    outputChorus = null
+  }
+  if (outputDelay) {
+    outputDelay.dispose()
+    outputDelay = null
+  }
+  if (outputFilter) {
+    outputFilter.dispose()
+    outputFilter = null
+  }
+
+  Tone.setContext(new AudioContext(), true)
+  await startToneWithTimeout()
+
+  const chain = await buildEffectsChain(instrumentType, 1)
+  outputReverb = chain.reverb
+  outputChorus = chain.chorus
+  outputDelay = chain.delay
+  outputFilter = chain.filter
+
+  const sampler = await createSampler(buffers, instrumentType)
+  if (chain.firstStage) {
+    sampler.connect(chain.firstStage)
+  } else {
+    sampler.toDestination()
+  }
+  instrument = sampler
+  isLoaded.value = true
+  setAmbience(currentAmbienceLevel)
+}
+
 // iOS suspends the WebAudio context whenever the app is backgrounded or the screen
 // locks (a real interruption, not just a pause), and nothing resumes it automatically —
 // every scheduled note would then silently do nothing until the app was force-restarted.
@@ -477,6 +539,17 @@ let outputChorus: Tone.Chorus | null = null
 let outputDelay: Tone.PingPongDelay | null = null
 let outputFilter: Tone.Filter | null = null
 let currentInstrumentType: InstrumentType | null = null
+// Cached from the most recent successful load — an AudioBuffer isn't tied to any
+// particular BaseAudioContext (unlike an AudioNode), so rebuildAudioContext() below can
+// reuse these to reconstruct a Sampler against a brand new context without re-fetching
+// over the network. Same principle renderSequenceToBuffer() already relies on for its own
+// offline render.
+let cachedBuffers: Record<string, AudioBuffer> | null = null
+// Tracks the last level passed to setAmbience() so rebuildAudioContext() can reapply it
+// to the fresh reverb/chorus nodes it builds — those always construct at ceiling (level 1,
+// same as init()'s own default), and nothing else would otherwise know to ramp them back
+// down to whatever the user's ambience dial was actually set to.
+let currentAmbienceLevel = 1
 let loopPart: Tone.Part | null = null
 let rafId: number | null = null
 let currentClusterDuration = 0
@@ -672,6 +745,7 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   // though the body is delivered intact, and Tone rejects every sample on !response.ok.
   try {
     const buffers = await loadBuffers(urls, baseUrl)
+    cachedBuffers = buffers
     const chain = await buildEffectsChain(instrumentType, 1)
     outputReverb = chain.reverb
     outputChorus = chain.chorus
@@ -797,13 +871,13 @@ function playCluster(
   if (Tone.getContext().state !== 'running') {
     logDiag('playCluster.contextNotRunning', { state: Tone.getContext().state })
     recoveryStatus.value = 'recovering'
-    startToneWithTimeout().then(
+    rebuildAudioContext().then(
       () => {
         recoveryStatus.value = 'idle'
         safeRecoveryReplay('playCluster', () => playCluster(cluster, settings, onComplete))
       },
       (err) => {
-        logDiag('playCluster.toneStart.fail', { err: String(err) })
+        logDiag('playCluster.rebuild.fail', { err: String(err) })
         recoveryStatus.value = 'failed'
       }
     )
@@ -849,13 +923,13 @@ function playSequence(
   if (Tone.getContext().state !== 'running') {
     logDiag('playSequence.contextNotRunning', { state: Tone.getContext().state })
     recoveryStatus.value = 'recovering'
-    startToneWithTimeout().then(
+    rebuildAudioContext().then(
       () => {
         recoveryStatus.value = 'idle'
         safeRecoveryReplay('playSequence', () => playSequence(sequence, settings, loop))
       },
       (err) => {
-        logDiag('playSequence.toneStart.fail', { err: String(err) })
+        logDiag('playSequence.rebuild.fail', { err: String(err) })
         recoveryStatus.value = 'failed'
       }
     )
@@ -969,38 +1043,39 @@ function playSequence(
     // until the app is restarted" into "recovers within about a second on its own."
     // Restarts from the top of the sequence rather than attempting to resume the exact
     // position — a small jump is a better tradeoff than staying broken.
-    if (Tone.getContext().state !== 'running') {
+    // Triggers on an actively dead context, OR on a previous check having found one dead
+    // and no confirmed recovery since (recoveryStartedAt still set). Confirmed on-device
+    // (Paul, 2026-10-07): a bare .state === 'running' reading isn't trustworthy on its own
+    // once a context has already been through an interruption — it can report 'running'
+    // via some other path (the module-level App.addListener('resume', ...) handler's
+    // cheap probe, or even rebuildAudioContext() itself reporting success) while the
+    // underlying hardware audio route stays dead. Only a confirmed-successful rebuild
+    // below clears recoveryStartedAt, so a stale 'running' reading alone can't skip it.
+    if (Tone.getContext().state !== 'running' || recoveryStartedAt !== null) {
       logDiag('tick.contextNotRunning', { state: Tone.getContext().state })
       if (recoveryStartedAt === null) recoveryStartedAt = Date.now()
       recoveryStatus.value = 'recovering'
       rafId = null
-      startToneWithTimeout().then(
+      // rebuildAudioContext() (not a plain resume) — confirmed on-device the same day:
+      // even a fully clean, exception-free resume-and-reschedule doesn't reliably bring
+      // real audio back, so resuming the same context is no longer trusted at all here.
+      rebuildAudioContext().then(
         () => {
           if (playbackGeneration !== myGeneration) return
-          logDiag('tick.toneStart.ok')
+          logDiag('tick.rebuild.ok')
+          recoveryStartedAt = null
           recoveryStatus.value = 'idle'
-          resetInstrumentVolume('tick.toneStart.ok')
           if (isPlaying.value) {
             safeRecoveryReplay('tick', () => playSequence(sequence, settings, loop))
           }
         },
         (err) => {
           if (playbackGeneration !== myGeneration) return
-          // Confirmed on-device (Paul, 2026-10-05 diagnostic log): this rejects with
-          // InvalidStateError while the app is still backgrounded (a retry attempted the
-          // instant "not running" is detected is often premature — Tone.start() can't
-          // actually resume until iOS hands audio focus back), or — confirmed in a second
-          // diagnostic log the same day — the promise can hang and never settle at all,
-          // which is what startToneWithTimeout() above exists to catch and turn into this
-          // same rejection path. Previously a rejection here just logged and gave up,
-          // leaving rafId null forever with no further attempt — even once the *real*
-          // resume succeeded moments later (the app-level 'resume' handler's own
-          // Tone.start() call), nothing ever told this dead loop to check again. Now it
-          // keeps retrying every ~500ms instead of dying after one failure — cheap (a
-          // timer, not a tight loop) and self-limiting (stops as soon as isPlaying goes
-          // false, e.g. the user gives up and hits stop, or the recovery timeout below
-          // gives up on its own).
-          logDiag('tick.toneStart.fail', { err: String(err) })
+          // Previously a rejection here just logged and gave up, leaving rafId null
+          // forever with no further attempt. Now it keeps retrying every ~500ms instead —
+          // cheap (a timer, not a tight loop) and self-limiting (stops as soon as
+          // isPlaying goes false, or the recovery timeout below gives up on its own).
+          logDiag('tick.rebuild.fail', { err: String(err) })
           if (recoveryStartedAt !== null && Date.now() - recoveryStartedAt > RECOVERY_TIMEOUT_MS) {
             logDiag('tick.recovery.gaveUp', { afterMs: Date.now() - recoveryStartedAt })
             recoveryStatus.value = 'failed'
@@ -1014,27 +1089,6 @@ function playSequence(
           }, 500)
         }
       )
-      return
-    }
-
-    if (recoveryStartedAt !== null) {
-      // Context is running again, but we can't tell from here whether this tick()'s own
-      // retry just fixed it, or the module-level App.addListener('resume', ...) handler
-      // above won the race first — confirmed on-device (Paul, 2026-10-07 diagnostic log):
-      // that handler only resumes the raw context and resets volume, it never rebuilds the
-      // Transport/Part schedule, assuming the already-scheduled loop just keeps going. When
-      // it wins the race, the context reports 'running' but the existing schedule doesn't
-      // actually produce audible sound again — and nothing was clearing recoveryStatus
-      // either, leaving the toast stuck even on a cycle that otherwise looked recovered.
-      // Always doing a full rebuild the first time this tick() notices the context is back
-      // — the same safeRecoveryReplay() an in-tick recovery already does — guarantees the
-      // reliable, heavy recovery runs exactly once per real interruption, regardless of
-      // which path noticed the context was healthy again first.
-      recoveryStartedAt = null
-      recoveryStatus.value = 'idle'
-      if (isPlaying.value) {
-        safeRecoveryReplay('tick', () => playSequence(sequence, settings, loop))
-      }
       return
     }
 
@@ -1159,6 +1213,7 @@ const AMBIENCE_RAMP_TIME = 0.06
 
 function setAmbience(level: number): void {
   const clamped = Math.min(1, Math.max(0, level))
+  currentAmbienceLevel = clamped
   const now = Tone.now()
   if (outputReverb && currentInstrumentType) {
     const ceiling = REVERB_SETTINGS[currentInstrumentType]?.wet ?? 0

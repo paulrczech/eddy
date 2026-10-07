@@ -266,6 +266,41 @@ flip. Shipped as build **1.0(102)**. This is the strongest fix in this whole inv
 so far — it directly explains the alternating-success pattern Paul described, rather than
 treating it as unexplained flakiness.
 
+**Build 1.0(102) result (2026-10-07) — still not working, but conclusively**: the recovery
+race was real and is fixed (confirmed from the log: `tick()`'s forced rebuild fired exactly
+as designed, zero exceptions, `recoveryStatus` correctly cleared) — and there was still no
+audible sound. That's the clean, specific result that rules out every scheduling-level
+explanation tried so far: resuming the same `AudioContext` and rebuilding the Transport/
+Part schedule against it, however reliably, doesn't help when the underlying problem is one
+layer deeper — WebKit's documented `AudioContext.state` lying about `'running'` after
+certain interruptions, independent of anything this app's JS does correctly or not.
+
+**Fixed (the real fix, not another retry tweak)**: `rebuildAudioContext()` in
+`useAudioEngine.ts` — discards the current `AudioContext` entirely via
+`Tone.setContext(new AudioContext(), true)` (confirmed from Tone's own source that
+`disposeOld: true` closes the old native context as part of the swap, so this doesn't leak
+a context per failed attempt even under `tick()`'s ~500ms retry cadence) and reconstructs
+the Sampler and effects chain from scratch against the fresh one. Reuses `cachedBuffers`
+(populated by `init()`) rather than re-fetching samples over the network — an `AudioBuffer`
+isn't tied to any particular context, the same principle `renderSequenceToBuffer()` already
+relied on for its own offline render — so only the node graph is rebuilt, not the loading.
+Also reapplies `currentAmbienceLevel` afterward, since a fresh effects chain always
+constructs at ceiling. Replaces `startToneWithTimeout()` at all three real recovery call
+sites (`playCluster`, `playSequence`, `tick`) — the bare `App.addListener('resume', ...)`
+handler deliberately keeps the cheap plain-resume probe, unchanged, since it fires on every
+lock/unlock regardless of whether anything's playing and doesn't itself need to guarantee
+audible output. `tick()`'s two recovery branches (actively-dead-context, and
+previously-dead-but-now-reads-'running') are now merged into one, since both need the same
+treatment — a bare `.state === 'running'` reading is no longer trusted on its own once a
+context has already been through an interruption. Shipped as build **1.0(103)** — not yet
+confirmed on a real device.
+
+The toast messaging needed no changes for this — `recoveryStatus` is set to `'recovering'`
+before the (now much heavier) async rebuild starts and only resolves once the rebuild
+itself actually finishes, so a longer rebuild just means a longer, still-accurate
+"recovering" message, not a stale one. This was true by construction, not something that
+needed separate handling.
+
 ---
 
 ## Open Discussion — Handoff (2026-10-01, round 2)
