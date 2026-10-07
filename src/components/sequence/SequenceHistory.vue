@@ -2,14 +2,24 @@
   <div class="sequence-history" ref="rootRef">
     <div class="flow-header">
       <p class="section-label">the flow</p>
-      <button
-        class="icon-btn range-toggle-btn"
-        :class="{ active: rangeSelectActive }"
-        :disabled="sequence.length < 2"
-        :title="rangeSelectActive ? 'cancel loop range' : 'loop a range of the flow'"
-        @click="toggleRangeSelect">
-        <IonIcon :icon="repeatOutline" />
-      </button>
+      <div class="flow-header-actions">
+        <button
+          class="icon-btn reverse-toggle-btn"
+          :class="{ active: reversed }"
+          :disabled="sequence.length < 2"
+          :title="reversed ? 'play in order' : 'play in reverse'"
+          @click="toggleReverse">
+          <IonIcon :icon="swapVerticalOutline" />
+        </button>
+        <button
+          class="icon-btn range-toggle-btn"
+          :class="{ active: rangeSelectActive }"
+          :disabled="sequence.length < 2"
+          :title="rangeSelectActive ? 'cancel loop range' : 'loop a range of the flow'"
+          @click="toggleRangeSelect">
+          <IonIcon :icon="repeatOutline" />
+        </button>
+      </div>
     </div>
     <p v-if="rangeSelectActive" class="range-hint">{{ rangeHintText }}</p>
     <div class="history-scroll">
@@ -69,6 +79,14 @@
          button (no separate "only if long" threshold — one less magic number). -->
     <div class="flow-footer">
       <p v-if="rangeSelectActive" class="range-hint range-hint--footer">{{ rangeHintText }}</p>
+      <button
+        class="icon-btn reverse-toggle-btn"
+        :class="{ active: reversed }"
+        :disabled="sequence.length < 2"
+        :title="reversed ? 'play in order' : 'play in reverse'"
+        @click="toggleReverse">
+        <IonIcon :icon="swapVerticalOutline" />
+      </button>
       <button
         class="icon-btn range-toggle-btn"
         :class="{ active: rangeSelectActive }"
@@ -158,7 +176,7 @@ import {
   IonPickerColumn,
   IonPickerColumnOption,
 } from '@ionic/vue'
-import { trashOutline, createOutline, playOutline, repeatOutline } from 'ionicons/icons'
+import { trashOutline, createOutline, playOutline, repeatOutline, swapVerticalOutline } from 'ionicons/icons'
 import type { Cluster } from '../../utils/noteUtils'
 import { sortCluster, isValidCluster, canTransposeOctave } from '../../utils/noteUtils'
 import { midiToName, MAX_CLUSTER_SPREAD, MIDI_MIN, MIDI_MAX } from '../../data/notes'
@@ -180,6 +198,7 @@ const emit = defineEmits<{
   'range-change': [range: [number, number] | null]
   'range-mode-change': [active: boolean]
   'range-tap': []
+  'reverse-change': [reversed: boolean]
 }>()
 
 const voiceColors = VOICE_COLORS
@@ -258,6 +277,16 @@ function setRangeMode(active: boolean) {
 
 function toggleRangeSelect() {
   setRangeMode(!rangeSelectActive.value)
+}
+
+// Playback order only — never touches props.sequence or its undo history. SessionView.vue
+// reverses whatever's about to actually play (the full flow, or the loop-range slice) at
+// the point of playback/export, so this composes with range selection rather than one
+// silently overriding the other.
+const reversed = ref(false)
+function toggleReverse() {
+  reversed.value = !reversed.value
+  emit('reverse-change', reversed.value)
 }
 
 watch(() => props.sequence.length, (len) => {
@@ -420,10 +449,17 @@ function confirmDelete(index: number) {
   justify-content: space-between;
 }
 
+.flow-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
 .flow-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 0.3rem;
   padding-top: 0.4rem;
 }
 
@@ -447,6 +483,18 @@ function confirmDelete(index: number) {
   background: var(--color-accent);
 }
 .range-toggle-btn:disabled { opacity: 0.3; }
+
+.reverse-toggle-btn {
+  font-size: var(--icon-sm);
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+.reverse-toggle-btn.active {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+  background: var(--color-accent);
+}
+.reverse-toggle-btn:disabled { opacity: 0.3; }
 
 .range-hint {
   font-size: var(--text-xs);

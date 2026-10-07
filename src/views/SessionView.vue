@@ -163,7 +163,8 @@
             @reorder="reorderClusters"
             @range-change="setLoopRange"
             @range-mode-change="onRangeModeChange"
-            @range-tap="stopIfPlaying" />
+            @range-tap="stopIfPlaying"
+            @reverse-change="onReverseChange" />
         </div>
       </div>
 
@@ -868,20 +869,41 @@
     if (isPlaying.value) audioEngine.stopLoop(true)
   }
 
-  const playbackSequence = computed(() =>
-    loopRange.value
+  // Reverse (SequenceHistory's "the flow" toggle, next to loop-range): playback-order
+  // only, never touches sequenceStore.sequence or its undo history. Applied after range
+  // slicing below so it composes with loop-range rather than one overriding the other —
+  // "reverse whatever's currently selected to play," same principle as range selection
+  // itself. MIDI/WAV export's "this loop" scope reuses playbackSequence directly, so it
+  // inherits reverse for free; "whole flow" export deliberately still reads
+  // sequenceStore.sequence directly — that scope means the canonical stored order.
+  const reversePlayback = ref(false)
+
+  function onReverseChange(reversed: boolean) {
+    reversePlayback.value = reversed
+    // Same reasoning as onRangeModeChange/stopIfPlaying below: the engine is scheduled
+    // against the old order, and nothing re-triggers a reschedule on its own.
+    stopIfPlaying()
+  }
+
+  const playbackSequence = computed(() => {
+    const base = loopRange.value
       ? sequenceStore.sequence.slice(loopRange.value[0], loopRange.value[1] + 1)
       : sequenceStore.sequence
-  )
+    return reversePlayback.value ? [...base].reverse() : base
+  })
 
   // playingIndex from the engine is relative to whatever was actually scheduled (the
-  // sliced range, when one's active) — offset it back to the full flow's indices so
-  // SequenceHistory highlights the right row instead of always starting at row 1.
-  const displayPlayingIndex = computed(() =>
-    isPlaying.value && playingIndex.value >= 0
-      ? playingIndex.value + (loopRange.value ? loopRange.value[0] : 0)
-      : -1
-  )
+  // sliced range and/or reversed order, when active) — map it back to the full flow's
+  // indices so SequenceHistory highlights the right row instead of always starting at
+  // row 1, or counting backwards when reversed.
+  const displayPlayingIndex = computed(() => {
+    if (!isPlaying.value || playingIndex.value < 0) return -1
+    const rangeOffset = loopRange.value ? loopRange.value[0] : 0
+    const indexInSlice = reversePlayback.value
+      ? playbackSequence.value.length - 1 - playingIndex.value
+      : playingIndex.value
+    return indexInSlice + rangeOffset
+  })
 
   function playLoop() {
     audioEngine.playSequence(
