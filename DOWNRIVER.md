@@ -246,6 +246,26 @@ for marketing version 1.0 — the next real build is **1.0(101)**, not 1.0(20) a
 planned (App Store Connect enforces strictly increasing build numbers server-side, same
 mechanics as the earlier 13/14 conflict).
 
+**Build 1.0(101) result (2026-10-07) — real, well-evidenced bug found and fixed**: Paul's
+report ("toast stuck on the first wake, audio actually resumes on the second") was a clean
+signal, not platform flakiness. Root cause confirmed directly from the log: two independent
+recovery paths have been racing each other this whole investigation — the module-level
+`App.addListener('resume', ...)` handler, which only resumes the raw context and resets
+volume (assuming the already-scheduled Transport/Part just keeps going on its own), and
+`tick()`'s own retry loop, which does a full rebuild via `playSequence()`. Whichever wins
+the race on a given wake determines the outcome: the "light" one resumes the context but
+doesn't actually restore audible sound from the stale schedule; only the "heavy" one
+reliably does. `recoveryStatus` was also only ever cleared inside the heavy path's own
+success branch, so the toast stuck exactly on the cycles where the light path won — both
+symptoms traced to the same root cause.
+
+**Fixed**: `tick()` now forces the full `safeRecoveryReplay()` rebuild the first time it
+notices the context has come back from a dead state, regardless of which path revived it —
+so the reliable recovery always runs exactly once per real interruption instead of a coin
+flip. Shipped as build **1.0(102)**. This is the strongest fix in this whole investigation
+so far — it directly explains the alternating-success pattern Paul described, rather than
+treating it as unexplained flakiness.
+
 ---
 
 ## Open Discussion — Handoff (2026-10-01, round 2)

@@ -1007,7 +1007,28 @@ function playSequence(
       )
       return
     }
-    recoveryStartedAt = null
+
+    if (recoveryStartedAt !== null) {
+      // Context is running again, but we can't tell from here whether this tick()'s own
+      // retry just fixed it, or the module-level App.addListener('resume', ...) handler
+      // above won the race first — confirmed on-device (Paul, 2026-10-07 diagnostic log):
+      // that handler only resumes the raw context and resets volume, it never rebuilds the
+      // Transport/Part schedule, assuming the already-scheduled loop just keeps going. When
+      // it wins the race, the context reports 'running' but the existing schedule doesn't
+      // actually produce audible sound again — and nothing was clearing recoveryStatus
+      // either, leaving the toast stuck even on a cycle that otherwise looked recovered.
+      // Always doing a full rebuild the first time this tick() notices the context is back
+      // — the same safeRecoveryReplay() an in-tick recovery already does — guarantees the
+      // reliable, heavy recovery runs exactly once per real interruption, regardless of
+      // which path noticed the context was healthy again first.
+      recoveryStartedAt = null
+      recoveryStatus.value = 'idle'
+      if (isPlaying.value) {
+        safeRecoveryReplay('tick', () => playSequence(sequence, settings, loop))
+      }
+      return
+    }
+
     const pos = Tone.getTransport().seconds
     const idx = Math.floor(pos / currentClusterDuration) % currentSequenceLength
     playingIndex.value = idx
