@@ -301,6 +301,36 @@ itself actually finishes, so a longer rebuild just means a longer, still-accurat
 "recovering" message, not a stale one. This was true by construction, not something that
 needed separate handling.
 
+**Build 1.0(103) result (2026-10-07) — a real, severe regression, found and fixed same
+day**: worse than any previous build — toast permanently stuck, and the app became
+unusable, unable to even start a new session. Root cause confirmed directly from the log:
+`rebuildAudioContext()` disposed `instrument`/the effects chain before swapping contexts,
+but never touched `loopPart` — the leftover `Tone.Part` from before the interruption, built
+against the *old* context. The very next `playSequence()` call (`safeRecoveryReplay`'s
+replay) ran `stopLoop()`, which tried to `.stop()`/`.dispose()` that stale Part against an
+already-closed context and threw (`TypeError: undefined is not an object (evaluating
+'r.time')` — Tone.Part's internals reading a disposed Timeline). Worse: since the throw
+happened *before* `loopPart` was nulled out, the dangling reference was never cleared —
+every subsequent `stopLoop()` call, from any user action anywhere in the app, hit the exact
+same throw forever. That's "can't even start a new session": nearly every interactive path
+in Eddy calls `stopLoop()` first.
+
+**Fixed two ways**: (1) `rebuildAudioContext()` now tears down `loopPart`/`rafId` *before*
+swapping the context, while the original context is still alive to clean up against —
+the same ordering `init()` and `stopLoop()` already use elsewhere, just missing here. (2)
+Added `disposeQuietly()`, wrapping every dispose call (`loopPart`, `instrument`,
+`outputReverb`/`outputChorus`/`outputDelay`/`outputFilter`) so a cleanup failure logs and
+moves on instead of propagating — and critically, the reference is *always* nulled
+afterward regardless of whether dispose succeeded, so a single bad dispose can never again
+leave a permanently-stuck reference bricking every future call. Applied to `stopLoop()`'s
+own `loopPart` cleanup too, as defense-in-depth, not just the new rebuild path.
+
+**Immediate workaround while 1.0(103) was still live**: force-quit and relaunch the app —
+clears the stuck in-memory `loopPart` reference, since there's no in-app path out of it
+once triggered.
+
+Shipped as build **1.0(104)** — not yet confirmed on a real device.
+
 ---
 
 ## Open Discussion — Handoff (2026-10-01, round 2)

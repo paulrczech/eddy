@@ -52,6 +52,21 @@ function safeRecoveryReplay(label: string, fn: () => void): void {
   }
 }
 
+// Disposes a Tone object defensively — never lets a disposal failure propagate. Confirmed
+// on-device (Paul, 2026-10-07): an uncaught throw from disposing a stale Tone.Part against
+// an already-closed context (see rebuildAudioContext() below) left the dangling reference
+// never nulled out, which bricked every subsequent stopLoop() call — and therefore nearly
+// every user action — for the rest of the session. Callers still null their own reference
+// afterward; this only guards the dispose() call itself from taking the whole app down.
+function disposeQuietly(label: string, node: { dispose: () => unknown } | null): void {
+  if (!node) return
+  try {
+    node.dispose()
+  } catch (err) {
+    logDiag(`dispose.${label}.threw`, { err: String(err) })
+  }
+}
+
 // Discards the current AudioContext entirely and builds a fresh one, rather than trying
 // to resume the stuck one. Confirmed on-device (Paul, 2026-10-07): even a fully clean,
 // exception-free resume-and-reschedule (tick()'s own forced rebuild, see
@@ -72,27 +87,40 @@ async function rebuildAudioContext(): Promise<void> {
   const instrumentType = currentInstrumentType
   const buffers = cachedBuffers
 
-  if (instrument) {
-    instrument.dispose()
-    instrument = null
-    isLoaded.value = false
+  // loopPart must be torn down HERE, before the context swap — not left for the next
+  // stopLoop() call to find. Confirmed on-device (Paul, 2026-10-07): disposing a Tone.Part
+  // against an already-closed context throws ("undefined is not an object (evaluating
+  // 'r.time')", Tone.Part's internals reading a disposed Timeline). Worse, since the throw
+  // happened before loopPart was nulled out, the dangling reference survived — every
+  // subsequent stopLoop() call from anywhere in the app (confirming a stream, navigating,
+  // starting fresh) hit the exact same throw forever, bricking the whole session until
+  // restart. Wrapped defensively regardless, same reasoning as every dispose below: a
+  // cleanup failure must never be allowed to leave a reference permanently stuck.
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId)
+    rafId = null
   }
-  if (outputReverb) {
-    outputReverb.dispose()
-    outputReverb = null
+  if (loopPart) {
+    try {
+      loopPart.stop()
+    } catch (err) {
+      logDiag('dispose.loopPart.stopThrew', { err: String(err) })
+    }
+    disposeQuietly('loopPart', loopPart)
+    loopPart = null
   }
-  if (outputChorus) {
-    outputChorus.dispose()
-    outputChorus = null
-  }
-  if (outputDelay) {
-    outputDelay.dispose()
-    outputDelay = null
-  }
-  if (outputFilter) {
-    outputFilter.dispose()
-    outputFilter = null
-  }
+
+  disposeQuietly('instrument', instrument)
+  instrument = null
+  isLoaded.value = false
+  disposeQuietly('outputReverb', outputReverb)
+  outputReverb = null
+  disposeQuietly('outputChorus', outputChorus)
+  outputChorus = null
+  disposeQuietly('outputDelay', outputDelay)
+  outputDelay = null
+  disposeQuietly('outputFilter', outputFilter)
+  outputFilter = null
 
   Tone.setContext(new AudioContext(), true)
   await startToneWithTimeout()
@@ -1144,8 +1172,17 @@ function stopLoop(hardStop = false): void {
     rafId = null
   }
   if (loopPart) {
-    loopPart.stop()
-    loopPart.dispose()
+    // Defensive, not just tidy: an uncaught throw here (confirmed on-device, 2026-10-07 —
+    // disposing a Part against an already-closed context) previously left loopPart
+    // permanently un-nulled, which meant every future stopLoop() call hit the same throw
+    // forever — bricking nearly every user action for the rest of the session. loopPart
+    // is always nulled below regardless of whether either call actually succeeds.
+    try {
+      loopPart.stop()
+    } catch (err) {
+      logDiag('dispose.loopPart.stopThrew', { err: String(err) })
+    }
+    disposeQuietly('loopPart', loopPart)
     loopPart = null
   }
   const transport = Tone.getTransport()
