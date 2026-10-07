@@ -26,8 +26,10 @@ the two directly and preferred it.
 
 ## Guitar (acoustic)
 
-**Soft Nylon Guitar Lite** by Mike Georgiades. Sourced from
-[Pianobook.co.uk](https://www.pianobook.co.uk). Replaced the original steel-string
+**Yindad Acoustic** — Paul's own recording (not a third-party sample pack, no external
+attribution needed). Replaced **Soft Nylon Guitar Lite** by Mike Georgiades (sourced from
+[Pianobook.co.uk](https://www.pianobook.co.uk)) outright 2026-10-07 after a direct A/B in
+the simulator. Soft Nylon Guitar Lite had itself replaced the original steel-string
 samples (Nicholaus P. Brosowsky's tonejs-instruments, CC-BY 3.0, University of Iowa
 Electronic Music Studios sample library), which read as too bright/harsh under Eddy's
 sustained, looping playback — same reasoning as the piano swap.

@@ -98,28 +98,31 @@ const PIANO_URLS: Record<string, string> = {
   'A#6': 'As6.mp3',
 }
 
-// Acoustic guitar — "Soft Nylon Guitar Lite" by Mike Georgiades via Pianobook.co.uk.
-// Replaced the original nbrosowsky/tonejs-instruments steel-string samples, which read
-// as too bright/harsh under Eddy's sustained, looping playback — same reasoning as the
-// piano swap. Sparse, minor thirds. Two round-robin takes exist per note in the source
-// pack (alternate performances, not different dynamics) — Tone.Sampler doesn't support
-// round-robin switching, so the first take only.
-// IMPORTANT: source filenames were one octave lower than their true pitch, confirmed by
-// autocorrelation — 7 of 9 root samples matched within ~10 cents. The other two (labeled
-// E1/G1) didn't fit any octave hypothesis — they measured at essentially the exact same
-// pitch as the already-confirmed E3/G3 samples, meaning they appear to be pitch-
-// duplicated content in the source pack itself. Excluded rather than guessed. This
-// leaves only 7 usable roots (C#3-G4) — narrower than the original's full E2-C6, see
-// the INSTRUMENT_NOTE_RANGE entry below. Gain-boosted and trimmed to 6s/1s fade-out,
-// same treatment as piano. See CREDITS.md for full attribution.
+// Acoustic guitar — "Yindad Acoustic" (Paul's own pack), replaced "Soft Nylon Guitar
+// Lite" (Mike Georgiades via Pianobook.co.uk) outright 2026-10-07 after a direct A/B in
+// the simulator (same key/folder path kept for saved-session backward compatibility,
+// same reasoning as every other content swap in this project — see holdsworthian-pad).
+// 11 roots, every major third, E2-G#5 — denser and wider coverage than the nylon pack it
+// replaced (7 usable roots, C#3-G4). Unlike most packs evaluated in this project,
+// filenames measured at TRUE pitch — autocorrelation confirmed all 11 within ~10 cents
+// (three readings initially looked ~19 semitones flat on the brighter notes — a
+// subharmonic-locking artifact, not a real pitch issue; a frequency-constrained re-check
+// confirmed all three are correctly pitched too). Gain-boosted +9dB (measured RMS against
+// the outgoing nylon pack on the two exact note-name overlaps, E3/E4) and trimmed to
+// 6s/1s fade-out, same treatment as every other instrument. See CREDITS.md for
+// attribution.
 const GUITAR_ACOUSTIC_URLS: Record<string, string> = {
-  'C#3': 'Cs3.mp3',
+  E2: 'E2.mp3',
+  'G#2': 'Gs2.mp3',
+  C3: 'C3.mp3',
   E3: 'E3.mp3',
-  G3: 'G3.mp3',
-  'A#3': 'As3.mp3',
-  'C#4': 'Cs4.mp3',
+  'G#3': 'Gs3.mp3',
+  C4: 'C4.mp3',
   E4: 'E4.mp3',
-  G4: 'G4.mp3',
+  'G#4': 'Gs4.mp3',
+  C5: 'C5.mp3',
+  E5: 'E5.mp3',
+  'G#5': 'Gs5.mp3',
 }
 
 // Electric piano and electric guitar samples via Pianobook.co.uk (royalty-free per
@@ -255,32 +258,6 @@ const UPRIGHT_PIANO_URLS: Record<string, string> = {
   A5: 'A5.mp3',
 }
 
-// Temp A/B candidate — "Yindad Acoustic" (Paul's own pack), added 2026-10-07 to compare
-// against the current guitar-acoustic (Soft Nylon Guitar Lite). 11 roots, every major
-// third, E2-G#5. Unlike most packs evaluated in this project, filenames measured at
-// TRUE pitch — autocorrelation confirmed all 11 within ~10 cents (three readings
-// initially looked ~19 semitones flat — E4/E5/G#5 — but that was the analysis locking
-// onto a subharmonic on brighter notes, a known autocorrelation artifact; a
-// frequency-constrained re-check confirmed all three are correctly pitched too). Raw
-// bounces as provided: 44.1kHz/24-bit/stereo WAV, 8s each, untrimmed/unfaded — same
-// "still pending the production pass" treatment retro-pad shipped with for its own A/B
-// period. Gain-matched by measured RMS against the current guitar-acoustic (E3/E4, the
-// only two exact note-name overlaps between the packs): averaged ~9dB quieter, hence the
-// INSTRUMENT_VOLUME entry below.
-const YINDAD_ACOUSTIC_URLS: Record<string, string> = {
-  E2: 'E2.wav',
-  'G#2': 'Gs2.wav',
-  C3: 'C3.wav',
-  E3: 'E3.wav',
-  'G#3': 'Gs3.wav',
-  C4: 'C4.wav',
-  E4: 'E4.wav',
-  'G#4': 'Gs4.wav',
-  C5: 'C5.wav',
-  E5: 'E5.wav',
-  'G#5': 'Gs5.wav',
-}
-
 // Hoisted out of init() (was rebuilt as a local const on every call) — also needed by
 // renderSequenceToBuffer() below for audio export, which loads its own sample buffers
 // independent of whatever's currently live-loaded.
@@ -312,10 +289,6 @@ const SAMPLER_CONFIGS: Partial<
     urls: RETRO_PAD_URLS,
     baseUrl: '/samples/retro-pad/',
   },
-  'guitar-acoustic-yindad-temp': {
-    urls: YINDAD_ACOUSTIC_URLS,
-    baseUrl: '/samples/guitar-acoustic-yindad-temp/',
-  },
 }
 
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
@@ -327,9 +300,9 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   { min: number; max: number }
 > = {
   piano: { min: 33, max: MIDI_MAX }, // A1–C6
-  'guitar-acoustic': { min: 40, max: 79 }, // E2-G5 — narrower than the
-  // original steel-string samples' full E2-C6; only 7 usable roots (C#3-G4), see
-  // GUITAR_ACOUSTIC_URLS
+  'guitar-acoustic': { min: 40, max: MIDI_MAX }, // E2-C6 — 11 roots every major
+  // third, E2-G#5 (Yindad Acoustic); top root sits just 4 semitones below MIDI_MAX,
+  // close enough not to narrow the picker, same reasoning as retro-pad
   'electric-piano': { min: 33, max: 84 }, // A1-C6
   'electric-guitar': { min: 38, max: 71 }, // D2-B4
   'holdsworthian-pad': { min: 52, max: 82 }, // E3-A#5 — matches the ambient
@@ -339,9 +312,6 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   // 11 usable roots
   'retro-pad': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, matches all 12 recorded roots
   // exactly (every major third) — no need to narrow the picker range at all
-  'guitar-acoustic-yindad-temp': { min: 40, max: MIDI_MAX }, // E2-C6 — 11 roots every
-  // major third, E2-G#5; top root sits just 4 semitones below MIDI_MAX, close enough not
-  // to narrow the picker, same reasoning as retro-pad above
 }
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -371,8 +341,6 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   'holdsworthian-pad': '1n', // sustained pad character
   'piano-salamander': '2n', // same character class as felt piano
   'retro-pad': '1n', // same sustained pad character
-  'guitar-acoustic-yindad-temp': '2n', // same plucked/decaying character class as
-  // guitar-acoustic
 }
 
 // Tone.Sampler's release (the fade-out after triggerRelease) defaults to 0.1s — fine for
@@ -387,13 +355,13 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   'electric-piano': 1.2, // same class of bug as piano had — no release meant a hard
   // 0.1s cutoff, which read as "plucky"/inconsistent since the source recording's own
   // natural sustain varies note to note; a real release masks that instead of fighting it
-  'guitar-acoustic': 1.5, // nylon pluck decays naturally, avoid the harsh-cutoff class of bug
+  'guitar-acoustic': 1.5, // pluck decays naturally, avoid the harsh-cutoff class of bug —
+  // carried over unchanged from the nylon pack this replaced; not yet retuned by ear
+  // against the new Yindad Acoustic content specifically
   'piano-salamander': 2.0, // same treatment as felt piano — avoids the harsh default
   // 0.1s cutoff
   'retro-pad': 2.5, // matched holdsworthian-pad's as a starting guess — confirmed sounding
   // good by ear (Paul, 2026-10-05), left as-is
-  'guitar-acoustic-yindad-temp': 1.5, // same starting value as guitar-acoustic — a
-  // provisional guess for the A/B listen, not yet tuned by ear
 }
 
 // Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across
@@ -415,9 +383,8 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   'piano-salamander': 10,
   'retro-pad': 3, // Paul heard it as good but asked for "a tad" louder (2026-10-05) —
   // same modest-boost treatment as piano's +3 above for the same kind of feedback
-  'guitar-acoustic-yindad-temp': 9, // measured ~9dB quieter than guitar-acoustic on the
-  // two exact note-name overlaps (E3/E4) — trimmed to roughly match for a fair A/B,
-  // not yet tuned by ear on its own merits
+  // guitar-acoustic needs no entry — the +9dB gain-match measured during its 2026-10-07
+  // content swap was baked into the exported files themselves, same convention as piano
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
@@ -486,6 +453,8 @@ const CHORUS_SETTINGS: Partial<
   >
 > = {
   'guitar-acoustic': { frequency: 1.2, delayTime: 3.5, depth: 0.5, wet: 0.5 },
+  // carried over unchanged from the nylon pack this replaced (2026-10-07) — not yet
+  // retuned by ear against the new Yindad Acoustic content specifically
 }
 const DELAY_SETTINGS: Partial<
   Record<InstrumentType, { delayTime: string; feedback: number; wet: number }>
@@ -552,7 +521,6 @@ const STRUM_INTERVAL = 0.025 // seconds between adjacent strings
 const GUITAR_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set([
   'guitar-acoustic',
   'electric-guitar',
-  'guitar-acoustic-yindad-temp',
 ])
 
 function chordInterval(instrumentType: InstrumentType | null): number {
