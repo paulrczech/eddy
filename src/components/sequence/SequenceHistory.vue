@@ -21,7 +21,8 @@
         </button>
       </div>
     </div>
-    <p v-if="rangeSelectActive" class="range-hint">{{ rangeHintText }}</p>
+    <p v-if="reversed" class="range-hint">playing in reverse</p>
+    <p v-else-if="rangeSelectActive" class="range-hint">{{ rangeHintText }}</p>
     <div class="history-scroll">
       <IonReorderGroup :disabled="false" @ionItemReorder="onReorder($event)">
         <IonItemSliding
@@ -78,7 +79,8 @@
          near the bottom (Paul, 2026-10-04). Same visibility/disabled rule as the header
          button (no separate "only if long" threshold — one less magic number). -->
     <div class="flow-footer">
-      <p v-if="rangeSelectActive" class="range-hint range-hint--footer">{{ rangeHintText }}</p>
+      <p v-if="reversed" class="range-hint range-hint--footer">playing in reverse</p>
+      <p v-else-if="rangeSelectActive" class="range-hint range-hint--footer">{{ rangeHintText }}</p>
       <button
         class="icon-btn reverse-toggle-btn"
         :class="{ active: reversed }"
