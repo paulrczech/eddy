@@ -220,6 +220,9 @@
           <ion-select-option value="retro-pad"
             >retro pad</ion-select-option
           >
+          <ion-select-option v-if="SHOW_YINDAD_ACOUSTIC_TEMP" value="guitar-acoustic-yindad-temp"
+            >guitar (yindad, temp)</ion-select-option
+          >
         </ion-select>
         <button
           class="icon-btn footer-expand-btn"
@@ -399,7 +402,7 @@
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
   import { useSequenceStore } from '../stores/sequenceStore'
-  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_YINDAD_ACOUSTIC_TEMP, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'
