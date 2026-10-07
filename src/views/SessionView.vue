@@ -441,7 +441,7 @@
   const recoveryToastOpen = computed(() => recoveryStatus.value !== 'idle')
   const recoveryToastMessage = computed(() =>
     recoveryStatus.value === 'failed'
-      ? 'lost the thread — try again'
+      ? 'no sound? tap to try again'
       : 'finding the current again…'
   )
   function onRecoveryToastDismiss() {
