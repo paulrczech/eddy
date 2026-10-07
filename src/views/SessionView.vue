@@ -164,7 +164,9 @@
             @range-change="setLoopRange"
             @range-mode-change="onRangeModeChange"
             @range-tap="stopIfPlaying"
-            @reverse-change="onReverseChange" />
+            @reverse-change="onReverseChange"
+            @duplicate="duplicateCluster"
+            @duplicate-range="duplicateRangeClusters" />
         </div>
       </div>
 
@@ -928,6 +930,21 @@
   function deleteCluster(index: number) {
     audioEngine.stopLoop(true)
     sequenceStore.deleteAt(index)
+    sequenceStore.setLoopResolved(false)
+  }
+
+  // duplicateAt/duplicateRange never change the sequence's last cluster's value (they only
+  // insert, never modify or remove an existing entry) — so unlike edit/reorder above,
+  // there's no advance() call here, same reasoning as deleteCluster's non-last-row case.
+  function duplicateCluster(index: number) {
+    audioEngine.stopLoop(true)
+    sequenceStore.duplicateAt(index)
+    sequenceStore.setLoopResolved(false)
+  }
+
+  function duplicateRangeClusters(start: number, end: number) {
+    audioEngine.stopLoop(true)
+    sequenceStore.duplicateRange(start, end)
     sequenceStore.setLoopResolved(false)
   }
 

@@ -192,6 +192,30 @@ export const useSequenceStore = defineStore('sequence', () => {
     candidates.value = []
   }
 
+  // Inserts a copy immediately after the original — no placement choice, matching how
+  // duplicate works in most list UIs. Never changes the sequence's last cluster's value
+  // (it only ever inserts, never modifies or removes an existing entry), so unlike
+  // reorderSequence this never needs to trigger a candidates/advance refresh — only
+  // setLoopResolved, left to the caller, same convention as deleteAt/editClusterAt.
+  function duplicateAt(index: number) {
+    if (index < 0 || index >= sequence.value.length) return
+    pushHistory()
+    const copy = [...sequence.value[index]] as Cluster
+    sequence.value.splice(index + 1, 0, copy)
+    candidates.value = []
+  }
+
+  // Duplicates a contiguous [start, end] span (inclusive), inserting the copies
+  // immediately after `end` — same "insert right after what was selected" convention as
+  // duplicateAt above, just for a range instead of a single row.
+  function duplicateRange(start: number, end: number) {
+    if (start < 0 || end >= sequence.value.length || start > end) return
+    pushHistory()
+    const copies = sequence.value.slice(start, end + 1).map(c => [...c] as Cluster)
+    sequence.value.splice(end + 1, 0, ...copies)
+    candidates.value = []
+  }
+
   function deleteAt(index: number) {
     if (index < 0 || index >= sequence.value.length) return
     if (index === 0 && sequence.value.length === 1) return
@@ -238,6 +262,8 @@ export const useSequenceStore = defineStore('sequence', () => {
     canTransposeOctave,
     transposeOctave,
     editClusterAt,
+    duplicateAt,
+    duplicateRange,
     deleteAt,
     reorderSequence,
     setLoopResolved,

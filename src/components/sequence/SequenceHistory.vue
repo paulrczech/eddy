@@ -21,8 +21,19 @@
         </button>
       </div>
     </div>
-    <p v-if="reversed" class="range-hint">playing in reverse</p>
-    <p v-else-if="rangeSelectActive" class="range-hint">{{ rangeHintText }}</p>
+    <div v-if="rangeSelectActive" class="range-hint-row">
+      <p class="range-hint">{{ rangeHintText }}</p>
+      <button
+        v-if="rangeComplete"
+        class="icon-btn action-btn range-duplicate-btn"
+        title="duplicate this range"
+        @click="duplicateRange">
+        <IonIcon :icon="copyOutline" />
+      </button>
+    </div>
+    <div v-else-if="reversed" class="range-hint-row">
+      <p class="range-hint">playing in reverse</p>
+    </div>
     <div class="history-scroll">
       <IonReorderGroup :disabled="false" @ionItemReorder="onReorder($event)">
         <IonItemSliding
@@ -59,6 +70,9 @@
                 :style="{ color: voiceColors[v] }"
               >{{ midiToName(midi) }}</span>
               <div class="row-actions">
+                <button class="icon-btn action-btn" @click.stop="emit('duplicate', i)" title="duplicate">
+                  <IonIcon :icon="copyOutline" />
+                </button>
                 <button class="icon-btn action-btn" @click.stop="startEdit(cluster, i)" title="edit notes">
                   <IonIcon :icon="createOutline" />
                 </button>
@@ -79,8 +93,19 @@
          near the bottom (Paul, 2026-10-04). Same visibility/disabled rule as the header
          button (no separate "only if long" threshold — one less magic number). -->
     <div class="flow-footer">
-      <p v-if="reversed" class="range-hint range-hint--footer">playing in reverse</p>
-      <p v-else-if="rangeSelectActive" class="range-hint range-hint--footer">{{ rangeHintText }}</p>
+      <div v-if="rangeSelectActive" class="range-hint-row range-hint-row--footer">
+        <p class="range-hint">{{ rangeHintText }}</p>
+        <button
+          v-if="rangeComplete"
+          class="icon-btn action-btn range-duplicate-btn"
+          title="duplicate this range"
+          @click="duplicateRange">
+          <IonIcon :icon="copyOutline" />
+        </button>
+      </div>
+      <div v-else-if="reversed" class="range-hint-row range-hint-row--footer">
+        <p class="range-hint">playing in reverse</p>
+      </div>
       <button
         class="icon-btn reverse-toggle-btn"
         :class="{ active: reversed }"
@@ -178,7 +203,7 @@ import {
   IonPickerColumn,
   IonPickerColumnOption,
 } from '@ionic/vue'
-import { trashOutline, createOutline, playOutline, repeatOutline, swapVerticalOutline } from 'ionicons/icons'
+import { trashOutline, createOutline, playOutline, repeatOutline, swapVerticalOutline, copyOutline } from 'ionicons/icons'
 import type { Cluster } from '../../utils/noteUtils'
 import { sortCluster, isValidCluster, canTransposeOctave } from '../../utils/noteUtils'
 import { midiToName, MAX_CLUSTER_SPREAD, MIDI_MIN, MIDI_MAX } from '../../data/notes'
@@ -201,6 +226,8 @@ const emit = defineEmits<{
   'range-mode-change': [active: boolean]
   'range-tap': []
   'reverse-change': [reversed: boolean]
+  duplicate: [index: number]
+  'duplicate-range': [start: number, end: number]
 }>()
 
 const voiceColors = VOICE_COLORS
@@ -265,6 +292,18 @@ function clearRange() {
   rangeStart.value = null
   rangeEnd.value = null
   emit('range-change', null)
+}
+
+// Reuses the loop-range marker rather than a separate multi-select mode (Paul, 2026-10-08)
+// — contiguous span selection is already exactly what loop-range does, so this is just a
+// second action available once a range is marked, not a new selection paradigm. Clears
+// the range afterward (same as a completed loop-range normally invites "tap to start a new
+// one") rather than leaving it pointed at indices that no longer mean what they did once
+// the flow's length has changed underneath it.
+function duplicateRange() {
+  if (rangeStart.value === null || rangeEnd.value === null) return
+  emit('duplicate-range', rangeStart.value, rangeEnd.value)
+  clearRange()
 }
 
 function setRangeMode(active: boolean) {
@@ -333,6 +372,7 @@ const rangeHintText = computed(() =>
     ? 'tap an end point'
     : 'loop set — tap to start a new one'
 )
+const rangeComplete = computed(() => rangeStart.value !== null && rangeEnd.value !== null)
 
 const pickerOpen = ref(false)
 const editingIndex = ref<number | null>(null)
@@ -465,13 +505,36 @@ function confirmDelete(index: number) {
   padding-top: 0.4rem;
 }
 
-/* flex: 1 fills the leading space so the hint sits to the left of the button, same
-   reading as the header's hint sitting left of its own toggle — and when the hint isn't
-   rendered (range-select off), the button alone still gets pushed to the far right by
-   .flow-footer's justify-content, no separate layout needed for that state. */
-.range-hint--footer {
-  flex: 1;
+/* Wraps the hint text (and, once a range is fully marked, the contextual "duplicate this
+   range" button) — used for both the loop-range hint and "playing in reverse", even when
+   the latter has no button, specifically so both states occupy identical height. Without
+   this, .icon-btn's 44px min-height (--tap-min) only stretches the row when a button is
+   actually present, so the two hint states rendered at different heights and the
+   align-items:center text sat at different depths within each, reading as mismatched top
+   AND bottom spacing around the visible text even though the row's own margin is identical
+   either way (Paul, 2026-10-08) — min-height here, not just the button, is what fixes it.
+   Header variant keeps the standalone .range-hint's old vertical rhythm (now on the row
+   instead of the <p>, which is reset to 0 below); footer variant needs flex:1 to fill the
+   leading space, same reasoning as every other footer hint in this file. */
+.range-hint-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: var(--tap-min);
+  margin: -0.2rem 0 0.3rem;
+}
+.range-hint-row .range-hint {
   margin: 0;
+}
+.range-hint-row--footer {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+}
+.range-duplicate-btn {
+  font-size: var(--icon-sm);
+  flex-shrink: 0;
 }
 
 .range-toggle-btn {
@@ -613,6 +676,7 @@ function confirmDelete(index: number) {
   margin-left: auto;
   display: flex;
   align-items: center;
+  gap: 0.1rem;
   flex-shrink: 0;
 }
 
