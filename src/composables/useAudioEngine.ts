@@ -504,8 +504,6 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
 // quietest), a jarring jump switching between them mid-session. Targets piano's level
 // (~-24dBFS), the most recently and deliberately tuned reference. Code-level trim rather
 // than re-exporting every instrument's samples — one place to retune, fully reversible.
-// guitar-acoustic needs no entry — its current (nylon) samples were already gain-matched
-// to the same target when converted, same as piano.
 const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   piano: 3, // Paul heard it as a little quieter than guitar-acoustic despite matching RMS
   // targets — try a modest boost first
@@ -518,8 +516,11 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   'piano-salamander': 10,
   'retro-pad': 3, // Paul heard it as good but asked for "a tad" louder (2026-10-05) —
   // same modest-boost treatment as piano's +3 above for the same kind of feedback
-  // guitar-acoustic needs no entry — the +9dB gain-match measured during its 2026-10-07
-  // content swap was baked into the exported files themselves, same convention as piano
+  'guitar-acoustic': -5, // Paul heard it as loud/jarring (2026-10-07) — cut back from the
+  // +9dB baked into the exported files during the Yindad Acoustic swap, which was
+  // deliberately matched to the outgoing nylon pack's loudness for a fair A/B, not tuned
+  // for how it should actually sit once it won. Provisional, same as every other
+  // instrument's first by-ear pass — expect this to move again.
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
