@@ -28,6 +28,30 @@ function startToneWithTimeout(timeoutMs = 2000): Promise<void> {
   ])
 }
 
+// Wraps a recovery-triggered replay (playCluster/playSequence recursing into itself, or
+// tick() restarting the sequence) in error handling. Confirmed on-device (Paul, 2026-10-07
+// diagnostic log): rebuilding playback scheduling right as a context comes out of an
+// interruption can throw — seen once as a RangeError on a near-zero floating-point time
+// value, likely a WebAudio scheduling call fed an offset that drifted slightly negative
+// across the interruption. Without this, that exception surfaces only as an unhandled
+// rejection (main.ts's global handler logs it but can't undo anything) and leaves the
+// engine mid-rebuild — exactly matching a field report of the recovery toast clearing
+// with playback still dead. Catching it here and tearing down via stopLoop() turns a
+// silent, corrupted half-state into an honest, visible "failed" status instead.
+function safeRecoveryReplay(label: string, fn: () => void): void {
+  try {
+    fn()
+  } catch (err) {
+    logDiag(`${label}.recoveryThrew`, { err: String(err) })
+    recoveryStatus.value = 'failed'
+    try {
+      stopLoop()
+    } catch (cleanupErr) {
+      logDiag(`${label}.recoveryCleanupThrew`, { err: String(cleanupErr) })
+    }
+  }
+}
+
 // iOS suspends the WebAudio context whenever the app is backgrounded or the screen
 // locks (a real interruption, not just a pause), and nothing resumes it automatically —
 // every scheduled note would then silently do nothing until the app was force-restarted.
@@ -767,7 +791,7 @@ function playCluster(
     startToneWithTimeout().then(
       () => {
         recoveryStatus.value = 'idle'
-        playCluster(cluster, settings, onComplete)
+        safeRecoveryReplay('playCluster', () => playCluster(cluster, settings, onComplete))
       },
       (err) => {
         logDiag('playCluster.toneStart.fail', { err: String(err) })
@@ -819,7 +843,7 @@ function playSequence(
     startToneWithTimeout().then(
       () => {
         recoveryStatus.value = 'idle'
-        playSequence(sequence, settings, loop)
+        safeRecoveryReplay('playSequence', () => playSequence(sequence, settings, loop))
       },
       (err) => {
         logDiag('playSequence.toneStart.fail', { err: String(err) })
@@ -947,7 +971,9 @@ function playSequence(
           logDiag('tick.toneStart.ok')
           recoveryStatus.value = 'idle'
           resetInstrumentVolume('tick.toneStart.ok')
-          if (isPlaying.value) playSequence(sequence, settings, loop)
+          if (isPlaying.value) {
+            safeRecoveryReplay('tick', () => playSequence(sequence, settings, loop))
+          }
         },
         (err) => {
           if (playbackGeneration !== myGeneration) return

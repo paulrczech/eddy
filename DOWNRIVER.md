@@ -222,13 +222,29 @@ mechanism wins — its real value is turning every future test into a diagnostic
 enough and the rebuild isn't needed; if it hangs or keeps flipping to "failed," that's the
 clean signal to build the heavier rebuild.
 
-**Also queued, not yet run**: a worktree at `/Users/paulczech/note-threader-build6-test`,
-checked out at commit `c150554` (build 1.0(6), 2026-09-29) — predates loop-range,
-live-tempo-ramp, and all diagLog/recovery code entirely. Built and synced, ready for Paul
-to run directly to his device via Xcode (not archive/TestFlight) to check whether this is a
-pure platform-level WKWebView limitation that's been present since the very first Capacitor
-builds, independent of anything shipped in this whole investigation. Given the research
-above, expect it to reproduce — but that's a prediction, not a result yet.
+**Build-6 test run (2026-10-07) — confirmed**: a worktree at
+`/Users/paulczech/note-threader-build6-test`, checked out at commit `c150554` (build
+1.0(6), 2026-09-29) — predates loop-range, live-tempo-ramp, and all diagLog/recovery code
+entirely. Paul's phone's cable port is unreliable (physical damage), so rather than fight
+Xcode's wireless debugging (which needs an initial working cable connection to even enable
+the "connect via network" option — a chicken-and-egg problem here), bumped that worktree's
+build number to 1.0(100) and had Paul archive/upload it through TestFlight normally, same
+flow as any other build, no device-debugger pairing needed. **Same dropout reproduced.**
+This conclusively rules out loop-range/live-tempo-ramp/all the diagLog-and-recovery code as
+the root cause — none of it existed in this build. One caveat on scope: this build also
+predates the `UIBackgroundModes: audio` fix (commit `d83af69`, build 1.0(17)) by weeks, so
+it wasn't a clean isolated test of *that* fix specifically — but build 1.0(17)/1.0(19)
+already independently confirmed that fix alone doesn't resolve the lock-screen case either.
+Net result: this has been a pre-existing WKWebView platform limitation the entire time Eddy
+has had an iOS build, matching the WebKit research above exactly — not something any of
+Eddy's own feature work introduced. Paul's "I don't remember this happening as much" is
+most likely the same usage-frequency/awareness confound flagged earlier (no diagLog existed
+to make the pattern visible until build 1.0(11)), not evidence the underlying rate changed.
+
+Build number note: 1.0(100) was a real TestFlight upload, so it's now permanently consumed
+for marketing version 1.0 — the next real build is **1.0(101)**, not 1.0(20) as originally
+planned (App Store Connect enforces strictly increasing build numbers server-side, same
+mechanics as the earlier 13/14 conflict).
 
 ---
 
