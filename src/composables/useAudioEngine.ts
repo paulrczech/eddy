@@ -580,7 +580,8 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // 2026-09-30): 0 -> +6 -> +10. No effects are on this instrument (no REVERB_SETTINGS/
   // CHORUS_SETTINGS/DELAY_SETTINGS/FILTER_SETTINGS entry exists for it — confirmed by
   // grep, not assumed), so the trim itself is the only lever.
-  'piano-salamander': 13, // was 10 — same "both pianos louder" ask (Paul, 2026-10-08)
+  'piano-salamander': 11, // was 10 -> 13 -> 11 — +13 read as too loud against the other
+  // instruments (Paul, 2026-10-08)
   'retro-pad': 3, // Paul heard it as good but asked for "a tad" louder (2026-10-05) —
   // same modest-boost treatment as piano's +3 above for the same kind of feedback
   'guitar-acoustic': -5, // Paul heard it as loud/jarring (2026-10-07) — cut back from the
