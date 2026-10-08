@@ -571,15 +571,16 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
 // (~-24dBFS), the most recently and deliberately tuned reference. Code-level trim rather
 // than re-exporting every instrument's samples — one place to retune, fully reversible.
 const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
-  piano: 3, // Paul heard it as a little quieter than guitar-acoustic despite matching RMS
-  // targets — try a modest boost first
+  piano: 6, // was 3 — Paul asked for both pianos louder after hearing felt piano dry
+  // (2026-10-08); originally boosted because it read as a little quieter than
+  // guitar-acoustic despite matching RMS targets
   'electric-guitar': -6, // was -10 — Paul heard it as a little quieter than the rest after that cut
   'holdsworthian-pad': 12,
   // Tuned by ear against the sample content now in this slot (VSCO2 upright piano,
   // 2026-09-30): 0 -> +6 -> +10. No effects are on this instrument (no REVERB_SETTINGS/
   // CHORUS_SETTINGS/DELAY_SETTINGS/FILTER_SETTINGS entry exists for it — confirmed by
   // grep, not assumed), so the trim itself is the only lever.
-  'piano-salamander': 10,
+  'piano-salamander': 13, // was 10 — same "both pianos louder" ask (Paul, 2026-10-08)
   'retro-pad': 3, // Paul heard it as good but asked for "a tad" louder (2026-10-05) —
   // same modest-boost treatment as piano's +3 above for the same kind of feedback
   'guitar-acoustic': -5, // Paul heard it as loud/jarring (2026-10-07) — cut back from the
