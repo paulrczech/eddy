@@ -6,7 +6,7 @@
         <button
           class="icon-btn duplicate-toggle-btn"
           :class="{ active: duplicateModeActive }"
-          :disabled="sequence.length < 1"
+          :disabled="sequence.length < 1 || rangeSelectActive"
           :title="duplicateModeActive ? 'stop duplicating' : 'duplicate streams'"
           @click="toggleDuplicateMode">
           <IonIcon :icon="copyOutline" />
@@ -14,7 +14,7 @@
         <button
           class="icon-btn range-toggle-btn"
           :class="{ active: rangeSelectActive }"
-          :disabled="sequence.length < 2"
+          :disabled="sequence.length < 2 || duplicateModeActive"
           :title="rangeSelectActive ? 'cancel loop range' : 'loop a range of the flow'"
           @click="toggleRangeSelect">
           <IonIcon :icon="repeatOutline" />
@@ -121,7 +121,7 @@
       <button
         class="icon-btn duplicate-toggle-btn"
         :class="{ active: duplicateModeActive }"
-        :disabled="sequence.length < 1"
+        :disabled="sequence.length < 1 || rangeSelectActive"
         :title="duplicateModeActive ? 'stop duplicating' : 'duplicate streams'"
         @click="toggleDuplicateMode">
         <IonIcon :icon="copyOutline" />
@@ -129,7 +129,7 @@
       <button
         class="icon-btn range-toggle-btn"
         :class="{ active: rangeSelectActive }"
-        :disabled="sequence.length < 2"
+        :disabled="sequence.length < 2 || duplicateModeActive"
         :title="rangeSelectActive ? 'cancel loop range' : 'loop a range of the flow'"
         @click="toggleRangeSelect">
         <IonIcon :icon="repeatOutline" />
@@ -339,6 +339,15 @@ function setRangeMode(active: boolean) {
     // row-tap means (mark a boundary vs. duplicate it), so only one can own taps at a
     // time. setDuplicateMode(false)'s own `if (active)` branch never runs here (we're
     // passing false), so this can't recurse back into setRangeMode.
+    //
+    // This is now belt-and-suspenders, not the primary guard: the template also disables
+    // each toggle button outright while the other mode is active, so a user can no longer
+    // tap one mode "over" the other silently — the two identical copy-outline icons
+    // on-screen at once (this toggle + the contextual "duplicate this range" button) read
+    // as genuinely confusing without that, since nothing signaled they could conflict
+    // before you tapped (Paul, 2026-10-08, on-device). Kept here anyway in case some
+    // future caller ever reaches these functions without going through the disabled
+    // button.
     if (duplicateModeActive.value) setDuplicateMode(false)
   }
   emit('range-mode-change', active)
@@ -669,10 +678,13 @@ function confirmDelete(index: number) {
    faint, this is meant to read as "is that even there," not an obvious stripe. Declared
    ahead of .current/.in-range/.playing below so any active state's own background wins
    the cascade outright on a row that's both odd and selected/playing — same precedent as
-   .in-range being declared ahead of .playing for the same reason. Tuned by eye down from
-   an initial 0.025 to 0.010 (Paul, 2026-10-08). */
+   .in-range being declared ahead of .playing for the same reason. Tuned by eye: 0.025 in
+   the simulator, down to 0.010 on first real-device look, settled at 0.015 after the 0.010
+   read as too faint on an actual screen (Paul, 2026-10-08) — a reminder that this specific
+   kind of near-imperceptible value is one more thing the simulator isn't a reliable proxy
+   for, same caveat as everything else in this project that's ever needed a real device. */
 .history-entry.row-odd {
-  background: rgba(255, 255, 255, 0.010);
+  background: rgba(255, 255, 255, 0.015);
 }
 
 /* iOS WebKit fires :hover on tap with no real mouse to leave it with, so it sticks until
