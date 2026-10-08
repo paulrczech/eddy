@@ -271,7 +271,9 @@ const validMidiRange = computed(() => {
   return Array.from({ length: max - min + 1 }, (_, i) => min + i)
 })
 
-const activeIndex = ref(props.sequence.length - 1)
+// -1 (nothing "current" yet) rather than defaulting to the last row — same reasoning as
+// the length-change watcher below: only an explicit tap should ever light this up.
+const activeIndex = ref(-1)
 
 // A swiped-open delete (trash can) row only closed when you manually slid it back or
 // swiped a different row open — tapping anywhere else in the app (play, a header button,
@@ -391,7 +393,15 @@ function toggleReverse() {
 }
 
 watch(() => props.sequence.length, (len) => {
-  activeIndex.value = len - 1
+  // Previously always jumped to the new last row on any length change at all — add,
+  // delete, duplicate, didn't matter — meant as a reasonable-looking default for "nothing
+  // tapped yet," but in practice it persistently bordered the last row after every single
+  // confirm even though nothing was actually tapped to preview it (Paul, 2026-10-08: "that
+  // just doesn't feel right"). A duplicate makes this more clearly wrong too — duplicating
+  // row 2 of a 10-row flow would light up row 11, nowhere near what was actually touched.
+  // Now this only clamps a now-out-of-bounds index after the flow shrinks; it never
+  // invents a new "current" row on growth — only an actual tap does that (onEntryClick).
+  if (activeIndex.value >= len) activeIndex.value = -1
   if (rangeSelectActive.value) setRangeMode(false)
 })
 
