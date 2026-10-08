@@ -4,12 +4,12 @@
       <p class="section-label">the flow</p>
       <div class="flow-header-actions">
         <button
-          class="icon-btn reverse-toggle-btn"
-          :class="{ active: reversed }"
-          :disabled="sequence.length < 2"
-          :title="reversed ? 'play in order' : 'play in reverse'"
-          @click="toggleReverse">
-          <IonIcon :icon="swapVerticalOutline" />
+          class="icon-btn duplicate-toggle-btn"
+          :class="{ active: duplicateModeActive }"
+          :disabled="sequence.length < 1"
+          :title="duplicateModeActive ? 'stop duplicating' : 'duplicate streams'"
+          @click="toggleDuplicateMode">
+          <IonIcon :icon="copyOutline" />
         </button>
         <button
           class="icon-btn range-toggle-btn"
@@ -18,6 +18,14 @@
           :title="rangeSelectActive ? 'cancel loop range' : 'loop a range of the flow'"
           @click="toggleRangeSelect">
           <IonIcon :icon="repeatOutline" />
+        </button>
+        <button
+          class="icon-btn reverse-toggle-btn"
+          :class="{ active: reversed }"
+          :disabled="sequence.length < 2"
+          :title="reversed ? 'play in order' : 'play in reverse'"
+          @click="toggleReverse">
+          <IonIcon :icon="swapVerticalOutline" />
         </button>
       </div>
     </div>
@@ -30,6 +38,9 @@
         @click="duplicateRange">
         <IonIcon :icon="copyOutline" />
       </button>
+    </div>
+    <div v-else-if="duplicateModeActive" class="range-hint-row">
+      <p class="range-hint">tap a stream to duplicate it</p>
     </div>
     <div v-else-if="reversed" class="range-hint-row">
       <p class="range-hint">playing in reverse</p>
@@ -58,6 +69,7 @@
                 'range-block-start': rangeEdge(i) === 'start',
                 'range-block-end': rangeEdge(i) === 'end',
                 'range-block-middle': rangeEdge(i) === 'middle',
+                'row-odd': i % 2 === 1,
               }"
               @click="onEntryClick(cluster, i)"
             >
@@ -70,9 +82,6 @@
                 :style="{ color: voiceColors[v] }"
               >{{ midiToName(midi) }}</span>
               <div class="row-actions">
-                <button class="icon-btn action-btn" @click.stop="emit('duplicate', i)" title="duplicate">
-                  <IonIcon :icon="copyOutline" />
-                </button>
                 <button class="icon-btn action-btn" @click.stop="startEdit(cluster, i)" title="edit notes">
                   <IonIcon :icon="createOutline" />
                 </button>
@@ -103,16 +112,19 @@
           <IonIcon :icon="copyOutline" />
         </button>
       </div>
+      <div v-else-if="duplicateModeActive" class="range-hint-row range-hint-row--footer">
+        <p class="range-hint">tap a stream to duplicate it</p>
+      </div>
       <div v-else-if="reversed" class="range-hint-row range-hint-row--footer">
         <p class="range-hint">playing in reverse</p>
       </div>
       <button
-        class="icon-btn reverse-toggle-btn"
-        :class="{ active: reversed }"
-        :disabled="sequence.length < 2"
-        :title="reversed ? 'play in order' : 'play in reverse'"
-        @click="toggleReverse">
-        <IonIcon :icon="swapVerticalOutline" />
+        class="icon-btn duplicate-toggle-btn"
+        :class="{ active: duplicateModeActive }"
+        :disabled="sequence.length < 1"
+        :title="duplicateModeActive ? 'stop duplicating' : 'duplicate streams'"
+        @click="toggleDuplicateMode">
+        <IonIcon :icon="copyOutline" />
       </button>
       <button
         class="icon-btn range-toggle-btn"
@@ -121,6 +133,14 @@
         :title="rangeSelectActive ? 'cancel loop range' : 'loop a range of the flow'"
         @click="toggleRangeSelect">
         <IonIcon :icon="repeatOutline" />
+      </button>
+      <button
+        class="icon-btn reverse-toggle-btn"
+        :class="{ active: reversed }"
+        :disabled="sequence.length < 2"
+        :title="reversed ? 'play in order' : 'play in reverse'"
+        @click="toggleReverse">
+        <IonIcon :icon="swapVerticalOutline" />
       </button>
     </div>
   </div>
@@ -228,6 +248,7 @@ const emit = defineEmits<{
   'reverse-change': [reversed: boolean]
   duplicate: [index: number]
   'duplicate-range': [start: number, end: number]
+  'duplicate-mode-change': [active: boolean]
 }>()
 
 const voiceColors = VOICE_COLORS
@@ -312,12 +333,42 @@ function setRangeMode(active: boolean) {
   // The "current" (last-tapped/audition) row marker reads as part of the same visual
   // language as the loop markers — leaving it lit on some unrelated row while picking a
   // range is confusing, especially once the range loops and that stray row is outside it.
-  if (active) activeIndex.value = -1
+  if (active) {
+    activeIndex.value = -1
+    // Mutually exclusive with duplicate-mode (Paul, 2026-10-08) — both repurpose what a
+    // row-tap means (mark a boundary vs. duplicate it), so only one can own taps at a
+    // time. setDuplicateMode(false)'s own `if (active)` branch never runs here (we're
+    // passing false), so this can't recurse back into setRangeMode.
+    if (duplicateModeActive.value) setDuplicateMode(false)
+  }
   emit('range-mode-change', active)
 }
 
 function toggleRangeSelect() {
   setRangeMode(!rangeSelectActive.value)
+}
+
+// Duplicate-mode: a global toggle (not the old per-row icon, removed 2026-10-08 — it made
+// every row visibly busier, worse the more voices a cluster had) that repurposes every row
+// tap into "duplicate this row immediately," repeatable without limit — built specifically
+// for one-handed, thumb-only use (Paul: "run down the list duplicating streams I want"),
+// since a tap-anywhere-on-the-row gesture is both a larger and more reachable target than a
+// small icon at a fixed row edge. No sound preview while active (SessionView.vue disables
+// the main play control and stops anything currently playing) — deliberately silent for
+// now; revisit if that turns out to hurt the workflow.
+const duplicateModeActive = ref(false)
+
+function setDuplicateMode(active: boolean) {
+  duplicateModeActive.value = active
+  if (active) {
+    activeIndex.value = -1
+    if (rangeSelectActive.value) setRangeMode(false)
+  }
+  emit('duplicate-mode-change', active)
+}
+
+function toggleDuplicateMode() {
+  setDuplicateMode(!duplicateModeActive.value)
 }
 
 // Playback order only — never touches props.sequence or its undo history. SessionView.vue
@@ -449,6 +500,10 @@ function onReorder(event: CustomEvent) {
 }
 
 function onEntryClick(cluster: Cluster, index: number) {
+  if (duplicateModeActive.value) {
+    emit('duplicate', index)
+    return
+  }
   if (rangeSelectActive.value) {
     // Setting any marker while a loop range is actively playing leaves the engine still
     // scheduled against the *old* range — nothing currently re-triggers playback just
@@ -561,6 +616,18 @@ function confirmDelete(index: number) {
 }
 .reverse-toggle-btn:disabled { opacity: 0.3; }
 
+.duplicate-toggle-btn {
+  font-size: var(--icon-sm);
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+.duplicate-toggle-btn.active {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+  background: var(--color-accent);
+}
+.duplicate-toggle-btn:disabled { opacity: 0.3; }
+
 .range-hint {
   font-size: var(--text-xs);
   color: var(--color-text-dim);
@@ -595,6 +662,17 @@ function confirmDelete(index: number) {
   z-index: 1;
   will-change: transform;
   touch-action: pan-y;
+}
+
+/* Very subtle alternating tint so a long flow (20-30+ streams) stays easy to keep your
+   bearings in while scrolling a single-line list (Paul, 2026-10-08) — kept deliberately
+   faint, this is meant to read as "is that even there," not an obvious stripe. Declared
+   ahead of .current/.in-range/.playing below so any active state's own background wins
+   the cascade outright on a row that's both odd and selected/playing — same precedent as
+   .in-range being declared ahead of .playing for the same reason. Tuned by eye down from
+   an initial 0.025 to 0.010 (Paul, 2026-10-08). */
+.history-entry.row-odd {
+  background: rgba(255, 255, 255, 0.010);
 }
 
 /* iOS WebKit fires :hover on tap with no real mouse to leave it with, so it sticks until

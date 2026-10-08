@@ -166,7 +166,8 @@
             @range-tap="stopIfPlaying"
             @reverse-change="onReverseChange"
             @duplicate="duplicateCluster"
-            @duplicate-range="duplicateRangeClusters" />
+            @duplicate-range="duplicateRangeClusters"
+            @duplicate-mode-change="onDuplicateModeChange" />
         </div>
       </div>
 
@@ -193,7 +194,7 @@
         <button
           class="btn-icon-outline play-stop"
           :class="{ playing: isPlaying }"
-          :disabled="sequenceStore.sequence.length < 1"
+          :disabled="sequenceStore.sequence.length < 1 || duplicateModeActive"
           @click="isPlaying ? audioEngine.stopLoop(true) : handlePlay()">
           <ion-icon :icon="isPlaying ? stopOutline : playOutline" />
         </button>
@@ -884,6 +885,18 @@
     reversePlayback.value = reversed
     // Same reasoning as onRangeModeChange/stopIfPlaying below: the engine is scheduled
     // against the old order, and nothing re-triggers a reschedule on its own.
+    stopIfPlaying()
+  }
+
+  // Duplicate-mode (SequenceHistory's global toggle, replacing the old per-row icon):
+  // deliberately silent and playback-free for now (Paul, 2026-10-08) — stops anything
+  // currently playing the same way entering range-select already does, and the play
+  // button itself is disabled below for the duration so there's no way to start new
+  // playback while a row-tap means "duplicate" instead of "preview."
+  const duplicateModeActive = ref(false)
+
+  function onDuplicateModeChange(active: boolean) {
+    duplicateModeActive.value = active
     stopIfPlaying()
   }
 
