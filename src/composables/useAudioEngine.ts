@@ -548,7 +548,11 @@ const REVERB_SETTINGS: Partial<
   Record<InstrumentType, { decay: number; wet: number }>
 > = {
   piano: { decay: 2.2, wet: 0.44 },
-  'guitar-acoustic': { decay: 2.0, wet: 0.4 },
+  // guitar-acoustic's entry removed 2026-10-08 (Paul) to hear the new Yindad Acoustic
+  // content fully dry in the simulator before deciding whether/how to re-add reverb —
+  // the prior { decay: 2.0, wet: 0.4 } was carried over unchanged from the old nylon
+  // pack and never actually tuned against this content.
+  //
   // Both bumped further than piano/guitar-acoustic's roughly-2x treatment (Paul: audible
   // on piano/guitar-acoustic, not much on these two) — both are inherently smoother,
   // already-sustained tones (electric-piano's samples carry their own tremolo-ish wobble;
@@ -588,9 +592,11 @@ const CHORUS_SETTINGS: Partial<
     { frequency: number; delayTime: number; depth: number; wet: number }
   >
 > = {
-  'guitar-acoustic': { frequency: 1.2, delayTime: 3.5, depth: 0.5, wet: 0.5 },
-  // carried over unchanged from the nylon pack this replaced (2026-10-07) — not yet
-  // retuned by ear against the new Yindad Acoustic content specifically
+  // guitar-acoustic's entry removed 2026-10-08 (Paul) — same reasoning as
+  // REVERB_SETTINGS above, hear the new Yindad Acoustic content fully dry before
+  // deciding whether/how to re-add. The prior { frequency: 1.2, delayTime: 3.5,
+  // depth: 0.5, wet: 0.5 } was carried over unchanged from the old nylon pack and
+  // never actually tuned against this content either.
 }
 const DELAY_SETTINGS: Partial<
   Record<InstrumentType, { delayTime: string; feedback: number; wet: number }>
