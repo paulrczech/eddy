@@ -34,12 +34,6 @@ samples (Nicholaus P. Brosowsky's tonejs-instruments, CC-BY 3.0, University of I
 Electronic Music Studios sample library), which read as too bright/harsh under Eddy's
 sustained, looping playback — same reasoning as the piano swap.
 
-## Electric piano
-
-**Fender Rhodes Mark I 73 Key Electric Piano** by Matt Blostein (blostein.com). Sampled
-via a Countryman Type 10 active DI into a Chandler TG2 mic input, no processing.
-Sourced from [Pianobook.co.uk](https://www.pianobook.co.uk).
-
 ## Electric guitar
 
 **Afterglow (Demo)**, v1.0, by Frédéric Poirier

@@ -220,7 +220,6 @@
           ">
           <ion-select-option value="piano-salamander">piano</ion-select-option>
           <ion-select-option value="piano">felt piano</ion-select-option>
-          <ion-select-option value="electric-piano">e-piano</ion-select-option>
           <ion-select-option value="guitar-acoustic">guitar</ion-select-option>
           <ion-select-option value="electric-guitar"
             >e-guitar</ion-select-option
@@ -230,12 +229,6 @@
           >
           <ion-select-option value="retro-pad"
             >retro pad</ion-select-option
-          >
-          <ion-select-option v-if="SHOW_GENTLE_ACOUSTIC_TEMP" value="guitar-acoustic-gentle-temp"
-            >gentle acoustic (temp)</ion-select-option
-          >
-          <ion-select-option v-if="SHOW_GENTLE_ACOUSTIC_TEMP" value="guitar-acoustic-gentle2-temp"
-            >gentle acoustic 2 (temp)</ion-select-option
           >
         </ion-select>
         <button
@@ -416,7 +409,7 @@
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
   import { useSequenceStore } from '../stores/sequenceStore'
-  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_GENTLE_ACOUSTIC_TEMP, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'

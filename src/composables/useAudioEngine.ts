@@ -260,40 +260,8 @@ const GUITAR_ACOUSTIC_URLS: Record<string, string> = {
   'G#5': 'Gs5.mp3',
 }
 
-// Electric piano and electric guitar samples via Pianobook.co.uk (royalty-free per
-// Pianobook's standard license). See CREDITS.md for full attribution.
-
-// Electric piano — 26 notes, whole-tone spacing A1-C6, "mf" dynamic layer. A1-D2 are a
-// short run of extra low notes (matching the standard piano's A1 floor) below the
-// otherwise-consistent E2-C6 whole-tone ladder.
-const ELECTRIC_PIANO_URLS: Record<string, string> = {
-  A1: 'A1.mp3',
-  C2: 'C2.mp3',
-  D2: 'D2.mp3',
-  E2: 'E2.mp3',
-  'F#2': 'Fs2.mp3',
-  'G#2': 'Gs2.mp3',
-  'A#2': 'As2.mp3',
-  C3: 'C3.mp3',
-  D3: 'D3.mp3',
-  E3: 'E3.mp3',
-  'F#3': 'Fs3.mp3',
-  'G#3': 'Gs3.mp3',
-  'A#3': 'As3.mp3',
-  C4: 'C4.mp3',
-  D4: 'D4.mp3',
-  E4: 'E4.mp3',
-  'F#4': 'Fs4.mp3',
-  'G#4': 'Gs4.mp3',
-  'A#4': 'As4.mp3',
-  C5: 'C5.mp3',
-  D5: 'D5.mp3',
-  E5: 'E5.mp3',
-  'F#5': 'Fs5.mp3',
-  'G#5': 'Gs5.mp3',
-  'A#5': 'As5.mp3',
-  C6: 'C6.mp3',
-}
+// Electric guitar samples via Pianobook.co.uk (royalty-free per Pianobook's standard
+// license). See CREDITS.md for full attribution.
 
 // Electric guitar (sustained "LONG_MODERN" swell articulation, not plucked) — 12 root
 // notes, minor-3rd spacing, D2-B4. Loud velocity layer, trimmed from the pack's raw
@@ -393,54 +361,6 @@ const UPRIGHT_PIANO_URLS: Record<string, string> = {
   A5: 'A5.mp3',
 }
 
-// Temp A/B candidates for the acoustic guitar slot (Paul's own recordings), added
-// 2026-10-08 after the current Yindad Acoustic content was stripped of its carried-over
-// reverb/chorus and heard dry for the first time — "so much better," prompting a fresh
-// round of candidates rather than just retuning effects on the existing pack. Both minor-
-// third spacing (tighter than Yindad Acoustic's major-third), E2-G5, 14 roots — one short
-// of the full range at the top (no A#5), so the picker range stays at G5 rather than
-// stretching to MIDI_MAX. Pitch verified via autocorrelation on all 14 roots each, both
-// measured accurately (no octave correction needed) — Gentle Acoustic especially tight,
-// under 3 cents everywhere; Gentle Acoustic 2 a little looser, up to 8 cents on a couple
-// of low-register roots, still comfortably within normal tolerance. Gain-matched by
-// measured RMS against the current shipped guitar-acoustic files (E3/E4): Gentle Acoustic
-// averaged ~11dB quieter, Gentle Acoustic 2 ~15.5dB quieter — both baked into the exported
-// files, same convention as every other instrument. Gentle Acoustic 2 also had an extra
-// take (As4_1.wav, a second recording of that one note) — not used here; Tone.Sampler has
-// no round-robin support, so using it would need real round-robin architecture, out of
-// scope for a quick A/B listen.
-const GENTLE_ACOUSTIC_URLS: Record<string, string> = {
-  E2: 'E2.mp3',
-  G2: 'G2.mp3',
-  'A#2': 'As2.mp3',
-  'C#3': 'Cs3.mp3',
-  E3: 'E3.mp3',
-  G3: 'G3.mp3',
-  'A#3': 'As3.mp3',
-  'C#4': 'Cs4.mp3',
-  E4: 'E4.mp3',
-  G4: 'G4.mp3',
-  'A#4': 'As4.mp3',
-  'C#5': 'Cs5.mp3',
-  E5: 'E5.mp3',
-  G5: 'G5.mp3',
-}
-const GENTLE_ACOUSTIC_2_URLS: Record<string, string> = {
-  E2: 'E2.mp3',
-  G2: 'G2.mp3',
-  'A#2': 'As2.mp3',
-  'C#3': 'Cs3.mp3',
-  E3: 'E3.mp3',
-  G3: 'G3.mp3',
-  'A#3': 'As3.mp3',
-  'C#4': 'Cs4.mp3',
-  E4: 'E4.mp3',
-  G4: 'G4.mp3',
-  'A#4': 'As4.mp3',
-  'C#5': 'Cs5.mp3',
-  E5: 'E5.mp3',
-  G5: 'G5.mp3',
-}
 
 // Hoisted out of init() (was rebuilt as a local const on every call) — also needed by
 // renderSequenceToBuffer() below for audio export, which loads its own sample buffers
@@ -452,10 +372,6 @@ const SAMPLER_CONFIGS: Partial<
   'guitar-acoustic': {
     urls: GUITAR_ACOUSTIC_URLS,
     baseUrl: '/samples/guitar-acoustic/',
-  },
-  'electric-piano': {
-    urls: ELECTRIC_PIANO_URLS,
-    baseUrl: '/samples/electric-piano/',
   },
   'electric-guitar': {
     urls: ELECTRIC_GUITAR_URLS,
@@ -473,14 +389,6 @@ const SAMPLER_CONFIGS: Partial<
     urls: RETRO_PAD_URLS,
     baseUrl: '/samples/retro-pad/',
   },
-  'guitar-acoustic-gentle-temp': {
-    urls: GENTLE_ACOUSTIC_URLS,
-    baseUrl: '/samples/guitar-acoustic-gentle-temp/',
-  },
-  'guitar-acoustic-gentle2-temp': {
-    urls: GENTLE_ACOUSTIC_2_URLS,
-    baseUrl: '/samples/guitar-acoustic-gentle2-temp/',
-  },
 }
 
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
@@ -495,7 +403,6 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   'guitar-acoustic': { min: 40, max: MIDI_MAX }, // E2-C6 — 11 roots every major
   // third, E2-G#5 (Yindad Acoustic); top root sits just 4 semitones below MIDI_MAX,
   // close enough not to narrow the picker, same reasoning as retro-pad
-  'electric-piano': { min: 33, max: 84 }, // A1-C6
   'electric-guitar': { min: 38, max: 71 }, // D2-B4
   'holdsworthian-pad': { min: 52, max: 82 }, // E3-A#5 — matches the ambient
   // pad's actual 6 usable roots (narrower than the old Blackhole pad's E2 floor, since
@@ -504,10 +411,6 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   // 11 usable roots
   'retro-pad': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, matches all 12 recorded roots
   // exactly (every major third) — no need to narrow the picker range at all
-  'guitar-acoustic-gentle-temp': { min: 40, max: 79 }, // E2-G5 — 14 roots every minor
-  // third, no A#5 at the top, so the range stays at the actual top root (G5) rather than
-  // stretching 5 semitones to MIDI_MAX
-  'guitar-acoustic-gentle2-temp': { min: 40, max: 79 }, // same range, same reasoning
 }
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -528,7 +431,6 @@ export interface PlaybackSettings {
 const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   piano: '2n',
   'guitar-acoustic': '2n',
-  'electric-piano': '2n', // struck/decaying, same character class as piano
   'electric-guitar': '2n', // was '1n' — a full bar held at near-full volume before the
   // release fade even began, so it was still essentially at full volume right up to
   // the next chord's downbeat and only started fading during the new chord, reading
@@ -537,8 +439,6 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   'holdsworthian-pad': '1n', // sustained pad character
   'piano-salamander': '2n', // same character class as felt piano
   'retro-pad': '1n', // same sustained pad character
-  'guitar-acoustic-gentle-temp': '2n', // same plucked/decaying character as guitar-acoustic
-  'guitar-acoustic-gentle2-temp': '2n',
 }
 
 // Tone.Sampler's release (the fade-out after triggerRelease) defaults to 0.1s — fine for
@@ -550,9 +450,6 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   // both "too long a sustain" and "attack isn't sharp" from the same cause
   'holdsworthian-pad': 2.5,
   piano: 2.0, // felt piano rings naturally — default 0.1s cutoff read as harsh
-  'electric-piano': 1.2, // same class of bug as piano had — no release meant a hard
-  // 0.1s cutoff, which read as "plucky"/inconsistent since the source recording's own
-  // natural sustain varies note to note; a real release masks that instead of fighting it
   'guitar-acoustic': 1.5, // pluck decays naturally, avoid the harsh-cutoff class of bug —
   // carried over unchanged from the nylon pack this replaced; not yet retuned by ear
   // against the new Yindad Acoustic content specifically
@@ -560,9 +457,6 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   // 0.1s cutoff
   'retro-pad': 2.5, // matched holdsworthian-pad's as a starting guess — confirmed sounding
   // good by ear (Paul, 2026-10-05), left as-is
-  'guitar-acoustic-gentle-temp': 1.5, // same starting value as guitar-acoustic — a
-  // provisional guess for the A/B listen, not yet tuned by ear
-  'guitar-acoustic-gentle2-temp': 1.5,
 }
 
 // Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across
@@ -589,10 +483,6 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // deliberately matched to the outgoing nylon pack's loudness for a fair A/B, not tuned
   // for how it should actually sit once it won. Provisional, same as every other
   // instrument's first by-ear pass — expect this to move again.
-  // guitar-acoustic-gentle-temp/guitar-acoustic-gentle2-temp need no entries — their
-  // +11dB/+15.5dB gain-matches (measured RMS against the current shipped guitar-acoustic
-  // files) were baked into the exported files directly, same convention as guitar-acoustic
-  // itself and every other instrument's initial content swap.
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
@@ -613,9 +503,9 @@ function noteRelease(instrumentType: InstrumentType): number {
 // decay is untouched (still 2.2/2.0) since decay isn't dial-scaled — see DOWNRIVER.md's
 // Ambience writeup on why decay is out of scope for a live control.
 // Every instrument now has an entry — an instrument with none would have nothing for the
-// dial to scale, so it'd silently do nothing when dialed up. The three added here
-// (electric-piano/electric-guitar/holdsworthian-pad) are provisional ceilings, same as
-// piano/guitar-acoustic were before they were tuned by ear — expect these to move.
+// dial to scale, so it'd silently do nothing when dialed up. The entries added here
+// (electric-guitar/holdsworthian-pad) are provisional ceilings, same as piano/
+// guitar-acoustic were before they were tuned by ear — expect these to move.
 const REVERB_SETTINGS: Partial<
   Record<InstrumentType, { decay: number; wet: number }>
 > = {
@@ -628,14 +518,12 @@ const REVERB_SETTINGS: Partial<
   // the prior { decay: 2.0, wet: 0.4 } was carried over unchanged from the old nylon
   // pack and never actually tuned against this content.
   //
-  // Both bumped further than piano/guitar-acoustic's roughly-2x treatment (Paul: audible
-  // on piano/guitar-acoustic, not much on these two) — both are inherently smoother,
-  // already-sustained tones (electric-piano's samples carry their own tremolo-ish wobble;
-  // electric-guitar is a slow-attack swell, not a pluck) with much less silence around
-  // each note for an added reverb tail to be heard in, versus piano/guitar-acoustic's
-  // percussive attack-then-decay shape. Decay also extended slightly, giving the tail
-  // more time to register at all before the next note's attack — still provisional.
-  'electric-piano': { decay: 2.4, wet: 0.5 },
+  // Bumped further than piano/guitar-acoustic's roughly-2x treatment (Paul: audible on
+  // piano/guitar-acoustic, not much on this one) — electric-guitar is a slow-attack
+  // swell, not a pluck, with much less silence around each note for an added reverb tail
+  // to be heard in, versus piano/guitar-acoustic's percussive attack-then-decay shape.
+  // Decay also extended slightly, giving the tail more time to register at all before the
+  // next note's attack — still provisional.
   'electric-guitar': { decay: 2.6, wet: 0.5 },
   'holdsworthian-pad': { decay: 2.0, wet: 0.25 }, // already the most sustained/spacious
   // instrument (long release, whole-note held duration), and the "Ultra Ambient Pad"
@@ -759,8 +647,6 @@ const STRUM_INTERVAL = 0.025 // seconds between adjacent strings
 const GUITAR_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set([
   'guitar-acoustic',
   'electric-guitar',
-  'guitar-acoustic-gentle-temp',
-  'guitar-acoustic-gentle2-temp',
 ])
 
 function chordInterval(instrumentType: InstrumentType | null): number {
