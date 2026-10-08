@@ -617,7 +617,10 @@ function noteRelease(instrumentType: InstrumentType): number {
 const REVERB_SETTINGS: Partial<
   Record<InstrumentType, { decay: number; wet: number }>
 > = {
-  piano: { decay: 2.2, wet: 0.44 },
+  // piano's (felt piano) entry removed 2026-10-08 (Paul) to hear it fully dry in the
+  // simulator, same reasoning as guitar-acoustic below — { decay: 2.2, wet: 0.44 } was
+  // its only effect (no chorus/delay/filter entries existed for it either).
+  //
   // guitar-acoustic's entry removed 2026-10-08 (Paul) to hear the new Yindad Acoustic
   // content fully dry in the simulator before deciding whether/how to re-add reverb —
   // the prior { decay: 2.0, wet: 0.4 } was carried over unchanged from the old nylon
