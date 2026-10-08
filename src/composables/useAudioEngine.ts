@@ -393,6 +393,55 @@ const UPRIGHT_PIANO_URLS: Record<string, string> = {
   A5: 'A5.mp3',
 }
 
+// Temp A/B candidates for the acoustic guitar slot (Paul's own recordings), added
+// 2026-10-08 after the current Yindad Acoustic content was stripped of its carried-over
+// reverb/chorus and heard dry for the first time — "so much better," prompting a fresh
+// round of candidates rather than just retuning effects on the existing pack. Both minor-
+// third spacing (tighter than Yindad Acoustic's major-third), E2-G5, 14 roots — one short
+// of the full range at the top (no A#5), so the picker range stays at G5 rather than
+// stretching to MIDI_MAX. Pitch verified via autocorrelation on all 14 roots each, both
+// measured accurately (no octave correction needed) — Gentle Acoustic especially tight,
+// under 3 cents everywhere; Gentle Acoustic 2 a little looser, up to 8 cents on a couple
+// of low-register roots, still comfortably within normal tolerance. Gain-matched by
+// measured RMS against the current shipped guitar-acoustic files (E3/E4): Gentle Acoustic
+// averaged ~11dB quieter, Gentle Acoustic 2 ~15.5dB quieter — both baked into the exported
+// files, same convention as every other instrument. Gentle Acoustic 2 also had an extra
+// take (As4_1.wav, a second recording of that one note) — not used here; Tone.Sampler has
+// no round-robin support, so using it would need real round-robin architecture, out of
+// scope for a quick A/B listen.
+const GENTLE_ACOUSTIC_URLS: Record<string, string> = {
+  E2: 'E2.mp3',
+  G2: 'G2.mp3',
+  'A#2': 'As2.mp3',
+  'C#3': 'Cs3.mp3',
+  E3: 'E3.mp3',
+  G3: 'G3.mp3',
+  'A#3': 'As3.mp3',
+  'C#4': 'Cs4.mp3',
+  E4: 'E4.mp3',
+  G4: 'G4.mp3',
+  'A#4': 'As4.mp3',
+  'C#5': 'Cs5.mp3',
+  E5: 'E5.mp3',
+  G5: 'G5.mp3',
+}
+const GENTLE_ACOUSTIC_2_URLS: Record<string, string> = {
+  E2: 'E2.mp3',
+  G2: 'G2.mp3',
+  'A#2': 'As2.mp3',
+  'C#3': 'Cs3.mp3',
+  E3: 'E3.mp3',
+  G3: 'G3.mp3',
+  'A#3': 'As3.mp3',
+  'C#4': 'Cs4.mp3',
+  E4: 'E4.mp3',
+  G4: 'G4.mp3',
+  'A#4': 'As4.mp3',
+  'C#5': 'Cs5.mp3',
+  E5: 'E5.mp3',
+  G5: 'G5.mp3',
+}
+
 // Hoisted out of init() (was rebuilt as a local const on every call) — also needed by
 // renderSequenceToBuffer() below for audio export, which loads its own sample buffers
 // independent of whatever's currently live-loaded.
@@ -424,6 +473,14 @@ const SAMPLER_CONFIGS: Partial<
     urls: RETRO_PAD_URLS,
     baseUrl: '/samples/retro-pad/',
   },
+  'guitar-acoustic-gentle-temp': {
+    urls: GENTLE_ACOUSTIC_URLS,
+    baseUrl: '/samples/guitar-acoustic-gentle-temp/',
+  },
+  'guitar-acoustic-gentle2-temp': {
+    urls: GENTLE_ACOUSTIC_2_URLS,
+    baseUrl: '/samples/guitar-acoustic-gentle2-temp/',
+  },
 }
 
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
@@ -447,6 +504,10 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   // 11 usable roots
   'retro-pad': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, matches all 12 recorded roots
   // exactly (every major third) — no need to narrow the picker range at all
+  'guitar-acoustic-gentle-temp': { min: 40, max: 79 }, // E2-G5 — 14 roots every minor
+  // third, no A#5 at the top, so the range stays at the actual top root (G5) rather than
+  // stretching 5 semitones to MIDI_MAX
+  'guitar-acoustic-gentle2-temp': { min: 40, max: 79 }, // same range, same reasoning
 }
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -476,6 +537,8 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   'holdsworthian-pad': '1n', // sustained pad character
   'piano-salamander': '2n', // same character class as felt piano
   'retro-pad': '1n', // same sustained pad character
+  'guitar-acoustic-gentle-temp': '2n', // same plucked/decaying character as guitar-acoustic
+  'guitar-acoustic-gentle2-temp': '2n',
 }
 
 // Tone.Sampler's release (the fade-out after triggerRelease) defaults to 0.1s — fine for
@@ -497,6 +560,9 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   // 0.1s cutoff
   'retro-pad': 2.5, // matched holdsworthian-pad's as a starting guess — confirmed sounding
   // good by ear (Paul, 2026-10-05), left as-is
+  'guitar-acoustic-gentle-temp': 1.5, // same starting value as guitar-acoustic — a
+  // provisional guess for the A/B listen, not yet tuned by ear
+  'guitar-acoustic-gentle2-temp': 1.5,
 }
 
 // Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across
@@ -521,6 +587,10 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // deliberately matched to the outgoing nylon pack's loudness for a fair A/B, not tuned
   // for how it should actually sit once it won. Provisional, same as every other
   // instrument's first by-ear pass — expect this to move again.
+  // guitar-acoustic-gentle-temp/guitar-acoustic-gentle2-temp need no entries — their
+  // +11dB/+15.5dB gain-matches (measured RMS against the current shipped guitar-acoustic
+  // files) were baked into the exported files directly, same convention as guitar-acoustic
+  // itself and every other instrument's initial content swap.
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
@@ -684,6 +754,8 @@ const STRUM_INTERVAL = 0.025 // seconds between adjacent strings
 const GUITAR_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set([
   'guitar-acoustic',
   'electric-guitar',
+  'guitar-acoustic-gentle-temp',
+  'guitar-acoustic-gentle2-temp',
 ])
 
 function chordInterval(instrumentType: InstrumentType | null): number {

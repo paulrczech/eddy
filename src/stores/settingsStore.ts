@@ -35,6 +35,13 @@ export type InstrumentType =
   // as a second option, since it never shipped and had no saved-session compatibility to
   // protect).
   | 'retro-pad'
+  // Two temp A/B candidates for the acoustic guitar slot, added 2026-10-08 — Paul's own
+  // "Gentle Acoustic" and "Gentle Acoustic 2" packs, both minor-third spacing E2-G5.
+  // Gated behind SHOW_GENTLE_ACOUSTIC_TEMP in HomeView.vue/SessionView.vue. If one wins,
+  // consolidate it into the real 'guitar-acoustic' slot and delete both temp keys/
+  // scaffolding entirely, same pattern as the Yindad Acoustic swap; if neither wins (the
+  // current dry Yindad Acoustic stays), just delete both.
+  | 'guitar-acoustic-gentle-temp' | 'guitar-acoustic-gentle2-temp'
 
 // Hides holdsworthian-pad from both instrument pickers now that retro-pad has replaced
 // it as the pad of choice — same "keep the mechanism, hide the control" pattern as
@@ -43,6 +50,10 @@ export type InstrumentType =
 // saved session may already reference it — the type/samples/config all stay fully intact,
 // just not selectable as a new choice going forward.
 export const SHOW_HOLDSWORTHIAN_PAD = false
+// Temporarily on for A/B testing (2026-10-08) — see guitar-acoustic-gentle-temp/
+// guitar-acoustic-gentle2-temp above. Flip to false (or delete the temp instruments
+// entirely) once Paul's picked a winner, same as SHOW_YINDAD_ACOUSTIC_TEMP before it.
+export const SHOW_GENTLE_ACOUSTIC_TEMP = true
 // Arpeggio note grid, in notes per beat — 0.5 = half, 1 = quarter, 2 = 8th,
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.
