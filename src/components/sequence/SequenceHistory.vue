@@ -679,12 +679,12 @@ function confirmDelete(index: number) {
    ahead of .current/.in-range/.playing below so any active state's own background wins
    the cascade outright on a row that's both odd and selected/playing — same precedent as
    .in-range being declared ahead of .playing for the same reason. Tuned by eye: 0.025 in
-   the simulator, down to 0.010 on first real-device look, settled at 0.015 after the 0.010
-   read as too faint on an actual screen (Paul, 2026-10-08) — a reminder that this specific
-   kind of near-imperceptible value is one more thing the simulator isn't a reliable proxy
-   for, same caveat as everything else in this project that's ever needed a real device. */
+   the simulator, down to 0.010 on first real-device look, bumped to 0.015 when 0.010 read
+   as too faint — then back to 0.010 once Paul realized his device brightness had been
+   turned down for the first on-device check, not a real rendering difference (2026-10-08).
+   Settled at 0.010. */
 .history-entry.row-odd {
-  background: rgba(255, 255, 255, 0.015);
+  background: rgba(255, 255, 255, 0.010);
 }
 
 /* iOS WebKit fires :hover on tap with no real mouse to leave it with, so it sticks until

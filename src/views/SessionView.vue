@@ -62,6 +62,13 @@
       @did-dismiss="savedFlash = false" />
 
     <IonToast
+      :is-open="duplicateFlash"
+      :message="duplicateFlashMessage"
+      :duration="1500"
+      position="bottom"
+      @did-dismiss="duplicateFlash = false" />
+
+    <IonToast
       :is-open="recoveryToastOpen"
       :message="recoveryToastMessage"
       :duration="recoveryStatus === 'failed' ? 3000 : undefined"
@@ -463,6 +470,8 @@
   const activeStrategy = ref<Strategy | null>(null)
   const selectedIndices = ref<number[]>([]) // ordered by tap — drives add sequence
   const savedFlash = ref(false)
+  const duplicateFlash = ref(false)
+  const duplicateFlashMessage = ref('')
   const copiedFlash = ref(false)
   const footerExpanded = ref(false)
   const multiSelect = ref(false)
@@ -955,10 +964,19 @@
     sequenceStore.setLoopResolved(false)
   }
 
+  // A toast here, but deliberately not for duplicateCluster() above — a single-row
+  // duplicate is meant to be tapped rapidly and repeatedly (duplicate-mode's whole point
+  // is fast, one-handed, run-down-the-list use), and a toast on every tap would fight
+  // that fluidity. A range duplicate is a single deliberate commitment, often covering
+  // streams that then scroll out of view, so confirming it actually happened earns its
+  // moment (Paul, 2026-10-08).
   function duplicateRangeClusters(start: number, end: number) {
     audioEngine.stopLoop(true)
     sequenceStore.duplicateRange(start, end)
     sequenceStore.setLoopResolved(false)
+    const count = end - start + 1
+    duplicateFlashMessage.value = `${count} stream${count === 1 ? '' : 's'} duplicated`
+    duplicateFlash.value = true
   }
 
   // Global range, not the current instrument's narrower picker range — matches
