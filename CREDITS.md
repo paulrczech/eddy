@@ -24,13 +24,6 @@ CC-BY 3.0) — briefly replaced by Mikor Piano Felt, brought back as a second vo
 alongside it, then replaced again by the VSCO2 upright piano above after Paul compared
 the two directly and preferred it.
 
-**Piano (temp)** — "Upright piano multisamples" by beskhu, sourced from
-[freesound.org](https://freesound.org/people/beskhu/packs/17088/). Licensed
-[Creative Commons 0](http://creativecommons.org/publicdomain/zero/1.0/) (public domain).
-Added 2026-10-09 as a temp A/B candidate for the piano slot (see
-`SHOW_PIANO_BESKHU_TEMP` in settingsStore.ts) — not yet decided whether it becomes a
-permanent slot.
-
 ## Guitar (acoustic)
 
 **Yindad Acoustic** — Paul's own recording (not a third-party sample pack, no external

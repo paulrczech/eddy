@@ -253,9 +253,6 @@
           <ion-select-option value="choir-pad"
             >choir pad</ion-select-option
           >
-          <ion-select-option v-if="SHOW_PIANO_BESKHU_TEMP" value="piano-beskhu-temp"
-            >piano (temp)</ion-select-option
-          >
         </ion-select>
         <button
           class="icon-btn footer-expand-btn"
@@ -435,7 +432,7 @@
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
   import { useSequenceStore } from '../stores/sequenceStore'
-  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, SHOW_PIANO_BESKHU_TEMP, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'
