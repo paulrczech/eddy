@@ -717,15 +717,37 @@ const DELAY_SETTINGS: Partial<
   // this same value, or lower) if it turns out to be missed.
   //
   // analog-synth-temp, added 2026-10-09 (Paul: "even more ambient with some delay... more
-  // like echo") — dotted-eighth so repeats land in a musically useful, tempo-synced spot
-  // against a straight arpeggio rather than feeling arbitrary (the same classic choice
-  // ambient/Eno-style arpeggio delays use), with real feedback so it reads as distinct
-  // echoes, not just a slapback thickening. Not tied to the Ambience dial (unlike reverb/
-  // chorus) — Paul asked for delay only, this instrument has no REVERB_SETTINGS/
-  // CHORUS_SETTINGS entry at all, so there's nothing for the dial to scale regardless.
-  // Provisional first pass, same as every other instrument's first effect tuning in this
-  // project — expect this to move once heard for real.
+  // like echo") — real feedback so it reads as distinct echoes, not just a slapback
+  // thickening. Not tied to the Ambience dial (unlike reverb/chorus) — Paul asked for
+  // delay only, this instrument has no REVERB_SETTINGS/CHORUS_SETTINGS entry at all, so
+  // there's nothing for the dial to scale regardless. `delayTime` here is only the
+  // construction-time fallback — playSequence() below overrides it live on every call to
+  // match whatever grid is actually playing (see delayTimeForSubdivision's own comment),
+  // since a single fixed time can't stay musical across every subdivision. Provisional
+  // first pass on feedback/wet, same as every other instrument's first effect tuning in
+  // this project — expect those to move once heard for real.
   'analog-synth-temp': { delayTime: '8n.', feedback: 0.35, wet: 0.25 },
+}
+
+// Maps Eddy's own Subdivision values (see settingsStore.ts) to a Tone.js note-value delay
+// time that stays musically locked to whatever grid is currently playing, rather than one
+// fixed interval that can clash against certain grids — a dotted-eighth echo read as
+// "jarbled" specifically against a triplet grid, since dotted-eighth (straight) time has
+// no clean rhythmic relationship to triplet time at all (Paul, 2026-10-09). Applied
+// generically to the delay feature itself (in playSequence() below), not special-cased to
+// one instrument, so any future instrument configured with DELAY_SETTINGS gets the same
+// treatment for free. Paul's own ear tuned these by direct comparison: half notes ->
+// quarter-note echo, quarter notes -> eighth-note echo, triplets -> sixteenth-note-
+// triplet echo; eighth/sixteenth notes already sounded right against the original fixed
+// dotted-eighth value, so those two keep it rather than chasing a "half the grid" formula
+// that fit the other three but doesn't obviously extend to them.
+function delayTimeForSubdivision(subdivision: Subdivision): string {
+  switch (subdivision) {
+    case 0.5: return '4n'
+    case 1: return '8n'
+    case 3: return '16t'
+    default: return '8n.' // 2 (8th) and 4 (16th)
+  }
 }
 
 function noteDuration(): string {
@@ -831,7 +853,14 @@ interface EffectsChain {
 // equivalent "ramp it live" moment; baking the level in at construction is the only option.
 async function buildEffectsChain(
   instrumentType: InstrumentType,
-  ambienceLevel: number
+  ambienceLevel: number,
+  // Construction-time delay-time fallback — live playback's playSequence() corrects this
+  // the moment real playback starts regardless (so init()'s call site can safely omit
+  // it), but renderSequenceToBuffer()'s offline export never calls playSequence() at all,
+  // so passing the real subdivision there is what actually keeps exported audio matching
+  // what live playback would sound like, same reasoning NOTE_DURATIONS/latch sharing
+  // exists for in the first place.
+  subdivision?: Subdivision
 ): Promise<EffectsChain> {
   const reverbSettings = REVERB_SETTINGS[instrumentType]
   const chorusSettings = CHORUS_SETTINGS[instrumentType]
@@ -858,7 +887,7 @@ async function buildEffectsChain(
   }
   if (delaySettings) {
     delay = new Tone.PingPongDelay(
-      delaySettings.delayTime,
+      subdivision !== undefined ? delayTimeForSubdivision(subdivision) : delaySettings.delayTime,
       delaySettings.feedback
     )
     delay.wet.value = delaySettings.wet
@@ -1049,7 +1078,7 @@ async function renderSequenceToBuffer(
   const renderDuration = totalDuration + tailPadding
 
   return Tone.Offline(async () => {
-    const chain = await buildEffectsChain(instrumentType, ambience)
+    const chain = await buildEffectsChain(instrumentType, ambience, settings.subdivision)
     const sampler = await createSampler(buffers, instrumentType)
     if (chain.firstStage) sampler.connect(chain.firstStage)
     else sampler.toDestination()
@@ -1168,6 +1197,13 @@ function playSequence(
   currentPlaybackParams = { sequence, settings, loop }
 
   stopLoop()
+
+  // Keeps a configured delay's echo time musically locked to whatever grid is actually
+  // playing — updated on every call, not just at construction, so a grid change always
+  // carries the right timing into its restart (see delayTimeForSubdivision's own comment).
+  if (outputDelay && currentInstrumentType && DELAY_SETTINGS[currentInstrumentType]) {
+    outputDelay.delayTime.value = delayTimeForSubdivision(settings.subdivision ?? 4)
+  }
 
   const isChord = settings.direction === 'chord'
   const interval = isChord
