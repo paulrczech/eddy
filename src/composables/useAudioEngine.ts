@@ -715,6 +715,17 @@ const DELAY_SETTINGS: Partial<
   // guitar-acoustic had { delayTime: '8n.', feedback: 0.3, wet: 0.2 } — removed per
   // Paul's request to hear it without the ping-pong delay first. Easy to bring back (at
   // this same value, or lower) if it turns out to be missed.
+  //
+  // analog-synth-temp, added 2026-10-09 (Paul: "even more ambient with some delay... more
+  // like echo") — dotted-eighth so repeats land in a musically useful, tempo-synced spot
+  // against a straight arpeggio rather than feeling arbitrary (the same classic choice
+  // ambient/Eno-style arpeggio delays use), with real feedback so it reads as distinct
+  // echoes, not just a slapback thickening. Not tied to the Ambience dial (unlike reverb/
+  // chorus) — Paul asked for delay only, this instrument has no REVERB_SETTINGS/
+  // CHORUS_SETTINGS entry at all, so there's nothing for the dial to scale regardless.
+  // Provisional first pass, same as every other instrument's first effect tuning in this
+  // project — expect this to move once heard for real.
+  'analog-synth-temp': { delayTime: '8n.', feedback: 0.35, wet: 0.25 },
 }
 
 function noteDuration(): string {
