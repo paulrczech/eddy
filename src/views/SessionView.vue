@@ -68,6 +68,19 @@
       position="bottom"
       @did-dismiss="duplicateFlash = false" />
 
+    <!-- Shown every time a pool is created, not just the first — pool creation is
+         inherently an occasional, deliberate action (same reasoning duplicateFlash above
+         already rests on), and swipe-to-ungroup has no other visible affordance anywhere
+         on the pool header itself (Paul, 2026-10-09). Longer duration than the other
+         toasts here since there's real instructional text to read, not just a one-word
+         confirmation. -->
+    <IonToast
+      :is-open="poolCreatedFlash"
+      :message="poolCreatedMessage"
+      :duration="3000"
+      position="bottom"
+      @did-dismiss="poolCreatedFlash = false" />
+
     <IonToast
       :is-open="recoveryToastOpen"
       :message="recoveryToastMessage"
@@ -481,6 +494,8 @@
   const savedFlash = ref(false)
   const duplicateFlash = ref(false)
   const duplicateFlashMessage = ref('')
+  const poolCreatedFlash = ref(false)
+  const poolCreatedMessage = ref('')
   const copiedFlash = ref(false)
   const footerExpanded = ref(false)
   const multiSelect = ref(false)
@@ -1108,7 +1123,11 @@
   // do; delete and the block-move do (they remove or reorder real rows), so those two
   // mirror deleteCluster/reorderClusters exactly.
   function createPool(start: number, end: number) {
-    sequenceStore.createPool(start, end)
+    const id = sequenceStore.createPool(start, end)
+    if (!id) return
+    const name = sequenceStore.pools.find((p) => p.id === id)?.name ?? 'pool'
+    poolCreatedMessage.value = `"${name}" created — swipe its header to ungroup`
+    poolCreatedFlash.value = true
   }
 
   function deletePoolRows(id: string) {

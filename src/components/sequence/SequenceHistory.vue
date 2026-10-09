@@ -112,7 +112,7 @@
             class="history-row pool-row"
           >
             <IonItem lines="none" class="history-item-shim">
-              <div class="history-entry pool-header-entry">
+              <div class="history-entry pool-header-entry" :class="{ playing: poolIsPlaying(item.poolId!) }">
                 <IonReorder class="reorder-handle" style="opacity: 0.4" />
                 <button
                   class="icon-btn pool-chevron-btn"
@@ -450,6 +450,17 @@ function poolById(id: string): Pool | undefined {
 function poolSize(id: string): number {
   const p = poolById(id)
   return p ? p.range[1] - p.range[0] + 1 : 0
+}
+
+// Lights up the pool header whenever playback is anywhere inside it — the only real
+// indication of "where am I" while collapsed (Paul, 2026-10-09: no other signal exists
+// then at all), and kept on while expanded too so the header stays consistent rather than
+// only the individual member row lighting up.
+function poolIsPlaying(id: string): boolean {
+  if (props.playingIndex === undefined || props.playingIndex < 0) return false
+  const p = poolById(id)
+  if (!p) return false
+  return props.playingIndex >= p.range[0] && props.playingIndex <= p.range[1]
 }
 
 function togglePoolExpanded(id: string) {
