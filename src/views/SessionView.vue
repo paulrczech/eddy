@@ -161,6 +161,7 @@
         <div v-if="sequenceStore.sequence.length > 0" class="flow-section">
           <SequenceHistory
             :sequence="sequenceStore.sequence"
+            :pools="sequenceStore.pools"
             :loop-point="sequenceStore.loopPoint"
             :playing-index="displayPlayingIndex"
             @audition="onHistoryAudition"
@@ -174,7 +175,13 @@
             @reverse-change="onReverseChange"
             @duplicate="duplicateCluster"
             @duplicate-range="duplicateRangeClusters"
-            @duplicate-mode-change="onDuplicateModeChange" />
+            @duplicate-mode-change="onDuplicateModeChange"
+            @create-pool="createPool"
+            @delete-pool="deletePoolRows"
+            @ungroup-pool="ungroupPool"
+            @toggle-pool-expanded="togglePoolExpanded"
+            @rename-pool="renamePool"
+            @reorder-pool-block="reorderPoolBlock" />
         </div>
       </div>
 
@@ -1095,6 +1102,40 @@
     advance()
   }
 
+  // Pools — a pure organizational layer, see sequenceStore.ts's own Pool comment.
+  // create/ungroup/rename/toggle-expanded never touch `sequence` itself, so none of them
+  // need the stopLoop/setLoopResolved/advance treatment the row-mutating handlers above
+  // do; delete and the block-move do (they remove or reorder real rows), so those two
+  // mirror deleteCluster/reorderClusters exactly.
+  function createPool(start: number, end: number) {
+    sequenceStore.createPool(start, end)
+  }
+
+  function deletePoolRows(id: string) {
+    audioEngine.stopLoop(true)
+    sequenceStore.deletePool(id)
+    sequenceStore.setLoopResolved(false)
+  }
+
+  function ungroupPool(id: string) {
+    sequenceStore.ungroupPool(id)
+  }
+
+  function togglePoolExpanded(id: string) {
+    sequenceStore.togglePoolExpanded(id)
+  }
+
+  function renamePool(id: string, name: string) {
+    sequenceStore.renamePool(id, name)
+  }
+
+  function reorderPoolBlock(id: string, targetIndex: number) {
+    audioEngine.stopLoop(true)
+    sequenceStore.reorderPoolBlock(id, targetIndex)
+    sequenceStore.setLoopResolved(false)
+    advance()
+  }
+
   const showSaveConfirm = ref(false)
 
   const savedSessionName = computed(() => {
@@ -1126,7 +1167,8 @@
       settingsStore.subdivision,
       settingsStore.latchMode,
       settingsStore.ambience,
-      settingsStore.timeSignature
+      settingsStore.timeSignature,
+      sequenceStore.pools
     )
     sequenceStore.setSavedSessionId(saved.id)
     flashSaved()
@@ -1144,7 +1186,8 @@
       settingsStore.subdivision,
       settingsStore.latchMode,
       settingsStore.ambience,
-      settingsStore.timeSignature
+      settingsStore.timeSignature,
+      sequenceStore.pools
     )
     flashSaved()
   }

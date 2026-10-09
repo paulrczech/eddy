@@ -489,6 +489,10 @@
     for (let i = 1; i < session.sequence.length; i++) {
       sequenceStore.confirm(session.sequence[i])
     }
+    // start()/confirm() above never touch pools — restore them after the sequence is
+    // fully rebuilt (older saves predating pools just leave this empty, same optional-
+    // field treatment as every other field above).
+    sequenceStore.pools = session.pools ? session.pools.map(p => ({ ...p, range: [...p.range] as [number, number] })) : []
     sequenceStore.setSavedSessionId(session.id)
     router.push('/session')
   }

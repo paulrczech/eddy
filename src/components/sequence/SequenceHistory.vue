@@ -31,13 +31,21 @@
     </div>
     <div v-if="rangeSelectActive" class="range-hint-row">
       <p class="range-hint">{{ rangeHintText }}</p>
-      <button
-        v-if="rangeComplete"
-        class="icon-btn action-btn range-duplicate-btn"
-        title="duplicate this range"
-        @click="duplicateRange">
-        <IonIcon :icon="copyOutline" />
-      </button>
+      <template v-if="rangeComplete">
+        <button
+          class="icon-btn action-btn range-duplicate-btn"
+          title="duplicate this range"
+          @click="duplicateRange">
+          <IonIcon :icon="copyOutline" />
+        </button>
+        <button
+          v-if="!rangeOverlapsPool"
+          class="icon-btn action-btn range-pool-btn"
+          title="create a pool from this range"
+          @click="createPoolFromRange">
+          <IonIcon :icon="folderOutline" />
+        </button>
+      </template>
     </div>
     <div v-else-if="duplicateModeActive" class="range-hint-row">
       <p class="range-hint">tap a stream to duplicate it</p>
@@ -47,53 +55,104 @@
     </div>
     <div class="history-scroll">
       <IonReorderGroup :disabled="false" @ionItemReorder="onReorder($event)">
-        <IonItemSliding
-          v-for="(cluster, i) in sequence"
-          :key="i"
-          :ref="(el) => setSlidingRef(i, el)"
-          class="history-row"
-          :class="{
-            'range-block-start': rangeEdge(i) === 'start',
-            'range-block-end': rangeEdge(i) === 'end',
-            'range-block-middle': rangeEdge(i) === 'middle',
-          }"
-        >
-          <IonItem lines="none" class="history-item-shim">
-            <div
-              class="history-entry"
-              :class="{
-                current: i === activeIndex,
-                'loop-origin': i === loopPoint,
-                playing: i === playingIndex,
-                'in-range': isInRange(i),
-                'range-block-start': rangeEdge(i) === 'start',
-                'range-block-end': rangeEdge(i) === 'end',
-                'range-block-middle': rangeEdge(i) === 'middle',
-                'row-stripe': i % 2 === 0,
-              }"
-              @click="onEntryClick(cluster, i)"
-            >
-              <IonReorder class="reorder-handle" :style="{ opacity: sequence.length < 2 ? 0 : 0.4 }" />
-              <span class="entry-index">{{ i + 1 }}</span>
-              <span
-                v-for="(midi, v) in sortCluster(cluster)"
-                :key="v"
-                class="entry-note"
-                :style="{ color: voiceColors[v] }"
-              >{{ midiToName(midi) }}</span>
-              <div class="row-actions">
-                <button class="icon-btn action-btn" @click.stop="startEdit(cluster, i)" title="edit notes">
-                  <IonIcon :icon="createOutline" />
-                </button>
+        <template v-for="item in displayItems" :key="item.type === 'pool-header' ? `pool-${item.poolId}` : `row-${item.seqIndex}`">
+          <!-- Plain row, or one row of an expanded pool's members -->
+          <IonItemSliding
+            v-if="item.type !== 'pool-header'"
+            :ref="(el) => setSlidingRef(item.seqIndex, el)"
+            class="history-row"
+            :class="{
+              'range-block-start': rangeEdge(item.seqIndex) === 'start',
+              'range-block-end': rangeEdge(item.seqIndex) === 'end',
+              'range-block-middle': rangeEdge(item.seqIndex) === 'middle',
+            }"
+          >
+            <IonItem lines="none" class="history-item-shim">
+              <div
+                class="history-entry"
+                :class="{
+                  current: item.seqIndex === activeIndex,
+                  'loop-origin': item.seqIndex === loopPoint,
+                  playing: item.seqIndex === playingIndex,
+                  'in-range': isInRange(item.seqIndex),
+                  'range-block-start': rangeEdge(item.seqIndex) === 'start',
+                  'range-block-end': rangeEdge(item.seqIndex) === 'end',
+                  'range-block-middle': rangeEdge(item.seqIndex) === 'middle',
+                  'row-stripe': item.seqIndex % 2 === 0,
+                  'pool-member': item.type === 'pool-member',
+                }"
+                @click="onEntryClick(sequence[item.seqIndex], item.seqIndex)"
+              >
+                <IonReorder class="reorder-handle" :style="{ opacity: sequence.length < 2 ? 0 : 0.4 }" />
+                <span class="entry-index">{{ item.seqIndex + 1 }}</span>
+                <span
+                  v-for="(midi, v) in sortCluster(sequence[item.seqIndex])"
+                  :key="v"
+                  class="entry-note"
+                  :style="{ color: voiceColors[v] }"
+                >{{ midiToName(midi) }}</span>
+                <div class="row-actions">
+                  <button class="icon-btn action-btn" @click.stop="startEdit(sequence[item.seqIndex], item.seqIndex)" title="edit notes">
+                    <IonIcon :icon="createOutline" />
+                  </button>
+                </div>
               </div>
-            </div>
-          </IonItem>
-          <IonItemOptions side="end">
-            <IonItemOption color="danger" @click="confirmDelete(i)">
-              <IonIcon slot="icon-only" :icon="trashOutline" />
-            </IonItemOption>
-          </IonItemOptions>
-        </IonItemSliding>
+            </IonItem>
+            <IonItemOptions side="end">
+              <IonItemOption color="danger" @click="confirmDelete(item.seqIndex)">
+                <IonIcon slot="icon-only" :icon="trashOutline" />
+              </IonItemOption>
+            </IonItemOptions>
+          </IonItemSliding>
+
+          <!-- Pool header — shown whether the pool is collapsed or expanded -->
+          <IonItemSliding
+            v-else
+            :ref="(el) => setPoolSlidingRef(item.poolId!, el)"
+            class="history-row pool-row"
+          >
+            <IonItem lines="none" class="history-item-shim">
+              <div class="history-entry pool-header-entry">
+                <IonReorder class="reorder-handle" style="opacity: 0.4" />
+                <button
+                  class="icon-btn pool-chevron-btn"
+                  :title="poolById(item.poolId!)?.expanded ? 'collapse pool' : 'expand pool'"
+                  @click.stop="togglePoolExpanded(item.poolId!)">
+                  <IonIcon :icon="poolById(item.poolId!)?.expanded ? chevronDownOutline : chevronForwardOutline" />
+                </button>
+                <input
+                  v-if="renamingPoolId === item.poolId"
+                  ref="renameInputRef"
+                  v-model="renameValue"
+                  class="pool-name-input"
+                  maxlength="40"
+                  @click.stop
+                  @keyup.enter="commitRename(item.poolId!)"
+                  @keyup.esc="cancelRename"
+                  @blur="commitRename(item.poolId!)" />
+                <span v-else class="pool-name">{{ poolById(item.poolId!)?.name }}</span>
+                <span class="pool-count">{{ poolSize(item.poolId!) }}</span>
+                <div class="row-actions">
+                  <button
+                    v-if="renamingPoolId !== item.poolId"
+                    class="icon-btn action-btn"
+                    title="rename pool"
+                    @click.stop="startRenamePool(item.poolId!)">
+                    <IonIcon :icon="createOutline" />
+                  </button>
+                </div>
+              </div>
+            </IonItem>
+            <IonItemOptions side="end">
+              <IonItemOption @click="ungroupPoolAction(item.poolId!)">
+                <IonIcon slot="icon-only" :icon="folderOpenOutline" />
+              </IonItemOption>
+              <IonItemOption color="danger" @click="deletePoolPrompt(item.poolId!)">
+                <IonIcon slot="icon-only" :icon="trashOutline" />
+              </IonItemOption>
+            </IonItemOptions>
+          </IonItemSliding>
+        </template>
       </IonReorderGroup>
     </div>
     <!-- Same toggle as the header one — both bind the same rangeSelectActive ref, so
@@ -104,13 +163,21 @@
     <div class="flow-footer">
       <div v-if="rangeSelectActive" class="range-hint-row range-hint-row--footer">
         <p class="range-hint">{{ rangeHintText }}</p>
-        <button
-          v-if="rangeComplete"
-          class="icon-btn action-btn range-duplicate-btn"
-          title="duplicate this range"
-          @click="duplicateRange">
-          <IonIcon :icon="copyOutline" />
-        </button>
+        <template v-if="rangeComplete">
+          <button
+            class="icon-btn action-btn range-duplicate-btn"
+            title="duplicate this range"
+            @click="duplicateRange">
+            <IonIcon :icon="copyOutline" />
+          </button>
+          <button
+            v-if="!rangeOverlapsPool"
+            class="icon-btn action-btn range-pool-btn"
+            title="create a pool from this range"
+            @click="createPoolFromRange">
+            <IonIcon :icon="folderOutline" />
+          </button>
+        </template>
       </div>
       <div v-else-if="duplicateModeActive" class="range-hint-row range-hint-row--footer">
         <p class="range-hint">tap a stream to duplicate it</p>
@@ -201,10 +268,23 @@
       </IonPicker>
     </IonContent>
   </IonModal>
+
+  <!-- Pool delete confirmation — ungroup (swipe action above) needs none of this, since
+       nothing is actually lost; this is specifically for the destructive "remove the pool
+       and its streams" action, which needs the row count stated up front (Paul, 2026-10-09). -->
+  <IonAlert
+    :is-open="deleteConfirmPoolId !== null"
+    header="delete pool?"
+    :message="deleteConfirmMessage"
+    :buttons="[
+      { text: 'cancel', role: 'cancel', handler: cancelDeletePool },
+      { text: 'delete', role: 'destructive', handler: confirmDeletePool },
+    ]"
+    @did-dismiss="cancelDeletePool" />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   IonReorderGroup,
   IonReorder,
@@ -222,16 +302,30 @@ import {
   IonPicker,
   IonPickerColumn,
   IonPickerColumnOption,
+  IonAlert,
 } from '@ionic/vue'
-import { trashOutline, createOutline, playOutline, repeatOutline, swapVerticalOutline, copyOutline } from 'ionicons/icons'
+import {
+  trashOutline,
+  createOutline,
+  playOutline,
+  repeatOutline,
+  swapVerticalOutline,
+  copyOutline,
+  folderOutline,
+  folderOpenOutline,
+  chevronDownOutline,
+  chevronForwardOutline,
+} from 'ionicons/icons'
 import type { Cluster } from '../../utils/noteUtils'
 import { sortCluster, isValidCluster, canTransposeOctave } from '../../utils/noteUtils'
 import { midiToName, MAX_CLUSTER_SPREAD, MIDI_MIN, MIDI_MAX } from '../../data/notes'
+import type { Pool } from '../../stores/sequenceStore'
 
 const VOICE_COLORS = ['var(--voice-1)', 'var(--voice-2)', 'var(--voice-3)', 'var(--voice-4)']
 
 const props = defineProps<{
   sequence: Cluster[]
+  pools: Pool[]
   loopPoint?: number
   playingIndex?: number
 }>()
@@ -249,6 +343,12 @@ const emit = defineEmits<{
   duplicate: [index: number]
   'duplicate-range': [start: number, end: number]
   'duplicate-mode-change': [active: boolean]
+  'create-pool': [start: number, end: number]
+  'toggle-pool-expanded': [id: string]
+  'rename-pool': [id: string, name: string]
+  'delete-pool': [id: string]
+  'ungroup-pool': [id: string]
+  'reorder-pool-block': [id: string, targetIndex: number]
 }>()
 
 const voiceColors = VOICE_COLORS
@@ -283,13 +383,19 @@ const activeIndex = ref(-1)
 // open the moment a click lands outside this component's own root.
 const rootRef = ref<HTMLElement | null>(null)
 const slidingRefs: Record<number, { $el: HTMLElement & { close: () => void } } | null> = {}
+const poolSlidingRefs: Record<string, { $el: HTMLElement & { close: () => void } } | null> = {}
 
 function setSlidingRef(i: number, el: unknown) {
   slidingRefs[i] = el as { $el: HTMLElement & { close: () => void } } | null
 }
 
+function setPoolSlidingRef(id: string, el: unknown) {
+  poolSlidingRefs[id] = el as { $el: HTMLElement & { close: () => void } } | null
+}
+
 function closeAllSliding() {
   Object.values(slidingRefs).forEach((el) => el?.$el?.close?.())
+  Object.values(poolSlidingRefs).forEach((el) => el?.$el?.close?.())
 }
 
 function handleOutsideClick(event: MouseEvent) {
@@ -298,6 +404,105 @@ function handleOutsideClick(event: MouseEvent) {
 
 onMounted(() => document.addEventListener('click', handleOutsideClick))
 onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
+
+// Pools — a pure display/organizational grouping over `sequence`, never a separate copy
+// of its clusters (see the Pool type's own comment in sequenceStore.ts). The flat
+// `sequence` prop is walked once into a list of display items — a plain row, a pool's
+// header (shown whether collapsed or expanded), or one of an expanded pool's member
+// rows — which IonReorderGroup renders as a single flat list, same as it always has.
+// This is the one piece of indirection every pool-aware interaction (rendering, tap
+// targets, drag resolution) is built on.
+interface DisplayItem {
+  type: 'row' | 'pool-header' | 'pool-member'
+  seqIndex: number
+  poolId?: string
+}
+
+const displayItems = computed<DisplayItem[]>(() => {
+  const items: DisplayItem[] = []
+  const poolByIndex = new Map<number, Pool>()
+  for (const p of props.pools) {
+    for (let i = p.range[0]; i <= p.range[1]; i++) poolByIndex.set(i, p)
+  }
+  let i = 0
+  while (i < props.sequence.length) {
+    const pool = poolByIndex.get(i)
+    if (pool) {
+      items.push({ type: 'pool-header', seqIndex: pool.range[0], poolId: pool.id })
+      if (pool.expanded) {
+        for (let j = pool.range[0]; j <= pool.range[1]; j++) {
+          items.push({ type: 'pool-member', seqIndex: j, poolId: pool.id })
+        }
+      }
+      i = pool.range[1] + 1
+    } else {
+      items.push({ type: 'row', seqIndex: i })
+      i++
+    }
+  }
+  return items
+})
+
+function poolById(id: string): Pool | undefined {
+  return props.pools.find(p => p.id === id)
+}
+
+function poolSize(id: string): number {
+  const p = poolById(id)
+  return p ? p.range[1] - p.range[0] + 1 : 0
+}
+
+function togglePoolExpanded(id: string) {
+  emit('toggle-pool-expanded', id)
+}
+
+const renamingPoolId = ref<string | null>(null)
+const renameValue = ref('')
+const renameInputRef = ref<HTMLInputElement[] | null>(null)
+
+function startRenamePool(id: string) {
+  const pool = poolById(id)
+  if (!pool) return
+  renamingPoolId.value = id
+  renameValue.value = pool.name
+  nextTick(() => renameInputRef.value?.[0]?.focus())
+}
+
+function commitRename(id: string) {
+  if (renamingPoolId.value !== id) return
+  const value = renameValue.value
+  renamingPoolId.value = null
+  emit('rename-pool', id, value)
+}
+
+function cancelRename() {
+  renamingPoolId.value = null
+}
+
+function ungroupPoolAction(id: string) {
+  emit('ungroup-pool', id)
+}
+
+const deleteConfirmPoolId = ref<string | null>(null)
+const deleteConfirmMessage = computed(() => {
+  const pool = poolById(deleteConfirmPoolId.value ?? '')
+  if (!pool) return ''
+  const n = pool.range[1] - pool.range[0] + 1
+  return `Delete "${pool.name}" and its ${n} stream${n === 1 ? '' : 's'}?`
+})
+
+function deletePoolPrompt(id: string) {
+  deleteConfirmPoolId.value = id
+}
+
+function cancelDeletePool() {
+  deleteConfirmPoolId.value = null
+}
+
+function confirmDeletePool() {
+  if (deleteConfirmPoolId.value) emit('delete-pool', deleteConfirmPoolId.value)
+  deleteConfirmPoolId.value = null
+}
 
 // Loop-range select: a flag toggle (not a plain tap, which is already "audition this
 // cluster") that puts row taps into start/end-marking mode instead — first tap sets the
@@ -444,6 +649,24 @@ const rangeHintText = computed(() =>
 )
 const rangeComplete = computed(() => rangeStart.value !== null && rangeEnd.value !== null)
 
+// Gates the "create pool" icon — a pool can't be created from a range that touches an
+// already-pooled row at all, full or partial overlap alike (Paul, 2026-10-09): rather
+// than defining merge/absorb behavior for every overlap shape, pool creation simply isn't
+// offered there. Deliberately doesn't gate anything else — range-select itself (and
+// loop/duplicate/export built on it) stays completely pool-agnostic.
+const rangeOverlapsPool = computed(() => {
+  if (rangeStart.value === null || rangeEnd.value === null) return false
+  return props.pools.some(p => rangeStart.value! <= p.range[1] && rangeEnd.value! >= p.range[0])
+})
+
+// Same "consume and clear, don't exit range-select mode" treatment as duplicateRange()
+// above — "loop set — tap to start a new one" still applies afterward.
+function createPoolFromRange() {
+  if (rangeStart.value === null || rangeEnd.value === null) return
+  emit('create-pool', rangeStart.value, rangeEnd.value)
+  clearRange()
+}
+
 const pickerOpen = ref(false)
 const editingIndex = ref<number | null>(null)
 const editValues = ref<number[]>([])
@@ -509,13 +732,57 @@ function cancelEdit() {
   editError.value = ''
 }
 
+// displayItems-based: `from`/`to` from Ionic are positions in the rendered list, not raw
+// sequence indices, so every case below first figures out which real sequence index (or,
+// for a whole collapsed pool, which store method) the drop actually means. complete(false)
+// is always called first regardless of what happens next — nothing here ever lets Ionic's
+// own DOM reorder persist; a real mutation (or nothing, for a rejected drop) always comes
+// from the emit instead, same as the rest of this app's "stop and let the data drive the
+// re-render" convention.
 function onReorder(event: CustomEvent) {
   const { from, to } = event.detail
   event.detail.complete(false)
-  if (from !== to) {
-    if (rangeSelectActive.value) setRangeMode(false)
-    emit('reorder', from, to)
+  if (from === to) return
+  if (rangeSelectActive.value) setRangeMode(false)
+
+  const items = displayItems.value
+  const fromItem = items[from]
+  const toItem = items[to]
+  if (!fromItem || !toItem) return
+
+  if (fromItem.type === 'pool-header') {
+    // Can't drop one pool's block into the middle of another expanded pool — pools never
+    // nest or overlap (see createPool's own overlap guard in sequenceStore.ts).
+    if (toItem.type === 'pool-member') return
+    const targetSeqIndex =
+      toItem.type === 'pool-header'
+        ? (to > from ? poolById(toItem.poolId!)!.range[1] + 1 : poolById(toItem.poolId!)!.range[0])
+        : (to > from ? toItem.seqIndex + 1 : toItem.seqIndex)
+    emit('reorder-pool-block', fromItem.poolId!, targetSeqIndex)
+    return
   }
+
+  if (fromItem.type === 'pool-member') {
+    // v1: a member row reorders only among its own pool's other members — dragging a
+    // single interior row out isn't supported (see createPool's comment on why: it'd
+    // break the contiguous-range model every pool is built on). Ungrouping the whole
+    // pool is the only way a row leaves one.
+    if (toItem.type !== 'pool-member' || toItem.poolId !== fromItem.poolId) return
+    emit('reorder', fromItem.seqIndex, toItem.seqIndex)
+    return
+  }
+
+  // fromItem.type === 'row' — a plain, unpooled row.
+  if (toItem.type === 'pool-header') {
+    const toPool = poolById(toItem.poolId!)!
+    const targetSeqIndex = to > from ? toPool.range[1] + 1 : toPool.range[0]
+    emit('reorder', fromItem.seqIndex, targetSeqIndex)
+    return
+  }
+  // Landing among an expanded pool's member rows (toItem.type === 'pool-member') is
+  // exactly how a plain row gets added to a pool — see shiftPoolRanges' own comment in
+  // sequenceStore.ts for why no separate "add to pool" method is needed for this.
+  emit('reorder', fromItem.seqIndex, toItem.seqIndex)
 }
 
 function onEntryClick(cluster: Cluster, index: number) {
@@ -606,7 +873,8 @@ function confirmDelete(index: number) {
   min-height: 0;
   margin: 0;
 }
-.range-duplicate-btn {
+.range-duplicate-btn,
+.range-pool-btn {
   font-size: var(--icon-sm);
   flex-shrink: 0;
 }
@@ -800,5 +1068,55 @@ function confirmDelete(index: number) {
   text-align: center;
   padding: 0.4rem 1rem 0;
   margin: 0;
+}
+
+/* Pools — a pool's header row reuses .history-entry's own box model (height, padding,
+   radius) via .pool-header-entry, just with its own content layout instead of
+   index/notes/edit-icon. */
+.pool-row { border: 1px solid var(--color-border); }
+.pool-header-entry {
+  background: var(--color-surface);
+}
+.pool-chevron-btn {
+  font-size: var(--icon-sm);
+  flex-shrink: 0;
+  color: var(--color-text-dim);
+}
+.pool-name {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.pool-name-input {
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  min-width: 0;
+  flex: 1;
+}
+.pool-count {
+  font-size: var(--text-label);
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+/* Member rows of an expanded pool — indented and left-bordered so they read as nested
+   under their pool's header without needing a separate container/box per pool (which
+   would fight IonReorderGroup's flat-list requirement). */
+.history-entry.pool-member {
+  margin-left: 1.25rem;
+  width: calc(100% - 1.25rem);
+  border-left: 2px solid var(--color-border);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 </style>

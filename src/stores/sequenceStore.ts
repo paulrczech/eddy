@@ -17,13 +17,38 @@ const SEED_DISSONANCE_CEILING = 6
 // cap below, so this never needs to loosen that cap, just require it actually gets used.
 const SEED_MIN_TOP_VOICE = 48 // C3
 
+// A pool is a pure UI/organizational layer over `sequence` — never a separate copy of the
+// clusters it contains. `range` is an inclusive [start, end] pair of indices into
+// `sequence`, same shape as SessionView.vue's own loopRange, so a pool is really just a
+// *named, persistent* version of a loop-range selection. Pools never nest or overlap —
+// every index-shifting operation below (delete/insert/move) keeps that invariant, and any
+// pool whose range would collapse to zero rows is dropped automatically.
+export interface Pool {
+  id: string
+  name: string
+  range: [number, number]
+  expanded: boolean
+}
+
+let poolIdCounter = 0
+function makePoolId(): string {
+  return `pool-${Date.now()}-${poolIdCounter++}`
+}
+
+interface HistoryEntry {
+  sequence: Cluster[]
+  pools: Pool[]
+}
+
 export const useSequenceStore = defineStore('sequence', () => {
   const sequence = ref<Cluster[]>([])
-  // Full-array snapshots of `sequence`, taken before each mutation (confirm, edit,
-  // delete, reorder, transpose) — undo/redo swap the whole array in and out, so every
-  // mutation type is covered without needing a separate inverse for each one.
-  const undoStack = ref<Cluster[][]>([])
-  const redoStack = ref<Cluster[][]>([])
+  const pools = ref<Pool[]>([])
+  // Full snapshots of both `sequence` and `pools`, taken before each mutation (confirm,
+  // edit, delete, reorder, transpose, pool create/delete/ungroup) — undo/redo swap the
+  // whole pair in and out together, so a pool's range always reverts in lockstep with the
+  // sequence state it describes, without needing a separate inverse for each mutation type.
+  const undoStack = ref<HistoryEntry[]>([])
+  const redoStack = ref<HistoryEntry[]>([])
   const candidates = ref<Cluster[]>([])
   const loopResolved = ref(false)
   const loopPoint = ref<number>(-1)
@@ -41,16 +66,54 @@ export const useSequenceStore = defineStore('sequence', () => {
     return sequence.value.map(c => [...c])
   }
 
+  function snapshotPools(): Pool[] {
+    return pools.value.map(p => ({ ...p, range: [...p.range] as [number, number] }))
+  }
+
   // Call before any mutation that should be a distinct undo step. A new mutation always
   // invalidates the redo branch — standard undo/redo semantics.
   function pushHistory() {
-    undoStack.value.push(snapshot())
+    undoStack.value.push({ sequence: snapshot(), pools: snapshotPools() })
     redoStack.value = []
+  }
+
+  // Shared by every operation that removes or inserts rows at a specific position —
+  // delete/duplicate/reorder/pool-block-move all funnel through this so a pool's range
+  // never drifts out of sync with the rows it's supposed to span. `size` is negative for
+  // a removal, positive for an insertion; `at` is the position in the array *as it stood
+  // before* this particular shift. A pool emptied out by a removal (range inverts) is
+  // dropped by the caller via dissolveEmptyPools() below, not here — this function only
+  // does the arithmetic.
+  function shiftPoolRanges(at: number, size: number) {
+    pools.value = pools.value.map(p => {
+      let [s, e] = p.range
+      if (size < 0) {
+        // Removal: a row strictly before the pool shifts both ends; a row inside the
+        // pool (including exactly at either edge) only shrinks it.
+        if (at < s) { s += size; e += size }
+        else if (at <= e) { e += size }
+      } else {
+        // Insertion: landing at-or-before the pool's start shifts both ends (the pool
+        // moves down to make room); landing strictly inside grows the pool to absorb the
+        // newly-inserted row(s) — this is exactly how dragging a plain row into an
+        // expanded pool adds it, with no separate "add to pool" method needed (see
+        // reorderSequence below, modeled as a remove-then-insert composition).
+        if (at <= s) { s += size; e += size }
+        else if (at <= e) { e += size }
+      }
+      return { ...p, range: [s, e] as [number, number] }
+    })
+    dissolveEmptyPools()
+  }
+
+  function dissolveEmptyPools() {
+    pools.value = pools.value.filter(p => p.range[0] <= p.range[1])
   }
 
   function start(openingCluster: Cluster, bounds?: { min: number; max: number }) {
     // Always clear old session first — never let stale data leak through
     sequence.value = []
+    pools.value = []
     undoStack.value = []
     redoStack.value = []
     candidates.value = []
@@ -132,8 +195,10 @@ export const useSequenceStore = defineStore('sequence', () => {
   function undo(): boolean {
     if (undoStack.value.length === 0) return false
     const prevLast = currentCluster.value
-    redoStack.value.push(snapshot())
-    sequence.value = undoStack.value.pop()!
+    redoStack.value.push({ sequence: snapshot(), pools: snapshotPools() })
+    const entry = undoStack.value.pop()!
+    sequence.value = entry.sequence
+    pools.value = entry.pools
     const changed = !prevLast || !currentCluster.value || !clustersEqual(prevLast, currentCluster.value)
     if (changed) {
       candidates.value = []
@@ -145,8 +210,10 @@ export const useSequenceStore = defineStore('sequence', () => {
   function redo(): boolean {
     if (redoStack.value.length === 0) return false
     const prevLast = currentCluster.value
-    undoStack.value.push(snapshot())
-    sequence.value = redoStack.value.pop()!
+    undoStack.value.push({ sequence: snapshot(), pools: snapshotPools() })
+    const entry = redoStack.value.pop()!
+    sequence.value = entry.sequence
+    pools.value = entry.pools
     const changed = !prevLast || !currentCluster.value || !clustersEqual(prevLast, currentCluster.value)
     if (changed) {
       candidates.value = []
@@ -182,6 +249,14 @@ export const useSequenceStore = defineStore('sequence', () => {
     sequence.value[index] = sorted
   }
 
+  // Modeled as a remove-then-insert, same splice convention Ionic's own reorder event
+  // uses (`to` is the target's position *after* the removal, not before) — shiftPoolRanges
+  // is applied the same way, so a pool's range composes correctly whether `from`/`to` sit
+  // outside every pool, move a member within its own pool (nets out unchanged), or move a
+  // plain row into an expanded pool's span (grows that pool to include it — see
+  // shiftPoolRanges' own comment). SequenceHistory.vue is responsible for only ever
+  // emitting a reorder here that respects "a pool member can't leave its own pool" —
+  // this function itself just does the index arithmetic honestly for whatever it's given.
   function reorderSequence(from: number, to: number) {
     if (from === to) return
     pushHistory()
@@ -189,6 +264,8 @@ export const useSequenceStore = defineStore('sequence', () => {
     const [moved] = arr.splice(from, 1)
     arr.splice(to, 0, moved)
     sequence.value = arr
+    shiftPoolRanges(from, -1)
+    shiftPoolRanges(to, 1)
     candidates.value = []
   }
 
@@ -202,6 +279,7 @@ export const useSequenceStore = defineStore('sequence', () => {
     pushHistory()
     const copy = [...sequence.value[index]] as Cluster
     sequence.value.splice(index + 1, 0, copy)
+    shiftPoolRanges(index + 1, 1)
     candidates.value = []
   }
 
@@ -213,6 +291,7 @@ export const useSequenceStore = defineStore('sequence', () => {
     pushHistory()
     const copies = sequence.value.slice(start, end + 1).map(c => [...c] as Cluster)
     sequence.value.splice(end + 1, 0, ...copies)
+    shiftPoolRanges(end + 1, copies.length)
     candidates.value = []
   }
 
@@ -221,6 +300,104 @@ export const useSequenceStore = defineStore('sequence', () => {
     if (index === 0 && sequence.value.length === 1) return
     pushHistory()
     sequence.value.splice(index, 1)
+    shiftPoolRanges(index, -1)
+    candidates.value = []
+  }
+
+  // Pools — a pure organizational layer over `sequence`, see the Pool type's own comment
+  // above. Creation reuses the loop-range-select UI's [start, end] marker; every method
+  // here keeps the "pools never overlap or nest" invariant, either by refusing the
+  // operation (createPool) or by construction (the others only ever touch one pool's
+  // range at a time, via shiftPoolRanges for the rest).
+
+  function poolsOverlap(start: number, end: number): boolean {
+    return pools.value.some(p => start <= p.range[1] && end >= p.range[0])
+  }
+
+  function createPool(start: number, end: number): string | null {
+    if (start < 0 || end >= sequence.value.length || start > end) return null
+    if (poolsOverlap(start, end)) return null
+    pushHistory()
+    const id = makePoolId()
+    pools.value.push({
+      id,
+      name: `pool ${pools.value.length + 1}`,
+      range: [start, end],
+      // Expanded by default — right after marking a range and creating a pool from it,
+      // showing it collapsed would hide the very rows the user just selected.
+      expanded: true,
+    })
+    return id
+  }
+
+  // Destructive: removes the pool *and* every row inside it. Caller (SessionView.vue)
+  // confirms first, mentioning the row count — ungroupPool below is the non-destructive
+  // counterpart and needs no such confirmation.
+  function deletePool(id: string) {
+    const pool = pools.value.find(p => p.id === id)
+    if (!pool) return
+    const [s, e] = pool.range
+    if (s === 0 && e === sequence.value.length - 1) return // would empty the whole flow
+    pushHistory()
+    sequence.value.splice(s, e - s + 1)
+    pools.value = pools.value.filter(p => p.id !== id)
+    shiftPoolRanges(s, -(e - s + 1))
+    candidates.value = []
+  }
+
+  // Dissolves the pool wrapper only — every row it contained stays in the flow, in place,
+  // untouched. Still a real undo step (cheap to include, and it's the only way to get a
+  // deleted pool's custom name back without retyping it) even though nothing about
+  // `sequence` itself changes.
+  function ungroupPool(id: string) {
+    if (!pools.value.some(p => p.id === id)) return
+    pushHistory()
+    pools.value = pools.value.filter(p => p.id !== id)
+  }
+
+  // Pure view state, not meaningful undo/redo content — same reasoning as why
+  // SequenceHistory's own rangeSelectActive/activeIndex aren't part of history either.
+  function togglePoolExpanded(id: string) {
+    const pool = pools.value.find(p => p.id === id)
+    if (pool) pool.expanded = !pool.expanded
+  }
+
+  function renamePool(id: string, name: string) {
+    const pool = pools.value.find(p => p.id === id)
+    if (!pool) return
+    const trimmed = name.trim()
+    if (!trimmed || trimmed === pool.name) return
+    pushHistory()
+    pool.name = trimmed
+  }
+
+  // Drags a collapsed pool as one atomic block to a new position. `targetIndex` is the
+  // sequence index (in current, pre-move numbering) the block's first row should land at
+  // or just before — SequenceHistory.vue resolves this from whatever's currently sitting
+  // at the drop position, same as it does for a plain single-row reorder.
+  function reorderPoolBlock(poolId: string, targetIndex: number) {
+    const pool = pools.value.find(p => p.id === poolId)
+    if (!pool) return
+    const [s, e] = pool.range
+    const size = e - s + 1
+    if (targetIndex >= s && targetIndex <= e) return // dropped within itself — no-op
+    pushHistory()
+    const arr = [...sequence.value]
+    const block = arr.splice(s, size)
+    const insertAt = targetIndex > e ? targetIndex - size : targetIndex
+    arr.splice(insertAt, 0, ...block)
+    sequence.value = arr
+
+    pools.value = pools.value.map(p => {
+      if (p.id === poolId) return { ...p, range: [insertAt, insertAt + size - 1] as [number, number] }
+      let [ps, pe] = p.range
+      if (s < ps) { ps -= size; pe -= size }
+      else if (s <= pe) { pe -= size }
+      if (targetIndex <= ps) { ps += size; pe += size }
+      else if (targetIndex <= pe) { pe += size }
+      return { ...p, range: [ps, pe] as [number, number] }
+    })
+    dissolveEmptyPools()
     candidates.value = []
   }
 
@@ -235,6 +412,7 @@ export const useSequenceStore = defineStore('sequence', () => {
 
   function reset() {
     sequence.value = []
+    pools.value = []
     undoStack.value = []
     redoStack.value = []
     candidates.value = []
@@ -245,6 +423,7 @@ export const useSequenceStore = defineStore('sequence', () => {
 
   return {
     sequence,
+    pools,
     candidates,
     loopResolved,
     loopPoint,
@@ -269,5 +448,12 @@ export const useSequenceStore = defineStore('sequence', () => {
     setLoopResolved,
     setSavedSessionId,
     reset,
+    poolsOverlap,
+    createPool,
+    deletePool,
+    ungroupPool,
+    togglePoolExpanded,
+    renamePool,
+    reorderPoolBlock,
   }
 })

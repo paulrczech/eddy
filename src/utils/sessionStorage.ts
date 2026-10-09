@@ -1,6 +1,7 @@
 import type { Cluster } from './noteUtils'
 import { clusterLabel } from './noteUtils'
 import type { InstrumentType, ArpeggioDirection, Subdivision, TimeSignature } from '../stores/settingsStore'
+import type { Pool } from '../stores/sequenceStore'
 
 export interface SavedSession {
   id: string
@@ -15,6 +16,7 @@ export interface SavedSession {
   latchMode?: boolean
   ambience?: number
   timeSignature?: TimeSignature
+  pools?: Pool[]         // optional — older saves predate pools entirely
 }
 
 const STORAGE_KEY = 'note-threader-sessions'
@@ -56,7 +58,8 @@ export function saveSession(
   subdivision?: Subdivision,
   latchMode?: boolean,
   ambience?: number,
-  timeSignature?: TimeSignature
+  timeSignature?: TimeSignature,
+  pools?: Pool[]
 ): SavedSession {
   const sessions = loadAll()
   const session: SavedSession = {
@@ -72,6 +75,7 @@ export function saveSession(
     latchMode,
     ambience,
     timeSignature,
+    pools,
   }
   sessions.push(session)
   saveAll(sessions)
@@ -88,7 +92,8 @@ export function overwriteSession(
   subdivision?: Subdivision,
   latchMode?: boolean,
   ambience?: number,
-  timeSignature?: TimeSignature
+  timeSignature?: TimeSignature,
+  pools?: Pool[]
 ): SavedSession | null {
   const sessions = loadAll()
   const target = sessions.find(s => s.id === id)
@@ -102,6 +107,7 @@ export function overwriteSession(
   target.latchMode = latchMode
   target.ambience = ambience
   target.timeSignature = timeSignature
+  target.pools = pools
   target.savedAt = Date.now()
   saveAll(sessions)
   return target
