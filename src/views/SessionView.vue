@@ -971,11 +971,38 @@
     return indexInSlice + rangeOffset
   })
 
+  // The loop-mode half of "start from selected": with no explicit loop-range and a
+  // valid selected row, loop mode still starts there — but only for the first pass. It
+  // plays a one-shot lead-in from the selection (forward to the end, or backward to the
+  // start if reversed, same direction rule as playOnce() below) and, only once that
+  // completes naturally, settles into looping the whole flow from the top (Paul,
+  // 2026-10-09) — "pick up from here, then loop the flow," not "loop from here forever."
+  // onComplete's own staleness guard (see playSequence() in useAudioEngine.ts) means a
+  // manual stop or a settings-change restart mid-lead-in simply never reaches
+  // startFullLoop() — no risk of a stray loop kicking in after the user's moved on.
   function playLoop() {
-    // Loop mode always plays loopRange (or the whole flow) from its own top — "start from
-    // selected" is explicitly a non-looping-only shortcut (Paul, 2026-10-09): once
-    // something repeats forever, "resume from here" doesn't mean anything a listener
-    // wouldn't already get by just waiting for the loop to come back around.
+    const range = loopRange.value
+    if (!range && selectedIndex.value >= 0 && selectedIndex.value < sequenceStore.sequence.length) {
+      const s = selectedIndex.value
+      const leadInRange: [number, number] = reversePlayback.value
+        ? [0, s]
+        : [s, sequenceStore.sequence.length - 1]
+      activePlaybackRange.value = leadInRange
+      selectedIndex.value = -1
+      audioEngine.playSequence(
+        engineSequenceFor(leadInRange),
+        playbackSettings.value,
+        false,
+        () => {
+          if (loopActive.value) startFullLoop()
+        }
+      )
+      return
+    }
+    startFullLoop()
+  }
+
+  function startFullLoop() {
     activePlaybackRange.value = loopRange.value
     audioEngine.playSequence(
       engineSequenceFor(activePlaybackRange.value),

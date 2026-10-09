@@ -1045,7 +1045,8 @@ function playCluster(
 function playSequence(
   sequence: Cluster[],
   settings: PlaybackSettings = { bpm: 80, direction: 'up' },
-  loop = true
+  loop = true,
+  onComplete?: () => void
 ): void {
   if (sequence.length === 0) return
   if (!currentInstrumentType || !cachedBuffers) return // init() never ran this session
@@ -1154,10 +1155,16 @@ function playSequence(
   const myGeneration = ++playbackGeneration
   let recoveryStartedAt: number | null = null
 
-  // When not looping, stop cleanly after one pass
+  // When not looping, stop cleanly after one pass. onComplete (SessionView's "play a
+  // one-shot lead-in, then chain into a full loop" for loop+selected-row playback) fires
+  // only if nothing superseded this run in the meantime — stopLoop() unconditionally
+  // bumps playbackGeneration itself, so the staleness check has to be captured before
+  // calling it, not after.
   if (!loop) {
     transport.scheduleOnce(() => {
+      const stillCurrent = playbackGeneration === myGeneration
       stopLoop()
+      if (onComplete && stillCurrent) onComplete()
     }, totalDuration)
   }
 
