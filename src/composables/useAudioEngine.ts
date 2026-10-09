@@ -738,15 +738,18 @@ const DELAY_SETTINGS: Partial<
 // one instrument, so any future instrument configured with DELAY_SETTINGS gets the same
 // treatment for free. Paul's own ear tuned these by direct comparison: half notes ->
 // quarter-note echo, quarter notes -> eighth-note echo, triplets -> sixteenth-note-
-// triplet echo; eighth/sixteenth notes already sounded right against the original fixed
-// dotted-eighth value, so those two keep it rather than chasing a "half the grid" formula
-// that fit the other three but doesn't obviously extend to them.
+// triplet echo, sixteenth notes -> quarter-note triplet (deliberately not "half the
+// grid" — the dotted-eighth fallback read as messy against 16ths specifically at slower
+// tempos, and a quarter-note-triplet echo gives a 3-against-2 feel against the straight
+// 16th-note grid instead). Eighth notes are the one case still on the original fixed
+// dotted-eighth value, since that's the one grid it was never reported as a problem on.
 function delayTimeForSubdivision(subdivision: Subdivision): string {
   switch (subdivision) {
     case 0.5: return '4n'
     case 1: return '8n'
     case 3: return '16t'
-    default: return '8n.' // 2 (8th) and 4 (16th)
+    case 4: return '4t'
+    default: return '8n.' // 2 (8th)
   }
 }
 
