@@ -4,6 +4,15 @@ Ideas, possibilities, and future directions. Added to as inspiration strikes. No
 
 ---
 
+## Playback dropout diagnosis — RESOLVED
+
+**Update (2026-10-09)**: confirmed resolved. The unconditional-rebuild architecture
+described at the end of this section (build 1.0(105)) is the version that shipped and
+stuck — see CLAUDE.md's Critical Patterns entry for the settled, current description.
+Extensive real-device use across builds 106-114 since (including this session's own
+testing of unrelated features) has hit none of the symptoms logged below. Kept in full
+below for the reasoning trail, not as an open item.
+
 ## Playback dropout diagnosis — real fix shipped (2026-10-05), awaiting on-device confirmation
 
 Paul's explicit priority call: understand and fix the real-device playback dropout issues
@@ -429,11 +438,16 @@ rework. In parallel, Paul recorded his own Logic RetroSynth patch note-by-note (
 triggered, fixed velocity, 12 roots every major third E2–C6) and had it wired up as a
 sample-based alternative (`retro-pad`) for an A/B listen. It won decisively ("sounds so
 much better than the ambient synth") — the live-synthesis attempt was removed entirely
-(not kept as a second option) and `retro-pad` is now the shipped second pad, alongside
-the original `holdsworthian-pad`, not a replacement of it. Still pending before a real
-release: the raw 8s WAV bounces need the same trim/fade/gain-match production pass every
-other instrument in this project went through (currently just a +3dB `INSTRUMENT_VOLUME`
-bump, per Paul's "a tad louder" — not yet RMS-measured or converted to MP3 like the rest).
+(not kept as a second option) and `retro-pad` became the shipped second pad, alongside
+the original `holdsworthian-pad`.
+
+**Superseded again (2026-10-09)**: `choir-pad` (Sonatina Symphonic Orchestra's chorus
+samples, male+female merged into one fully-chromatic instrument) won a direct A/B against
+retro-pad and replaced it as the default/shown pad — see CLAUDE.md's InstrumentType
+comments. `retro-pad` is hidden (`SHOW_RETRO_PAD = false`) rather than deleted, same
+backward-compatibility treatment every superseded instrument in this project gets. Its
+raw-WAV production-pass gap (noted below, from when it was still the shown pad) is now
+moot.
 
 ### 3. Default starter session in "Past Flows"
 Paul's idea: ship a pre-made flow new users can load without having generated one
@@ -523,8 +537,10 @@ Currently voices are positional — lowest note is always V1, colors are positio
 
 Currently `generateCandidates` calls `sortCluster` on every output, which silently "fixes" any crossing. A user who deliberately crosses voices in edit mode would find the next candidates pretending it didn't happen — the river corrected against its will. This is the core thing to fix.
 
-### Instrument Selector in Session View
-Currently set only on home screen. Allow changing mid-session without losing the flow.
+### Instrument Selector in Session View — RESOLVED
+Shipped — the footer tray's instrument picker in `SessionView.vue` allows changing
+mid-session, with a watcher that restarts playback cleanly on the new instrument without
+losing the flow.
 
 ### Portable Session File (Import/Export)
 A shareable `.eddy.json` file — same shape as a saved session (`sequence`, `voiceCount`, `instrument`, `name`) — exportable and re-importable to restore a full flow, not just a single cluster. Most of the mechanism already exists: `HomeView.vue`'s `loadSession()` already reconstructs an entire flow from a `SavedSession` via `start()` + a `confirm()` loop, so this is mostly export/import plumbing (same download-on-web / share-sheet-on-native pattern as MIDI export) plus validating the parsed JSON with the existing `isValidCluster()`. Restores "the flow" and "now"; a new drift strategy is drawn fresh on resume, same as loading a saved session today — the drift card was never part of the saved record.
@@ -600,8 +616,13 @@ Voices move in just intonation, quarter-tones, 19-TET instead of equal temperame
 
 ## Native Mobile Build (Capacitor / iOS)
 
-### Status
-Capacitor is already installed (`@capacitor/core`, `@capacitor/app`, `@capacitor/haptics`, `@capacitor/keyboard`, `@capacitor/status-bar`). Not yet activated — no iOS platform added yet. Xcode build required on iMac.
+### Status — RESOLVED (iOS platform live since build 1.0(1))
+Everything in this section through "Sample Bundling" below described pre-launch setup
+that's long since done: the iOS platform was added, Xcode builds and runs it, native
+share (`@capacitor/share`) is wired into MIDI/WAV/text export, every sample is
+self-hosted in `public/samples/` and ships inside the app bundle (not CDN-loaded — that
+was true early in the project, not now), and the app is on build 1.0(114) in active
+TestFlight testing. Kept below for historical reference, not as an open checklist.
 
 ### Requirements
 - Apple Developer Account ($99/year) — needed for device install and eventual App Store release
@@ -623,11 +644,16 @@ Add `@capacitor/share` plugin. Wire up MIDI and text export buttons to the nativ
 - IonPicker for note selection (drum-roll style) — revisit when doing native build
 - Platform-adaptive UI: Ionic handles most of this, targeted pass needed
 
-### Sample Bundling (before App Store release)
-Currently all samples (piano, harp, guitars) load from external CDNs. For App Store submission, bundle samples locally inside the app for reliability and offline use. Larger binary but fully self-contained — required for a robust public release.
+### Sample Bundling (before App Store release) — RESOLVED
+Every instrument's samples live in `public/samples/` and ship inside the app bundle —
+fully self-contained, no external CDN dependency for playback.
 
-### Privacy
-Eddy stores nothing remotely, no accounts, no tracking. Privacy policy is a one-pager. Clean App Store story.
+### Privacy — NOT YET WRITTEN, needed before App Store submission
+Eddy stores nothing remotely, no accounts, no tracking — a genuinely simple, clean story.
+But the actual one-pager doesn't exist yet as a real document/hosted page, and Apple
+requires a privacy policy URL for most App Store submissions. Small, low-risk task, but a
+real blocker for submission specifically (not for continued TestFlight testing) until it
+exists somewhere with a stable URL.
 
 ### Scope
 iOS only for personal use first. Android is `npx cap add android` when ready — same codebase, targeted UI pass for Android patterns.
