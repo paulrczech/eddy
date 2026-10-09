@@ -422,6 +422,70 @@ const CHOIR_PAD_URLS: Record<string, string> = {
   C6: 'C6.mp3',
 }
 
+// Temp A/B candidate, added 2026-10-09 — "Moog Minitaur - Simple Saw" by modularsamples
+// (freesound.org, Creative Commons 0), a single-oscillator analog saw patch, UI-labeled
+// "analog synth." Paul's intent: ambient arpeggios, not a chord-only pad — deliberately
+// NOT added to PAD_INSTRUMENTS below, so every arpeggio direction stays available rather
+// than being forced into 'chord' the way the real pads are. Fully chromatic across Eddy's
+// whole range, and the filenames state the real MIDI note explicitly (not something
+// inferred — this was recorded by sending that literal MIDI note to the hardware, about
+// as reliable as sample provenance gets). Pitch spot-checked via autocorrelation: clean
+// confirmation on every low/mid note checked; the two highest notes checked read
+// ambiguously, but that's a known limitation of a sawtooth's dense harmonic stack
+// confusing simple autocorrelation at high frequencies (same caveat several other packs
+// in this project have had), not treated as a real labeling concern given the recording
+// method. Gain-matched by measured RMS against retro-pad's C4 (ran ~4dB hot). Trimmed to
+// the pack's own natural length (~1.9s + 0.3s fade) — these are short analog synth notes,
+// not sustained pad swells. Gated behind SHOW_ANALOG_SYNTH_TEMP in HomeView.vue/
+// SessionView.vue.
+const ANALOG_SYNTH_URLS: Record<string, string> = {
+  E2: 'E2.mp3',
+  F2: 'F2.mp3',
+  'F#2': 'Fs2.mp3',
+  G2: 'G2.mp3',
+  'G#2': 'Gs2.mp3',
+  A2: 'A2.mp3',
+  'A#2': 'As2.mp3',
+  B2: 'B2.mp3',
+  C3: 'C3.mp3',
+  'C#3': 'Cs3.mp3',
+  D3: 'D3.mp3',
+  'D#3': 'Ds3.mp3',
+  E3: 'E3.mp3',
+  F3: 'F3.mp3',
+  'F#3': 'Fs3.mp3',
+  G3: 'G3.mp3',
+  'G#3': 'Gs3.mp3',
+  A3: 'A3.mp3',
+  'A#3': 'As3.mp3',
+  B3: 'B3.mp3',
+  C4: 'C4.mp3',
+  'C#4': 'Cs4.mp3',
+  D4: 'D4.mp3',
+  'D#4': 'Ds4.mp3',
+  E4: 'E4.mp3',
+  F4: 'F4.mp3',
+  'F#4': 'Fs4.mp3',
+  G4: 'G4.mp3',
+  'G#4': 'Gs4.mp3',
+  A4: 'A4.mp3',
+  'A#4': 'As4.mp3',
+  B4: 'B4.mp3',
+  C5: 'C5.mp3',
+  'C#5': 'Cs5.mp3',
+  D5: 'D5.mp3',
+  'D#5': 'Ds5.mp3',
+  E5: 'E5.mp3',
+  F5: 'F5.mp3',
+  'F#5': 'Fs5.mp3',
+  G5: 'G5.mp3',
+  'G#5': 'Gs5.mp3',
+  A5: 'A5.mp3',
+  'A#5': 'As5.mp3',
+  B5: 'B5.mp3',
+  C6: 'C6.mp3',
+}
+
 // Hoisted out of init() (was rebuilt as a local const on every call) — also needed by
 // renderSequenceToBuffer() below for audio export, which loads its own sample buffers
 // independent of whatever's currently live-loaded.
@@ -453,6 +517,10 @@ const SAMPLER_CONFIGS: Partial<
     urls: CHOIR_PAD_URLS,
     baseUrl: '/samples/choir-pad/',
   },
+  'analog-synth-temp': {
+    urls: ANALOG_SYNTH_URLS,
+    baseUrl: '/samples/analog-synth-temp/',
+  },
 }
 
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
@@ -478,6 +546,8 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   'choir-pad': { min: 43, max: 84 }, // G2-C6, matches all 42 recorded roots exactly
   // (fully chromatic, male+female merged — see CHOIR_PAD_URLS) — covers nearly all of
   // MIDI_MIN-MIDI_MAX, missing only the bottom 3 semitones (E2-F#2)
+  'analog-synth-temp': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, fully chromatic —
+  // every semitone in Eddy's whole range is a real recorded root, no narrowing needed
 }
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -507,6 +577,7 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   'piano-salamander': '2n', // same character class as felt piano
   'retro-pad': '1n', // same sustained pad character
   'choir-pad': '1n', // sustained pad character
+  'analog-synth-temp': '2n', // short, decaying analog synth note — not a pad swell
 }
 
 // Tone.Sampler's release (the fade-out after triggerRelease) defaults to 0.1s — fine for
@@ -527,6 +598,8 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   // good by ear (Paul, 2026-10-05), left as-is
   'choir-pad': 2.5, // matched holdsworthian-pad's as a starting guess, same as
   // retro-pad above — not yet tuned by ear
+  'analog-synth-temp': 0.8, // short release matching the pack's own natural ~1.9s decay —
+  // long enough to avoid a harsh cutoff, short enough not to blur arpeggiated runs
 }
 
 // Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across
@@ -556,6 +629,8 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // choir-pad needs no entry — its -6dB (female half)/-4dB (male half) gain-matches
   // (measured RMS against retro-pad) were baked into the exported files directly, same
   // convention as every other instrument's initial content swap.
+  // analog-synth-temp needs no entry either — its -4dB gain-match (measured RMS against
+  // retro-pad's C4) was baked into the exported files the same way.
 }
 
 function noteRelease(instrumentType: InstrumentType): number {

@@ -43,6 +43,14 @@ export type InstrumentType =
   // by ear as the pad to keep going forward — replaced retro-pad as the default/shown pad
   // (see SHOW_RETRO_PAD above).
   | 'choir-pad'
+  // Temp A/B candidate, added 2026-10-09 — "Moog Minitaur - Simple Saw" by modularsamples
+  // (freesound.org, Creative Commons 0), UI-labeled "analog synth." Fully chromatic
+  // across Eddy's whole range (see ANALOG_SYNTH_URLS in useAudioEngine.ts). Intended for
+  // ambient arpeggios, not chord-only pad use — deliberately not in PAD_INSTRUMENTS.
+  // Gated behind SHOW_ANALOG_SYNTH_TEMP in HomeView.vue/SessionView.vue. If it wins, give
+  // it a real InstrumentType slot and delete the temp key/scaffolding, same pattern as
+  // every other temp-instrument trial.
+  | 'analog-synth-temp'
 
 // Hides holdsworthian-pad from both instrument pickers now that retro-pad (and now
 // choir-pad) has replaced it as the pad of choice — same "keep the mechanism, hide the
@@ -56,6 +64,10 @@ export const SHOW_HOLDSWORTHIAN_PAD = false
 // 1.0(8) onward), so an existing saved session may already reference it — type/samples/
 // config all stay fully intact, just not selectable as a new choice going forward.
 export const SHOW_RETRO_PAD = false
+// Temporarily on for a simulator A/B listen (2026-10-09) — see analog-synth-temp above.
+// Flip to false (or delete the temp instrument entirely) once Paul's decided whether it
+// becomes a real instrument slot.
+export const SHOW_ANALOG_SYNTH_TEMP = true
 // Arpeggio note grid, in notes per beat — 0.5 = half, 1 = quarter, 2 = 8th,
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.

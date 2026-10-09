@@ -65,3 +65,11 @@ spliced together chromatically with no gap or overlap. Licensed under [Creative 
 Sampling Plus 1.0](https://creativecommons.org/licenses/sampling+/1.0/). Added
 2026-10-09, replacing retro pad as the default/shown pad after Paul compared them
 directly and preferred it.
+
+## analog synth (temp)
+
+**Moog Minitaur - Simple Saw** by modularsamples, sourced from
+[freesound.org](https://freesound.org/people/modularsamples/packs/17167/). Licensed
+[Creative Commons 0](http://creativecommons.org/publicdomain/zero/1.0/) (public domain).
+Added 2026-10-09 as a temp A/B candidate (see `SHOW_ANALOG_SYNTH_TEMP` in
+settingsStore.ts) — not yet decided whether it becomes a permanent slot.
