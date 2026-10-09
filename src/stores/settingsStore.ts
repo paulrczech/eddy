@@ -43,6 +43,13 @@ export type InstrumentType =
   // by ear as the pad to keep going forward — replaced retro-pad as the default/shown pad
   // (see SHOW_RETRO_PAD above).
   | 'choir-pad'
+  // Temp A/B candidate for the 'piano' slot, added 2026-10-09 — "Upright piano
+  // multisamples" by beskhu (freesound.org, Creative Commons 0). Fully chromatic across
+  // Eddy's whole range (see PIANO_BESKHU_URLS in useAudioEngine.ts for the real-pitch-
+  // vs-filename correction this needed). Gated behind SHOW_PIANO_BESKHU_TEMP in
+  // HomeView.vue/SessionView.vue. If it wins, give it a real InstrumentType slot and
+  // delete the temp key/scaffolding, same pattern as every other temp-instrument trial.
+  | 'piano-beskhu-temp'
 
 // Hides holdsworthian-pad from both instrument pickers now that retro-pad (and now
 // choir-pad) has replaced it as the pad of choice — same "keep the mechanism, hide the
@@ -56,6 +63,10 @@ export const SHOW_HOLDSWORTHIAN_PAD = false
 // 1.0(8) onward), so an existing saved session may already reference it — type/samples/
 // config all stay fully intact, just not selectable as a new choice going forward.
 export const SHOW_RETRO_PAD = false
+// Temporarily on for a simulator A/B listen (2026-10-09) — see piano-beskhu-temp above.
+// Flip to false (or delete the temp instrument entirely) once Paul's decided whether it
+// becomes a real piano slot.
+export const SHOW_PIANO_BESKHU_TEMP = true
 // Arpeggio note grid, in notes per beat — 0.5 = half, 1 = quarter, 2 = 8th,
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.

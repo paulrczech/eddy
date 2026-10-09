@@ -361,6 +361,71 @@ const UPRIGHT_PIANO_URLS: Record<string, string> = {
   A5: 'A5.mp3',
 }
 
+// Temp A/B candidate for the 'piano' slot, added 2026-10-09 — "Upright piano
+// multisamples" by beskhu (freesound.org, Creative Commons 0 — see CREDITS.md). Fully
+// chromatic across all 88 keys; the filenames' note-name text is partially unreliable
+// (every "sharp" reuses its natural's name instead of being labeled distinctly, e.g. two
+// files both named A1, the second actually A#1) and, more significantly, *every* filename
+// (both the numeric key prefix and the text) measures a consistent one octave low —
+// confirmed via autocorrelation across 15 points spanning nearly the full range, matching
+// to within ~20 cents once corrected (the two highest notes checked read closer to the
+// literal label instead, almost certainly a missing-fundamental/harmonic-lock artifact at
+// the quietest, most inharmonic part of the range, not real counter-evidence — same
+// caveat VSCO2's own highest notes had). The numeric key prefix is the reliable signal:
+// true MIDI = key number + 12, verified independent of the text label at every point
+// checked. Mapped using that rule, not the filenames' note-name text. Gain-matched by
+// measured RMS against piano-original's F4 (this pack ran ~14dB hotter). Gated behind
+// SHOW_PIANO_BESKHU_TEMP in HomeView.vue/SessionView.vue. Uploader's own pack
+// description: "This recording could have been better, but anyway, i uploaded it" — worth
+// knowing going in, not just a formality.
+const PIANO_BESKHU_URLS: Record<string, string> = {
+  E2: 'E2.mp3',
+  F2: 'F2.mp3',
+  'F#2': 'Fs2.mp3',
+  G2: 'G2.mp3',
+  'G#2': 'Gs2.mp3',
+  A2: 'A2.mp3',
+  'A#2': 'As2.mp3',
+  B2: 'B2.mp3',
+  C3: 'C3.mp3',
+  'C#3': 'Cs3.mp3',
+  D3: 'D3.mp3',
+  'D#3': 'Ds3.mp3',
+  E3: 'E3.mp3',
+  F3: 'F3.mp3',
+  'F#3': 'Fs3.mp3',
+  G3: 'G3.mp3',
+  'G#3': 'Gs3.mp3',
+  A3: 'A3.mp3',
+  'A#3': 'As3.mp3',
+  B3: 'B3.mp3',
+  C4: 'C4.mp3',
+  'C#4': 'Cs4.mp3',
+  D4: 'D4.mp3',
+  'D#4': 'Ds4.mp3',
+  E4: 'E4.mp3',
+  F4: 'F4.mp3',
+  'F#4': 'Fs4.mp3',
+  G4: 'G4.mp3',
+  'G#4': 'Gs4.mp3',
+  A4: 'A4.mp3',
+  'A#4': 'As4.mp3',
+  B4: 'B4.mp3',
+  C5: 'C5.mp3',
+  'C#5': 'Cs5.mp3',
+  D5: 'D5.mp3',
+  'D#5': 'Ds5.mp3',
+  E5: 'E5.mp3',
+  F5: 'F5.mp3',
+  'F#5': 'Fs5.mp3',
+  G5: 'G5.mp3',
+  'G#5': 'Gs5.mp3',
+  A5: 'A5.mp3',
+  'A#5': 'As5.mp3',
+  B5: 'B5.mp3',
+  C6: 'C6.mp3',
+}
+
 // 'choir-pad' — Sonatina Symphonic Orchestra's chorus samples (Creative Commons Sampling
 // Plus 1.0 — see CREDITS.md). Male and female voices combined into a single instrument:
 // male covers G2-F#4 (24 roots), female covers G4-C6 (18 roots), and the two ranges are
@@ -453,6 +518,10 @@ const SAMPLER_CONFIGS: Partial<
     urls: CHOIR_PAD_URLS,
     baseUrl: '/samples/choir-pad/',
   },
+  'piano-beskhu-temp': {
+    urls: PIANO_BESKHU_URLS,
+    baseUrl: '/samples/piano-beskhu-temp/',
+  },
 }
 
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
@@ -478,6 +547,8 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   'choir-pad': { min: 43, max: 84 }, // G2-C6, matches all 42 recorded roots exactly
   // (fully chromatic, male+female merged — see CHOIR_PAD_URLS) — covers nearly all of
   // MIDI_MIN-MIDI_MAX, missing only the bottom 3 semitones (E2-F#2)
+  'piano-beskhu-temp': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, fully chromatic —
+  // every semitone in Eddy's whole range is a real recorded root, no narrowing needed
 }
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -507,6 +578,7 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   'piano-salamander': '2n', // same character class as felt piano
   'retro-pad': '1n', // same sustained pad character
   'choir-pad': '1n', // sustained pad character
+  'piano-beskhu-temp': '2n', // same character class as every other piano
 }
 
 // Tone.Sampler's release (the fade-out after triggerRelease) defaults to 0.1s — fine for
@@ -527,6 +599,8 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   // good by ear (Paul, 2026-10-05), left as-is
   'choir-pad': 2.5, // matched holdsworthian-pad's as a starting guess, same as
   // retro-pad above — not yet tuned by ear
+  'piano-beskhu-temp': 2.0, // same treatment as every other piano — avoids the harsh
+  // default 0.1s cutoff
 }
 
 // Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across
@@ -556,6 +630,8 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // choir-pad needs no entry — its -6dB (female half)/-4dB (male half) gain-matches
   // (measured RMS against retro-pad) were baked into the exported files directly, same
   // convention as every other instrument's initial content swap.
+  // piano-beskhu-temp needs no entry either — its -14dB gain-match (measured RMS against
+  // piano-original's F4) was baked into the exported files the same way.
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
