@@ -716,17 +716,13 @@ const DELAY_SETTINGS: Partial<
   // Paul's request to hear it without the ping-pong delay first. Easy to bring back (at
   // this same value, or lower) if it turns out to be missed.
   //
-  // analog-synth-temp, added 2026-10-09 (Paul: "even more ambient with some delay... more
-  // like echo") — real feedback so it reads as distinct echoes, not just a slapback
-  // thickening. Not tied to the Ambience dial (unlike reverb/chorus) — Paul asked for
-  // delay only, this instrument has no REVERB_SETTINGS/CHORUS_SETTINGS entry at all, so
-  // there's nothing for the dial to scale regardless. `delayTime` here is only the
-  // construction-time fallback — playSequence() below overrides it live on every call to
-  // match whatever grid is actually playing (see delayTimeForSubdivision's own comment),
-  // since a single fixed time can't stay musical across every subdivision. Provisional
-  // first pass on feedback/wet, same as every other instrument's first effect tuning in
-  // this project — expect those to move once heard for real.
-  'analog-synth-temp': { delayTime: '8n.', feedback: 0.35, wet: 0.25 },
+  // analog-synth-temp had { delayTime: '8n.', feedback: 0.35, wet: 0.25 } (plus
+  // delayTimeForSubdivision() below live-overriding the time per grid) — removed
+  // 2026-10-09, not landing right yet even after the per-grid tuning pass, Paul wants to
+  // come back to it properly rather than keep nudging values blind. The subdivision-aware
+  // mechanism itself (delayTimeForSubdivision, the live update in playSequence(), and the
+  // construction-time wiring in buildEffectsChain()) stays in place, generic and ready —
+  // only this config entry is gone.
 }
 
 // Maps Eddy's own Subdivision values (see settingsStore.ts) to a Tone.js note-value delay
