@@ -260,52 +260,6 @@ const GUITAR_ACOUSTIC_URLS: Record<string, string> = {
   'G#5': 'Gs5.mp3',
 }
 
-// Temp A/B candidate for the acoustic guitar slot, added 2026-10-09 — "ClassicalGuitar-
-// multisampled" by quartertone (freesound.org, CC-BY 4.0 — attribution required, see
-// CREDITS.md), a Yamaha Eterna classical guitar. Unlike every prior guitar pack in this
-// project, the filenames directly encode the real MIDI note number per the pack's own
-// documented convention (`GtrClass-[fret]f,[string]s([MIDI note])~v[velocity 1-5]`) —
-// autocorrelation-spot-checked across 7 notes spanning the range, all within ~14 cents,
-// confirming the convention holds rather than needing any correction. 27 of Eddy's 45
-// semitones have a real recording at the chosen mid velocity layer (v03) — denser than
-// this project's usual every-major-third sparse sampling, with every gap just 1-2
-// semitones from a real root. Where a MIDI note had multiple fret/string options
-// (the same pitch playable in more than one position), the open-string take was
-// preferred when available, same "idiomatic for how a guitarist would actually play it"
-// reasoning. Gain-matched by measured RMS against guitar-acoustic's E4 (ran ~5dB hot).
-// Trimmed shorter than most instruments (2.3s + 0.5s fade) — these are naturally
-// fast-decaying plucked notes, raw files were only ~3.1s to begin with. Gated behind
-// SHOW_GUITAR_QUARTERTONE_TEMP in HomeView.vue/SessionView.vue.
-const GUITAR_QUARTERTONE_URLS: Record<string, string> = {
-  E2: 'E2.mp3',
-  'F#2': 'Fs2.mp3',
-  'G#2': 'Gs2.mp3',
-  A2: 'A2.mp3',
-  B2: 'B2.mp3',
-  'C#3': 'Cs3.mp3',
-  D3: 'D3.mp3',
-  E3: 'E3.mp3',
-  'F#3': 'Fs3.mp3',
-  G3: 'G3.mp3',
-  A3: 'A3.mp3',
-  B3: 'B3.mp3',
-  'C#4': 'Cs4.mp3',
-  'D#4': 'Ds4.mp3',
-  E4: 'E4.mp3',
-  'F#4': 'Fs4.mp3',
-  'G#4': 'Gs4.mp3',
-  A4: 'A4.mp3',
-  B4: 'B4.mp3',
-  'C#5': 'Cs5.mp3',
-  'D#5': 'Ds5.mp3',
-  E5: 'E5.mp3',
-  'F#5': 'Fs5.mp3',
-  G5: 'G5.mp3',
-  'G#5': 'Gs5.mp3',
-  A5: 'A5.mp3',
-  'A#5': 'As5.mp3',
-}
-
 // Electric guitar samples via Pianobook.co.uk (royalty-free per Pianobook's standard
 // license). See CREDITS.md for full attribution.
 
@@ -479,10 +433,6 @@ const SAMPLER_CONFIGS: Partial<
     urls: GUITAR_ACOUSTIC_URLS,
     baseUrl: '/samples/guitar-acoustic/',
   },
-  'guitar-acoustic-quartertone-temp': {
-    urls: GUITAR_QUARTERTONE_URLS,
-    baseUrl: '/samples/guitar-acoustic-quartertone-temp/',
-  },
   'electric-guitar': {
     urls: ELECTRIC_GUITAR_URLS,
     baseUrl: '/samples/electric-guitar/',
@@ -517,8 +467,6 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   'guitar-acoustic': { min: 40, max: MIDI_MAX }, // E2-C6 — 11 roots every major
   // third, E2-G#5 (Yindad Acoustic); top root sits just 4 semitones below MIDI_MAX,
   // close enough not to narrow the picker, same reasoning as retro-pad
-  'guitar-acoustic-quartertone-temp': { min: 40, max: MIDI_MAX }, // E2-C6, full range —
-  // 27 real roots densely cover it (every gap just 1-2 semitones), no need to narrow
   'electric-guitar': { min: 38, max: 71 }, // D2-B4
   'holdsworthian-pad': { min: 52, max: 82 }, // E3-A#5 — matches the ambient
   // pad's actual 6 usable roots (narrower than the old Blackhole pad's E2 floor, since
@@ -550,7 +498,6 @@ export interface PlaybackSettings {
 const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   piano: '2n',
   'guitar-acoustic': '2n',
-  'guitar-acoustic-quartertone-temp': '2n',
   'electric-guitar': '2n', // was '1n' — a full bar held at near-full volume before the
   // release fade even began, so it was still essentially at full volume right up to
   // the next chord's downbeat and only started fading during the new chord, reading
@@ -574,9 +521,6 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   'guitar-acoustic': 1.5, // pluck decays naturally, avoid the harsh-cutoff class of bug —
   // carried over unchanged from the nylon pack this replaced; not yet retuned by ear
   // against the new Yindad Acoustic content specifically
-  'guitar-acoustic-quartertone-temp': 1.0, // shorter than guitar-acoustic's — this
-  // pack's own raw notes decay faster/are trimmed tighter (2.3s vs 6s), a 1.5s release
-  // would outlast what's left of the sample
   'piano-salamander': 2.0, // same treatment as felt piano — avoids the harsh default
   // 0.1s cutoff
   'retro-pad': 2.5, // matched holdsworthian-pad's as a starting guess — confirmed sounding
@@ -612,9 +556,6 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // choir-pad needs no entry — its -6dB (female half)/-4dB (male half) gain-matches
   // (measured RMS against retro-pad) were baked into the exported files directly, same
   // convention as every other instrument's initial content swap.
-  // guitar-acoustic-quartertone-temp needs no entry either — its -5dB gain-match
-  // (measured RMS against guitar-acoustic's E4) was baked into the exported files the
-  // same way.
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
@@ -778,7 +719,6 @@ function midiToTone(midi: number): string {
 const STRUM_INTERVAL = 0.025 // seconds between adjacent strings
 const GUITAR_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set([
   'guitar-acoustic',
-  'guitar-acoustic-quartertone-temp',
   'electric-guitar',
 ])
 

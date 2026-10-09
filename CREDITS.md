@@ -34,14 +34,6 @@ samples (Nicholaus P. Brosowsky's tonejs-instruments, CC-BY 3.0, University of I
 Electronic Music Studios sample library), which read as too bright/harsh under Eddy's
 sustained, looping playback — same reasoning as the piano swap.
 
-**Acoustic guitar (temp)** — "ClassicalGuitar-multisampled" by quartertone, a Yamaha
-Eterna classical guitar, sourced from
-[freesound.org](https://freesound.org/people/quartertone/packs/11573/). Licensed
-[Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/) —
-attribution required, given here. Added 2026-10-09 as a temp A/B candidate for the
-acoustic guitar slot (see `SHOW_GUITAR_QUARTERTONE_TEMP` in settingsStore.ts) — not yet
-decided whether it becomes a permanent slot.
-
 ## Electric guitar
 
 **Afterglow (Demo)**, v1.0, by Frédéric Poirier

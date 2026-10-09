@@ -43,13 +43,6 @@ export type InstrumentType =
   // by ear as the pad to keep going forward — replaced retro-pad as the default/shown pad
   // (see SHOW_RETRO_PAD above).
   | 'choir-pad'
-  // Temp A/B candidate for the acoustic guitar slot, added 2026-10-09 — "ClassicalGuitar-
-  // multisampled" by quartertone (freesound.org, CC-BY 4.0), a Yamaha Eterna classical
-  // guitar. 27 of Eddy's 45 roots are real recordings (see GUITAR_QUARTERTONE_URLS in
-  // useAudioEngine.ts). Gated behind SHOW_GUITAR_QUARTERTONE_TEMP in HomeView.vue/
-  // SessionView.vue. If it wins, give it a real InstrumentType slot and delete the temp
-  // key/scaffolding, same pattern as every other temp-instrument trial.
-  | 'guitar-acoustic-quartertone-temp'
 
 // Hides holdsworthian-pad from both instrument pickers now that retro-pad (and now
 // choir-pad) has replaced it as the pad of choice — same "keep the mechanism, hide the
@@ -63,10 +56,6 @@ export const SHOW_HOLDSWORTHIAN_PAD = false
 // 1.0(8) onward), so an existing saved session may already reference it — type/samples/
 // config all stay fully intact, just not selectable as a new choice going forward.
 export const SHOW_RETRO_PAD = false
-// Temporarily on for a simulator A/B listen (2026-10-09) — see
-// guitar-acoustic-quartertone-temp above. Flip to false (or delete the temp instrument
-// entirely) once Paul's decided whether it becomes a real guitar slot.
-export const SHOW_GUITAR_QUARTERTONE_TEMP = true
 // Arpeggio note grid, in notes per beat — 0.5 = half, 1 = quarter, 2 = 8th,
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.
