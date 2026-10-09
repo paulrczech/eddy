@@ -241,6 +241,9 @@
           <ion-select-option value="piano-salamander">piano</ion-select-option>
           <ion-select-option value="piano">felt piano</ion-select-option>
           <ion-select-option value="guitar-acoustic">guitar</ion-select-option>
+          <ion-select-option v-if="SHOW_GUITAR_QUARTERTONE_TEMP" value="guitar-acoustic-quartertone-temp"
+            >guitar (temp)</ion-select-option
+          >
           <ion-select-option value="electric-guitar"
             >e-guitar</ion-select-option
           >
@@ -432,7 +435,7 @@
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
   import { useSequenceStore } from '../stores/sequenceStore'
-  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, SHOW_GUITAR_QUARTERTONE_TEMP, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'
