@@ -237,7 +237,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  audition: [cluster: Cluster]
+  audition: [cluster: Cluster, index: number]
   preview: [cluster: Cluster]
   delete: [index: number]
   edit: [index: number, newCluster: Cluster]
@@ -548,7 +548,7 @@ function onEntryClick(cluster: Cluster, index: number) {
     return
   }
   activeIndex.value = index
-  emit('audition', cluster)
+  emit('audition', cluster, index)
 }
 
 function confirmDelete(index: number) {

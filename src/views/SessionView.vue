@@ -163,7 +163,7 @@
             :sequence="sequenceStore.sequence"
             :loop-point="sequenceStore.loopPoint"
             :playing-index="displayPlayingIndex"
-            @audition="auditionHistoryCluster"
+            @audition="onHistoryAudition"
             @preview="auditionHistoryCluster"
             @delete="deleteCluster"
             @edit="editCluster"
@@ -874,6 +874,10 @@
     // the old range (Paul, 2026-10-04).
     stopIfPlaying()
     if (active && !loopActive.value) loopActive.value = true
+    // Mirrors SequenceHistory's own activeIndex clear on entering range-select mode (see
+    // setRangeMode() there) — a stray "start from selected" row shouldn't survive into a
+    // mode that repurposes taps for something else entirely.
+    if (active) selectedIndex.value = -1
   }
 
   // Also used whenever a marker tap lands mid-playback (see SequenceHistory's 'range-tap')
@@ -909,8 +913,16 @@
   function onDuplicateModeChange(active: boolean) {
     duplicateModeActive.value = active
     stopIfPlaying()
+    // Same reasoning as onRangeModeChange's clear above.
+    if (active) selectedIndex.value = -1
   }
 
+  // Export-facing scope only ("this loop" in the export menu, plus whatever MIDI/WAV
+  // export reads) — loop-range (explicit, persistent user intent) plus reverse, nothing
+  // else. Deliberately blind to selectedIndex below: a row left highlighted from earlier
+  // browsing is not a statement about what the user wants exported, and silently scoping
+  // an export to "from wherever I last tapped" would be a surprising, easy-to-miss trap
+  // (Paul, 2026-10-09).
   const playbackSequence = computed(() => {
     const base = loopRange.value
       ? sequenceStore.sequence.slice(loopRange.value[0], loopRange.value[1] + 1)
@@ -918,37 +930,89 @@
     return reversePlayback.value ? [...base].reverse() : base
   })
 
+  // The row most recently tapped to preview in "the flow" (SequenceHistory's own
+  // activeIndex, mirrored here via the audition event) — lets a non-looping play resume
+  // from there instead of always starting at the top. Ephemeral, not sticky: spent
+  // (cleared) the instant it's actually used to start playback (see playOnce() below),
+  // and cleared early whenever SequenceHistory would itself clear its highlight (entering
+  // range-select or duplicate mode) so a stale selection never lingers into a mode that's
+  // repurposed what a tap means. Never read by playbackSequence/export above — see that
+  // computed's own comment.
+  const selectedIndex = ref(-1)
+
+  // What actually got scheduled on the engine for the current/most recent play — loop-
+  // range when set, an ephemeral "from selected row" range when that's what playOnce()
+  // used instead, or null for the whole flow. A separate ref from loopRange (rather than
+  // reusing it) for the same reason selectedIndex is kept separate from playbackSequence:
+  // this is one-shot, not persistent intent, and must never leak into export scope.
+  const activePlaybackRange = ref<[number, number] | null>(null)
+
+  function engineSequenceFor(range: [number, number] | null): Cluster[] {
+    const base = range
+      ? sequenceStore.sequence.slice(range[0], range[1] + 1)
+      : sequenceStore.sequence
+    return reversePlayback.value ? [...base].reverse() : base
+  }
+
   // playingIndex from the engine is relative to whatever was actually scheduled (the
   // sliced range and/or reversed order, when active) — map it back to the full flow's
   // indices so SequenceHistory highlights the right row instead of always starting at
   // row 1, or counting backwards when reversed.
   const displayPlayingIndex = computed(() => {
     if (!isPlaying.value || playingIndex.value < 0) return -1
-    const rangeOffset = loopRange.value ? loopRange.value[0] : 0
+    const range = activePlaybackRange.value
+    const rangeOffset = range ? range[0] : 0
+    const scheduledLength = range
+      ? range[1] - range[0] + 1
+      : sequenceStore.sequence.length
     const indexInSlice = reversePlayback.value
-      ? playbackSequence.value.length - 1 - playingIndex.value
+      ? scheduledLength - 1 - playingIndex.value
       : playingIndex.value
     return indexInSlice + rangeOffset
   })
 
   function playLoop() {
+    // Loop mode always plays loopRange (or the whole flow) from its own top — "start from
+    // selected" is explicitly a non-looping-only shortcut (Paul, 2026-10-09): once
+    // something repeats forever, "resume from here" doesn't mean anything a listener
+    // wouldn't already get by just waiting for the loop to come back around.
+    activePlaybackRange.value = loopRange.value
     audioEngine.playSequence(
-      playbackSequence.value,
+      engineSequenceFor(activePlaybackRange.value),
       playbackSettings.value,
       true
     )
   }
 
   function playOnce() {
+    let range = loopRange.value
+    // selectedIndex only applies when there's no explicit loop-range already scoping
+    // playback, and only within current sequence bounds (a stale index surviving a
+    // deletion is treated as no selection rather than clamped/guessed at).
+    if (!range && selectedIndex.value >= 0 && selectedIndex.value < sequenceStore.sequence.length) {
+      const s = selectedIndex.value
+      // Reverse: start audibly at the selected row, play backward to the start — mirrors
+      // forward's "selected row to the end" under whichever direction is active (Paul,
+      // 2026-10-09), rather than always meaning "forward from here" regardless of the
+      // reverse toggle.
+      range = reversePlayback.value ? [0, s] : [s, sequenceStore.sequence.length - 1]
+    }
+    activePlaybackRange.value = range
     audioEngine.playSequence(
-      playbackSequence.value,
+      engineSequenceFor(range),
       playbackSettings.value,
       false
     )
+    selectedIndex.value = -1
   }
 
   function auditionHistoryCluster(cluster: Cluster) {
     audioEngine.playCluster(cluster, playbackSettings.value)
+  }
+
+  function onHistoryAudition(cluster: Cluster, index: number) {
+    selectedIndex.value = index
+    auditionHistoryCluster(cluster)
   }
 
   function deleteCluster(index: number) {
