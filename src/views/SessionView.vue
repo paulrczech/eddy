@@ -227,8 +227,11 @@
           <ion-select-option v-if="SHOW_HOLDSWORTHIAN_PAD" value="holdsworthian-pad"
             >ambient pad</ion-select-option
           >
-          <ion-select-option value="retro-pad"
+          <ion-select-option v-if="SHOW_RETRO_PAD" value="retro-pad"
             >retro pad</ion-select-option
+          >
+          <ion-select-option value="choir-pad"
+            >choir pad</ion-select-option
           >
         </ion-select>
         <button
@@ -409,7 +412,7 @@
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
   import { useSequenceStore } from '../stores/sequenceStore'
-  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'
@@ -515,7 +518,7 @@
   // A pad's slow swell reads as unclear/muddy when arpeggiated — held together as a
   // chord is the only direction that actually suits it (Paul, 2026-09-30). Add any other
   // pad-type instrument here too.
-  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['holdsworthian-pad', 'retro-pad'])
+  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['holdsworthian-pad', 'retro-pad', 'choir-pad'])
   const isPadInstrument = computed(() => PAD_INSTRUMENTS.has(settingsStore.instrument))
 
   // Remembers whatever direction was active before a pad forced 'chord', and restores it

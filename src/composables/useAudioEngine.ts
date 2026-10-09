@@ -361,6 +361,66 @@ const UPRIGHT_PIANO_URLS: Record<string, string> = {
   A5: 'A5.mp3',
 }
 
+// 'choir-pad' — Sonatina Symphonic Orchestra's chorus samples (Creative Commons Sampling
+// Plus 1.0 — see CREDITS.md). Male and female voices combined into a single instrument:
+// male covers G2-F#4 (24 roots), female covers G4-C6 (18 roots), and the two ranges are
+// chromatically adjacent (male's top root F#4 sits one semitone below female's bottom
+// root G4) — no gap, no overlap, so they splice into one continuous 42-root chromatic run
+// from G2 to C6 with a natural register break exactly where a real mixed choir's would
+// be. Initially demoed as two separate instruments (Paul: female "sounds amazing" but
+// wanted full-range coverage, hence the merge) — unlike every other sample pack in this
+// project, both sets are *fully chromatic* (one real recorded root per semitone, no
+// minor-/major-third gaps to pitch-shift across). Pitch verified via autocorrelation
+// across every root in both sets — accurate to within ~16 cents worst-case, consistent
+// with natural vocal vibrato rather than a labeling error. Trimmed to 7s/1s fade-out,
+// same convention as holdsworthian-pad; gain-matched by measured RMS against retro-pad
+// (female needed -6dB, male -4dB, baked into the exported files pre-merge). Added
+// 2026-10-09, confirmed by ear as the pad to keep going forward — replaced retro-pad as
+// the default/shown pad (see SHOW_RETRO_PAD in settingsStore.ts).
+const CHOIR_PAD_URLS: Record<string, string> = {
+  G2: 'G2.mp3',
+  'G#2': 'Gs2.mp3',
+  A2: 'A2.mp3',
+  'A#2': 'As2.mp3',
+  B2: 'B2.mp3',
+  C3: 'C3.mp3',
+  'C#3': 'Cs3.mp3',
+  D3: 'D3.mp3',
+  'D#3': 'Ds3.mp3',
+  E3: 'E3.mp3',
+  F3: 'F3.mp3',
+  'F#3': 'Fs3.mp3',
+  G3: 'G3.mp3',
+  'G#3': 'Gs3.mp3',
+  A3: 'A3.mp3',
+  'A#3': 'As3.mp3',
+  B3: 'B3.mp3',
+  C4: 'C4.mp3',
+  'C#4': 'Cs4.mp3',
+  D4: 'D4.mp3',
+  'D#4': 'Ds4.mp3',
+  E4: 'E4.mp3',
+  F4: 'F4.mp3',
+  'F#4': 'Fs4.mp3',
+  G4: 'G4.mp3',
+  'G#4': 'Gs4.mp3',
+  A4: 'A4.mp3',
+  'A#4': 'As4.mp3',
+  B4: 'B4.mp3',
+  C5: 'C5.mp3',
+  'C#5': 'Cs5.mp3',
+  D5: 'D5.mp3',
+  'D#5': 'Ds5.mp3',
+  E5: 'E5.mp3',
+  F5: 'F5.mp3',
+  'F#5': 'Fs5.mp3',
+  G5: 'G5.mp3',
+  'G#5': 'Gs5.mp3',
+  A5: 'A5.mp3',
+  'A#5': 'As5.mp3',
+  B5: 'B5.mp3',
+  C6: 'C6.mp3',
+}
 
 // Hoisted out of init() (was rebuilt as a local const on every call) — also needed by
 // renderSequenceToBuffer() below for audio export, which loads its own sample buffers
@@ -389,6 +449,10 @@ const SAMPLER_CONFIGS: Partial<
     urls: RETRO_PAD_URLS,
     baseUrl: '/samples/retro-pad/',
   },
+  'choir-pad': {
+    urls: CHOIR_PAD_URLS,
+    baseUrl: '/samples/choir-pad/',
+  },
 }
 
 // Note-picker range per instrument — picker-only, matches each instrument's natural/sampled
@@ -411,6 +475,9 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   // 11 usable roots
   'retro-pad': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, matches all 12 recorded roots
   // exactly (every major third) — no need to narrow the picker range at all
+  'choir-pad': { min: 43, max: 84 }, // G2-C6, matches all 42 recorded roots exactly
+  // (fully chromatic, male+female merged — see CHOIR_PAD_URLS) — covers nearly all of
+  // MIDI_MIN-MIDI_MAX, missing only the bottom 3 semitones (E2-F#2)
 }
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -439,6 +506,7 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   'holdsworthian-pad': '1n', // sustained pad character
   'piano-salamander': '2n', // same character class as felt piano
   'retro-pad': '1n', // same sustained pad character
+  'choir-pad': '1n', // sustained pad character
 }
 
 // Tone.Sampler's release (the fade-out after triggerRelease) defaults to 0.1s — fine for
@@ -457,6 +525,8 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   // 0.1s cutoff
   'retro-pad': 2.5, // matched holdsworthian-pad's as a starting guess — confirmed sounding
   // good by ear (Paul, 2026-10-05), left as-is
+  'choir-pad': 2.5, // matched holdsworthian-pad's as a starting guess, same as
+  // retro-pad above — not yet tuned by ear
 }
 
 // Per-instrument gain trim, in dB, applied at the Sampler itself — measured RMS across
@@ -483,6 +553,9 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // deliberately matched to the outgoing nylon pack's loudness for a fair A/B, not tuned
   // for how it should actually sit once it won. Provisional, same as every other
   // instrument's first by-ear pass — expect this to move again.
+  // choir-pad needs no entry — its -6dB (female half)/-4dB (male half) gain-matches
+  // (measured RMS against retro-pad) were baked into the exported files directly, same
+  // convention as every other instrument's initial content swap.
 }
 
 function noteRelease(instrumentType: InstrumentType): number {

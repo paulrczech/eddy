@@ -28,21 +28,34 @@ export type InstrumentType =
   | 'guitar-acoustic' | 'electric-guitar' | 'holdsworthian-pad'
   // 'retro-pad' — Paul's own recording of a Logic RetroSynth patch, printed to audio note
   // by note (see RETRO_PAD_URLS in useAudioEngine.ts) rather than synthesized live. Added
-  // 2026-10-05, confirmed by ear as the pad to keep going forward — won out over both
-  // holdsworthian-pad (now hidden, see above) and an earlier from-scratch Tone.js
+  // 2026-10-05, confirmed by ear as the pad to keep going forward at the time — won out
+  // over both holdsworthian-pad (hidden, see above) and an earlier from-scratch Tone.js
   // synth-pad attempt (live PolySynth + effects chain, chased through two full reworks
   // trying to land "lush/calming" and never fully got there — removed entirely, not kept
   // as a second option, since it never shipped and had no saved-session compatibility to
-  // protect).
+  // protect). Superseded as the *default/shown* pad by 'choir-pad' below (2026-10-09, see
+  // SHOW_RETRO_PAD) — key/type kept, same backward-compatibility reasoning as
+  // holdsworthian-pad above, so an existing saved session still resolves to real audio.
   | 'retro-pad'
+  // 'choir-pad' — Sonatina Symphonic Orchestra's chorus samples (Creative Commons
+  // Sampling Plus 1.0), male and female voices merged into one instrument (male below,
+  // female above — see CHOIR_PAD_URLS in useAudioEngine.ts). Added 2026-10-09, confirmed
+  // by ear as the pad to keep going forward — replaced retro-pad as the default/shown pad
+  // (see SHOW_RETRO_PAD above).
+  | 'choir-pad'
 
-// Hides holdsworthian-pad from both instrument pickers now that retro-pad has replaced
-// it as the pad of choice — same "keep the mechanism, hide the control" pattern as
-// SHOW_AMBIENCE_CONTROL in SessionView.vue. Not a full deletion like synth-pad got:
-// holdsworthian-pad actually shipped (TestFlight 1.0(5) through 1.0(10)), so an existing
-// saved session may already reference it — the type/samples/config all stay fully intact,
-// just not selectable as a new choice going forward.
+// Hides holdsworthian-pad from both instrument pickers now that retro-pad (and now
+// choir-pad) has replaced it as the pad of choice — same "keep the mechanism, hide the
+// control" pattern as SHOW_AMBIENCE_CONTROL in SessionView.vue. Not a full deletion like
+// synth-pad got: holdsworthian-pad actually shipped (TestFlight 1.0(5) through 1.0(10)),
+// so an existing saved session may already reference it — the type/samples/config all
+// stay fully intact, just not selectable as a new choice going forward.
 export const SHOW_HOLDSWORTHIAN_PAD = false
+// Hides retro-pad now that choir-pad has replaced it as the pad of choice (2026-10-09) —
+// same reasoning/pattern as SHOW_HOLDSWORTHIAN_PAD above. retro-pad shipped (TestFlight
+// 1.0(8) onward), so an existing saved session may already reference it — type/samples/
+// config all stay fully intact, just not selectable as a new choice going forward.
+export const SHOW_RETRO_PAD = false
 // Arpeggio note grid, in notes per beat — 0.5 = half, 1 = quarter, 2 = 8th,
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.

@@ -47,9 +47,21 @@ Sourced from [Pianobook.co.uk](https://www.pianobook.co.uk).
 Guitars" pad (by JWB) entirely 2026-09-30 — Paul felt the original wasn't musically
 accurate.
 
-## retro pad
+## retro pad (hidden)
 
 Paul's own recording — a Logic RetroSynth patch of his own design, printed to audio note
 by note (not a third-party sample pack, no external attribution needed). Added
 2026-10-05, replacing an earlier from-scratch Tone.js live-synthesis attempt at a second
-pad voice that never quite landed by ear.
+pad voice that never quite landed by ear. Superseded as the default/shown pad by choir
+pad below 2026-10-09 (see `SHOW_RETRO_PAD` in settingsStore.ts) — kept for saved-session
+backward compatibility, not selectable as a new choice going forward.
+
+## choir pad
+
+Male and female chorus voices from **Sonatina Symphonic Orchestra** (originally created
+by Mattias Westlund; ongoing development at [github.com/peastman/sso](https://github.com/peastman/sso)),
+merged into a single instrument — male covers the lower register, female the upper,
+spliced together chromatically with no gap or overlap. Licensed under [Creative Commons
+Sampling Plus 1.0](https://creativecommons.org/licenses/sampling+/1.0/). Added
+2026-10-09, replacing retro pad as the default/shown pad after Paul compared them
+directly and preferred it.

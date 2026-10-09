@@ -250,7 +250,7 @@
   import SavedSessions from '../components/ui/SavedSessions.vue'
   import type { SavedSession } from '../utils/sessionStorage'
   import { listSessions } from '../utils/sessionStorage'
-  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD } from '../stores/settingsStore'
   import { useSequenceStore } from '../stores/sequenceStore'
   import { useAudioEngine, INSTRUMENT_NOTE_RANGE } from '../composables/useAudioEngine'
   import {
@@ -281,7 +281,8 @@
     { label: 'acoustic guitar', value: 'guitar-acoustic' },
     { label: 'electric guitar', value: 'electric-guitar' },
     ...(SHOW_HOLDSWORTHIAN_PAD ? [{ label: 'ambient pad', value: 'holdsworthian-pad' }] : []),
-    { label: 'retro pad', value: 'retro-pad' },
+    ...(SHOW_RETRO_PAD ? [{ label: 'retro pad', value: 'retro-pad' }] : []),
+    { label: 'choir pad', value: 'choir-pad' },
   ]
 
   const router = useRouter()
