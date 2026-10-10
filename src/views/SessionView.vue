@@ -1625,6 +1625,16 @@
     color: var(--color-text-dim);
   }
 
+  /* size="small" makes ion-title a genuine flex item centered in the real leftover gap
+     between the start/end ion-buttons — correct and overlap-safe, but the gap isn't
+     actually centered on screen unless both sides reserve equal width. The end slot
+     holds 3 fixed-size icon buttons (save/undo/redo); give the start slot's single
+     back button the same deterministic footprint so the title lands dead center rather
+     than drifting toward whichever side is narrower. */
+  ion-buttons[slot='start'] {
+    min-width: calc(3 * var(--tap-min));
+  }
+
   /* .icon-btn (box model, touch target) comes from theme/buttons.css — back-to-home
      is icon+text rather than icon-only, so it keeps its own layout, just adding the
      same tap-target floor rather than composing the icon-only shared class */
