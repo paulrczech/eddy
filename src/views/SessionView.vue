@@ -192,6 +192,7 @@
             @create-pool="createPool"
             @delete-pool="deletePoolRows"
             @ungroup-pool="ungroupPool"
+            @duplicate-pool="duplicatePool"
             @toggle-pool-expanded="togglePoolExpanded"
             @rename-pool="renamePool"
             @reorder-pool-block="reorderPoolBlock" />
@@ -1137,6 +1138,20 @@
     audioEngine.stopLoop(true)
     sequenceStore.deletePool(id)
     sequenceStore.setLoopResolved(false)
+  }
+
+  // Inserts real rows (a copy of the pool's own), same treatment as deleteCluster/
+  // duplicateCluster above. Reuses the existing duplicate toast rather than a dedicated
+  // one — same "confirm a deliberate, occasional action" reasoning duplicateRangeClusters'
+  // own toast already rests on.
+  function duplicatePool(id: string) {
+    audioEngine.stopLoop(true)
+    const newId = sequenceStore.duplicatePool(id)
+    sequenceStore.setLoopResolved(false)
+    if (!newId) return
+    const name = sequenceStore.pools.find((p) => p.id === newId)?.name ?? 'pool'
+    duplicateFlashMessage.value = `"${name}" duplicated`
+    duplicateFlash.value = true
   }
 
   function ungroupPool(id: string) {

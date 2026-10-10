@@ -144,6 +144,9 @@
               </div>
             </IonItem>
             <IonItemOptions side="end">
+              <IonItemOption @click="duplicatePoolAction(item.poolId!)">
+                <IonIcon slot="icon-only" :icon="copyOutline" />
+              </IonItemOption>
               <IonItemOption @click="ungroupPoolAction(item.poolId!)">
                 <IonIcon slot="icon-only" :icon="folderOpenOutline" />
               </IonItemOption>
@@ -348,6 +351,7 @@ const emit = defineEmits<{
   'rename-pool': [id: string, name: string]
   'delete-pool': [id: string]
   'ungroup-pool': [id: string]
+  'duplicate-pool': [id: string]
   'reorder-pool-block': [id: string, targetIndex: number]
 }>()
 
@@ -371,9 +375,12 @@ const validMidiRange = computed(() => {
   return Array.from({ length: max - min + 1 }, (_, i) => min + i)
 })
 
-// -1 (nothing "current" yet) rather than defaulting to the last row — same reasoning as
-// the length-change watcher below: only an explicit tap should ever light this up.
-const activeIndex = ref(-1)
+// 0 when the flow starts with exactly one stream (a fresh session always does) — there's
+// nothing else it could mean to look at, so it's lit without waiting for a tap. -1
+// otherwise (e.g. loading a saved session with more than one stream already), same
+// reasoning as the length-change watcher below: only an explicit tap lights up a row once
+// there's more than one candidate for "where you are" (Paul, 2026-10-10).
+const activeIndex = ref(props.sequence.length === 1 ? 0 : -1)
 
 // A swiped-open delete (trash can) row only closed when you manually slid it back or
 // swiped a different row open — tapping anywhere else in the app (play, a header button,
@@ -492,6 +499,10 @@ function cancelRename() {
 
 function ungroupPoolAction(id: string) {
   emit('ungroup-pool', id)
+}
+
+function duplicatePoolAction(id: string) {
+  emit('duplicate-pool', id)
 }
 
 const deleteConfirmPoolId = ref<string | null>(null)
@@ -615,9 +626,18 @@ watch(() => props.sequence.length, (len) => {
   // confirm even though nothing was actually tapped to preview it (Paul, 2026-10-08: "that
   // just doesn't feel right"). A duplicate makes this more clearly wrong too — duplicating
   // row 2 of a 10-row flow would light up row 11, nowhere near what was actually touched.
-  // Now this only clamps a now-out-of-bounds index after the flow shrinks; it never
-  // invents a new "current" row on growth — only an actual tap does that (onEntryClick).
-  if (activeIndex.value >= len) activeIndex.value = -1
+  // This still never invents a new "current" row just from *adding* streams — only an
+  // actual tap does that (onEntryClick). The one deliberate exception (Paul, 2026-10-10):
+  // landing back at exactly one stream — whether that's a fresh session or deleting back
+  // down to a single row — lights it up automatically, same reasoning as the initial ref
+  // value above. Falling from >1 back to 1 still goes through this branch (not just the
+  // ref's own initial value, which only applies once at mount), so a delete that leaves
+  // one stream behind lights it up too, not just a brand-new session.
+  if (len === 1) {
+    activeIndex.value = 0
+  } else if (activeIndex.value >= len) {
+    activeIndex.value = -1
+  }
   if (rangeSelectActive.value) setRangeMode(false)
 })
 

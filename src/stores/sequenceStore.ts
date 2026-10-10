@@ -330,6 +330,30 @@ export const useSequenceStore = defineStore('sequence', () => {
     return id
   }
 
+  // Copies a pool's rows immediately after it (same "insert right after what was
+  // selected" convention as duplicateAt/duplicateRange) and wraps the copy in a brand new
+  // pool of its own — not just duplicated rows left ungrouped. Order matters here: the
+  // existing pools' ranges are shifted *before* the new pool is added, otherwise the new
+  // pool's own just-computed range would get caught and corrupted by that same shift.
+  function duplicatePool(id: string): string | null {
+    const pool = pools.value.find(p => p.id === id)
+    if (!pool) return null
+    const [s, e] = pool.range
+    pushHistory()
+    const copies = sequence.value.slice(s, e + 1).map(c => [...c] as Cluster)
+    sequence.value.splice(e + 1, 0, ...copies)
+    shiftPoolRanges(e + 1, copies.length)
+    const newId = makePoolId()
+    pools.value.push({
+      id: newId,
+      name: `${pool.name} copy`,
+      range: [e + 1, e + copies.length],
+      expanded: pool.expanded,
+    })
+    candidates.value = []
+    return newId
+  }
+
   // Destructive: removes the pool *and* every row inside it. Caller (SessionView.vue)
   // confirms first, mentioning the row count — ungroupPool below is the non-destructive
   // counterpart and needs no such confirmation.
@@ -450,6 +474,7 @@ export const useSequenceStore = defineStore('sequence', () => {
     reset,
     poolsOverlap,
     createPool,
+    duplicatePool,
     deletePool,
     ungroupPool,
     togglePoolExpanded,
