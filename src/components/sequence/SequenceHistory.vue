@@ -400,6 +400,22 @@ function setPoolSlidingRef(id: string, el: unknown) {
   poolSlidingRefs[id] = el as { $el: HTMLElement & { close: () => void } } | null
 }
 
+// Closes the sliding item an action was just triggered from, so it snaps back to resting
+// state instead of staying revealed (Paul, 2026-10-10). For row deletes specifically this
+// isn't just tidiness — IonItemSliding rows are keyed by list position (`row-${seqIndex}`
+// in the template below), so deleting a row shifts every later row's content up into a
+// *reused* component instance at that same key; without an explicit close here first, the
+// row that slides into the deleted one's old position inherits its open/revealed swipe
+// state, surfacing as "the next stream has its delete button showing" even though nothing
+// was swiped.
+function closeSliding(i: number) {
+  slidingRefs[i]?.$el?.close?.()
+}
+
+function closePoolSliding(id: string) {
+  poolSlidingRefs[id]?.$el?.close?.()
+}
+
 function closeAllSliding() {
   Object.values(slidingRefs).forEach((el) => el?.$el?.close?.())
   Object.values(poolSlidingRefs).forEach((el) => el?.$el?.close?.())
@@ -498,10 +514,12 @@ function cancelRename() {
 }
 
 function ungroupPoolAction(id: string) {
+  closePoolSliding(id)
   emit('ungroup-pool', id)
 }
 
 function duplicatePoolAction(id: string) {
+  closePoolSliding(id)
   emit('duplicate-pool', id)
 }
 
@@ -522,7 +540,13 @@ function cancelDeletePool() {
 }
 
 function confirmDeletePool() {
-  if (deleteConfirmPoolId.value) emit('delete-pool', deleteConfirmPoolId.value)
+  // Closes on confirm only, not on cancelDeletePool() above — canceling isn't "an action
+  // taken," so the pool stays revealed in case the user meant to tap a different swipe
+  // action instead of re-swiping from scratch.
+  if (deleteConfirmPoolId.value) {
+    closePoolSliding(deleteConfirmPoolId.value)
+    emit('delete-pool', deleteConfirmPoolId.value)
+  }
   deleteConfirmPoolId.value = null
 }
 
@@ -850,6 +874,7 @@ function onEntryClick(cluster: Cluster, index: number) {
 }
 
 function confirmDelete(index: number) {
+  closeSliding(index)
   emit('delete', index)
 }
 </script>
