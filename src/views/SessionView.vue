@@ -275,7 +275,7 @@
         <div class="tray-inner">
           <div class="tray-row playback-row">
             <span class="tray-label playback-label">{{
-              poolPlaybackContext ? `pool '${poolPlaybackContext.name}' playback` : 'playback'
+              poolPlaybackContext ? `playback - pool '${poolPlaybackContext.name}'` : 'playback'
             }}</span>
             <div class="toggle-row">
               <button
