@@ -391,16 +391,24 @@
           <div
             v-if="sequenceStore.sequence.length > 1"
             class="tray-row export-row">
-            <button class="btn-outline export-btn" @click="requestExport(exportMidi)">
+            <!-- Export always reads the global flow/loop-range scope (playbackSequence),
+                 never a pool's own range or its custom playback settings — exporting
+                 while the drawer reads "playback - pool 'x'" would silently produce
+                 something that doesn't match what the label implies. Disabled here for
+                 the same reason tempo/subdivision/time-signature/instrument already are
+                 in pool context: not unsupported forever, just not wired up yet (Paul,
+                 2026-10-10) — see the export-sync scoping conversation this is paired
+                 with. -->
+            <button class="btn-outline export-btn" :disabled="!!poolPlaybackContext" @click="requestExport(exportMidi)">
               <ion-icon :icon="downloadOutline" /> midi
             </button>
             <button
               class="btn-outline export-btn"
-              :disabled="exportingAudio"
+              :disabled="exportingAudio || !!poolPlaybackContext"
               @click="requestExport(exportAudio)">
               <ion-icon :icon="downloadOutline" /> {{ exportingAudio ? 'rendering…' : 'wav' }}
             </button>
-            <button class="btn-outline export-btn" @click="requestExport(copyText, 'copy')">
+            <button class="btn-outline export-btn" :disabled="!!poolPlaybackContext" @click="requestExport(copyText, 'copy')">
               {{ copiedFlash ? 'copied!' : 'copy text' }}
             </button>
           </div>
