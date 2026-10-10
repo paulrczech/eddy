@@ -131,8 +131,15 @@
                   @keyup.esc="cancelRename"
                   @blur="commitRename(item.poolId!)" />
                 <span v-else class="pool-name">{{ poolById(item.poolId!)?.name }}</span>
-                <span class="pool-count">{{ poolSize(item.poolId!) }}</span>
+                <span class="pool-count">{{ poolBadgeText(item.poolId!) }}</span>
                 <div class="row-actions">
+                  <button
+                    class="icon-btn action-btn"
+                    :class="{ active: poolPlaybackContextId === item.poolId }"
+                    title="pool playback settings"
+                    @click.stop="openPoolPlaybackAction(item.poolId!)">
+                    <IonIcon :icon="optionsOutline" />
+                  </button>
                   <button
                     v-if="renamingPoolId !== item.poolId"
                     class="icon-btn action-btn"
@@ -318,6 +325,7 @@ import {
   folderOpenOutline,
   chevronDownOutline,
   chevronForwardOutline,
+  optionsOutline,
 } from 'ionicons/icons'
 import type { Cluster } from '../../utils/noteUtils'
 import { sortCluster, isValidCluster, canTransposeOctave } from '../../utils/noteUtils'
@@ -331,6 +339,14 @@ const props = defineProps<{
   pools: Pool[]
   loopPoint?: number
   playingIndex?: number
+  // Drives the pool header's live repeat badge ("2/3") in place of its normal stream
+  // count, only for whichever pool is currently playing a custom repeat count — see
+  // SessionView.vue's own currentPoolRepeat computed for how this gets built.
+  currentPoolRepeat?: { poolId: string; current: number; total: number } | null
+  // Which pool (if any) the footer tray's playback drawer currently targets — lets the
+  // pool-playback icon show itself as "active" while its own drawer is open, same visual
+  // language as every other toggle icon in this file.
+  poolPlaybackContextId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -353,6 +369,7 @@ const emit = defineEmits<{
   'ungroup-pool': [id: string]
   'duplicate-pool': [id: string]
   'reorder-pool-block': [id: string, targetIndex: number]
+  'open-pool-playback': [id: string]
 }>()
 
 const voiceColors = VOICE_COLORS
@@ -473,6 +490,19 @@ function poolById(id: string): Pool | undefined {
 function poolSize(id: string): number {
   const p = poolById(id)
   return p ? p.range[1] - p.range[0] + 1 : 0
+}
+
+// The pool header's count badge: a live "2/3" repeat progress while this specific pool
+// is the one playing a custom repeat count, the plain stream count otherwise — same
+// badge spot either way, no new UI surface (Paul, 2026-10-10).
+function poolBadgeText(id: string): string {
+  const repeat = props.currentPoolRepeat
+  if (repeat && repeat.poolId === id) return `${repeat.current}/${repeat.total}`
+  return String(poolSize(id))
+}
+
+function openPoolPlaybackAction(id: string) {
+  emit('open-pool-playback', id)
 }
 
 // Lights up the pool header whenever playback is anywhere inside it — the only real
@@ -1117,6 +1147,7 @@ function confirmDelete(index: number) {
 }
 .action-btn:hover { color: var(--color-accent); }
 .action-btn.delete-btn:hover { color: #e07878; }
+.action-btn.active { color: var(--color-accent); }
 
 .edit-error {
   font-size: var(--text-xs);

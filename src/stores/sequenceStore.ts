@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { Cluster, sortCluster, isValidCluster, clustersEqual, clusterDissonance } from '../utils/noteUtils'
 import { MIDI_SEED_MIN, MIDI_SEED_MAX, MIDI_MIN, MIDI_MAX } from '../data/notes'
+import type { ArpeggioDirection } from './settingsStore'
 
 // Ceiling on a random seed's average pairwise dissonance rank (see clusterDissonance()).
 // Keeps "let it flow" from ever handing a first-time listener a raw tone cluster — tuned
@@ -28,6 +29,23 @@ export interface Pool {
   name: string
   range: [number, number]
   expanded: boolean
+  // Custom playback overrides, added 2026-10-10 — undefined (the common case) means this
+  // pool plays with whatever the global settings are, same as an ungrouped row. Each field
+  // is independently optional: a pool can override just direction, just latch, just repeat
+  // count, or any combination — opening the pool-context playback drawer doesn't write
+  // anything here on its own, only actually touching a control in that mode does. Tempo,
+  // subdivision, and time signature are deliberately NOT overridable here (Paul's own call
+  // for tempo; subdivision/time-signature change bar length itself, a harder problem not
+  // yet taken on — see the playback-settings conversation this was scoped from).
+  playback?: {
+    direction?: ArpeggioDirection
+    latchMode?: boolean
+    // 1-4 inclusive; 1 (or undefined) behaves exactly like not having a custom count at
+    // all — the pool just plays once, in its normal position. Capped at 4 by design: past
+    // that, duplicating the pool is the existing, already-built way to get more repeats
+    // (Paul, 2026-10-09) rather than growing this control's own range indefinitely.
+    repeatCount?: number
+  }
 }
 
 let poolIdCounter = 0
@@ -67,7 +85,16 @@ export const useSequenceStore = defineStore('sequence', () => {
   }
 
   function snapshotPools(): Pool[] {
-    return pools.value.map(p => ({ ...p, range: [...p.range] as [number, number] }))
+    // playback is deep-cloned too, not just range — setPoolPlayback below always writes a
+    // brand new playback object rather than mutating fields in place, but this stays a
+    // defensive second guard: without it, a snapshot and the live pool would share the
+    // same playback object reference until something happened to replace it, silently
+    // corrupting undo history the moment anything DID mutate it in place later.
+    return pools.value.map(p => ({
+      ...p,
+      range: [...p.range] as [number, number],
+      playback: p.playback ? { ...p.playback } : undefined,
+    }))
   }
 
   // Call before any mutation that should be a distinct undo step. A new mutation always
@@ -395,6 +422,26 @@ export const useSequenceStore = defineStore('sequence', () => {
     pool.name = trimmed
   }
 
+  // Merges whichever fields are provided into the pool's playback overrides — never
+  // mutates the existing playback object in place (always assigns a brand new one), so a
+  // snapshot already on the undo stack can never be silently corrupted by a later change.
+  // Skips the undo step entirely if every provided field already matches its current
+  // value (e.g. re-tapping an already-active direction button), same "don't spend an undo
+  // step on a no-op" reasoning editClusterAt/renamePool already follow elsewhere.
+  function setPoolPlayback(
+    id: string,
+    updates: { direction?: ArpeggioDirection; latchMode?: boolean; repeatCount?: number }
+  ) {
+    const pool = pools.value.find(p => p.id === id)
+    if (!pool) return
+    const current = pool.playback ?? {}
+    const unchanged = (Object.keys(updates) as (keyof typeof updates)[])
+      .every((k) => updates[k] === current[k])
+    if (unchanged) return
+    pushHistory()
+    pool.playback = { ...pool.playback, ...updates }
+  }
+
   // Drags a collapsed pool as one atomic block to a new position. `targetIndex` is the
   // sequence index (in current, pre-move numbering) the block's first row should land at
   // or just before — SequenceHistory.vue resolves this from whatever's currently sitting
@@ -479,6 +526,7 @@ export const useSequenceStore = defineStore('sequence', () => {
     ungroupPool,
     togglePoolExpanded,
     renamePool,
+    setPoolPlayback,
     reorderPoolBlock,
   }
 })

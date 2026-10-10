@@ -177,6 +177,8 @@
             :pools="sequenceStore.pools"
             :loop-point="sequenceStore.loopPoint"
             :playing-index="displayPlayingIndex"
+            :current-pool-repeat="currentPoolRepeat"
+            :pool-playback-context-id="poolPlaybackContextId"
             @audition="onHistoryAudition"
             @preview="auditionHistoryCluster"
             @delete="deleteCluster"
@@ -195,7 +197,8 @@
             @duplicate-pool="duplicatePool"
             @toggle-pool-expanded="togglePoolExpanded"
             @rename-pool="renamePool"
-            @reorder-pool-block="reorderPoolBlock" />
+            @reorder-pool-block="reorderPoolBlock"
+            @open-pool-playback="openPoolPlayback" />
         </div>
       </div>
 
@@ -236,6 +239,7 @@
           interface="action-sheet"
           :value="settingsStore.instrument"
           class="instrument-select"
+          :disabled="!!poolPlaybackContext"
           @ionChange="
             settingsStore.setInstrument(($event as CustomEvent).detail.value)
           ">
@@ -270,30 +274,44 @@
       <div class="footer-tray" :class="{ open: footerExpanded }">
         <div class="tray-inner">
           <div class="tray-row playback-row">
-            <span class="tray-label playback-label">playback</span>
+            <span class="tray-label playback-label">{{
+              poolPlaybackContext ? `pool "${poolPlaybackContext.name}"` : 'playback'
+            }}</span>
             <div class="toggle-row">
               <button
                 v-for="d in directionOptions"
                 :key="d.value"
                 class="btn-icon-outline toggle-btn"
-                :class="{ active: settingsStore.arpeggioDirection === d.value }"
+                :class="{ active: drawerDirection === d.value }"
                 :disabled="isPadInstrument && d.value !== 'chord'"
                 :title="isPadInstrument && d.value !== 'chord' ? 'a pad only really works as a chord — held, not arpeggiated' : undefined"
-                @click="settingsStore.setArpeggioDirection(d.value as any)">
+                @click="drawerDirection = d.value as any">
                 <ion-icon :icon="d.icon" />
               </button>
               <button
                 class="btn-icon-outline toggle-btn latch-btn"
-                :class="{ active: settingsStore.latchMode }"
-                :disabled="settingsStore.arpeggioDirection === 'chord'"
+                :class="{ active: drawerLatch }"
+                :disabled="drawerDirection === 'chord'"
                 title="latch — repeat to fill the bar"
-                @click="settingsStore.setLatchMode(!settingsStore.latchMode)">
-                <ion-icon :icon="settingsStore.latchMode ? lockClosedOutline : lockOpenOutline" />
+                @click="drawerLatch = !drawerLatch">
+                <ion-icon :icon="drawerLatch ? lockClosedOutline : lockOpenOutline" />
+              </button>
+            </div>
+            <div v-if="poolPlaybackContext" class="toggle-row repeat-row">
+              <span class="tray-label repeat-label">repeat</span>
+              <button
+                v-for="n in [1, 2, 3, 4]"
+                :key="n"
+                class="btn-icon-outline toggle-btn repeat-btn"
+                :class="{ active: drawerRepeatCount === n }"
+                @click="drawerRepeatCount = n">
+                {{ n }}
               </button>
             </div>
             <div class="tempo-control">
               <button
                 class="btn-icon-outline adj-btn"
+                :disabled="!!poolPlaybackContext"
                 @pointerdown="startTempoHold(-1)"
                 @pointerup="stopTempoHold"
                 @pointerleave="stopTempoHold"
@@ -303,6 +321,7 @@
               <span class="tempo-value">{{ settingsStore.tempo }}</span>
               <button
                 class="btn-icon-outline adj-btn"
+                :disabled="!!poolPlaybackContext"
                 @pointerdown="startTempoHold(1)"
                 @pointerup="stopTempoHold"
                 @pointerleave="stopTempoHold"
@@ -316,6 +335,7 @@
                   :key="sig"
                   class="btn-outline time-sig-btn"
                   :class="{ active: settingsStore.timeSignature === sig }"
+                  :disabled="!!poolPlaybackContext"
                   @click="settingsStore.setTimeSignature(sig)">
                   {{ sig }}
                 </button>
@@ -335,6 +355,7 @@
               snaps
               ticks
               :pin="false"
+              :disabled="!!poolPlaybackContext"
               :value="subdivisionIndex"
               @ionChange="onSubdivisionChange">
             </ion-range>
@@ -343,6 +364,7 @@
                 v-for="(step, i) in SUBDIVISION_STEPS"
                 :key="step.label"
                 class="icon-btn subdivision-label-btn"
+                :disabled="!!poolPlaybackContext"
                 :title="step.label"
                 @click="settingsStore.setSubdivision(step.value)">
                 <NoteGlyph
@@ -435,7 +457,7 @@
   import SequenceHistory from '../components/sequence/SequenceHistory.vue'
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
 
-  import { useSequenceStore } from '../stores/sequenceStore'
+  import { useSequenceStore, type Pool } from '../stores/sequenceStore'
   import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, SHOW_ANALOG_SYNTH_TEMP, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
@@ -532,6 +554,82 @@
   onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 
   const loopActive = ref(false)
+
+  // Which pool (if any) the footer tray's direction/latch/repeat controls currently
+  // target — null means the normal, global-settings drawer. Entered via a pool header's
+  // own playback-settings icon (SequenceHistory.vue's openPoolPlayback emit below),
+  // exited by tapping that same icon again. Auto-clears if the targeted pool stops
+  // existing (deleted/ungrouped) while open, so the drawer can never silently keep
+  // editing a pool that's no longer there.
+  const poolPlaybackContextId = ref<string | null>(null)
+  const poolPlaybackContext = computed(() =>
+    poolPlaybackContextId.value
+      ? sequenceStore.pools.find((p) => p.id === poolPlaybackContextId.value) ?? null
+      : null
+  )
+  watch(poolPlaybackContext, (pool) => {
+    if (!pool && poolPlaybackContextId.value) poolPlaybackContextId.value = null
+  })
+
+  function openPoolPlayback(id: string) {
+    poolPlaybackContextId.value = poolPlaybackContextId.value === id ? null : id
+    if (poolPlaybackContextId.value) footerExpanded.value = true
+  }
+
+  // Effective direction/latch/repeat-count for the drawer: the targeted pool's own
+  // override when set (falling back to the global value for display only, same as any
+  // ungrouped row would use), or the plain global setting when not in pool context.
+  // Setting either while in pool context writes a per-pool override and restarts
+  // playback itself if something's currently playing — the existing arpeggioDirection/
+  // latchMode watchers below only ever fire for the *global* setter, so the pool branch
+  // can't rely on them and has to trigger its own restart explicitly.
+  const drawerDirection = computed<ArpeggioDirection>({
+    get: () => poolPlaybackContext.value?.playback?.direction ?? settingsStore.arpeggioDirection,
+    set: (d) => {
+      const pool = poolPlaybackContext.value
+      if (pool) {
+        sequenceStore.setPoolPlayback(pool.id, { direction: d })
+        if (isPlaying.value) {
+          audioEngine.stopLoop(true)
+          playLoop()
+        }
+      } else {
+        settingsStore.setArpeggioDirection(d)
+      }
+    },
+  })
+
+  const drawerLatch = computed<boolean>({
+    get: () => poolPlaybackContext.value?.playback?.latchMode ?? settingsStore.latchMode,
+    set: (v) => {
+      const pool = poolPlaybackContext.value
+      if (pool) {
+        sequenceStore.setPoolPlayback(pool.id, { latchMode: v })
+        if (isPlaying.value) {
+          audioEngine.stopLoop(true)
+          playLoop()
+        }
+      } else {
+        settingsStore.setLatchMode(v)
+      }
+    },
+  })
+
+  // Only meaningful in pool context — there's no "global repeat count" concept, so
+  // reading this outside pool context (shouldn't happen, the control is v-if'd away)
+  // would just fall back to 1.
+  const drawerRepeatCount = computed<number>({
+    get: () => poolPlaybackContext.value?.playback?.repeatCount ?? 1,
+    set: (n) => {
+      const pool = poolPlaybackContext.value
+      if (!pool) return
+      sequenceStore.setPoolPlayback(pool.id, { repeatCount: n })
+      if (isPlaying.value) {
+        audioEngine.stopLoop(true)
+        playLoop()
+      }
+    },
+  })
 
   const directionOptions = [
     { value: 'up', icon: arrowUpOutline },
@@ -966,35 +1064,132 @@
   // computed's own comment.
   const selectedIndex = ref(-1)
 
-  // What actually got scheduled on the engine for the current/most recent play — loop-
-  // range when set, an ephemeral "from selected row" range when that's what playOnce()
-  // used instead, or null for the whole flow. A separate ref from loopRange (rather than
-  // reusing it) for the same reason selectedIndex is kept separate from playbackSequence:
-  // this is one-shot, not persistent intent, and must never leak into export scope.
-  const activePlaybackRange = ref<[number, number] | null>(null)
+  // Pool-aware playback: resolves pool direction/latch overrides and repeat counts into
+  // a flat, already-expanded timeline that the engine schedules directly — the engine
+  // itself never needs to know pools exist (see PlaybackSettings.directionOverrides/
+  // latchOverrides in useAudioEngine.ts). realIndex/repeatInfo let displayPlayingIndex
+  // and the pool header's live repeat counter map an engine position back to "which real
+  // row, which repeat" (Paul, 2026-10-10).
+  interface PlaybackPlan {
+    clusters: Cluster[]
+    directionOverrides: (ArpeggioDirection | undefined)[]
+    latchOverrides: (boolean | undefined)[]
+    realIndex: number[]
+    repeatInfo: ([current: number, total: number] | null)[]
+  }
 
-  function engineSequenceFor(range: [number, number] | null): Cluster[] {
-    const base = range
-      ? sequenceStore.sequence.slice(range[0], range[1] + 1)
-      : sequenceStore.sequence
-    return reversePlayback.value ? [...base].reverse() : base
+  function poolContaining(i: number): Pool | undefined {
+    return sequenceStore.pools.find((p) => i >= p.range[0] && i <= p.range[1])
+  }
+
+  function buildPlaybackPlan(range: [number, number] | null): PlaybackPlan {
+    const seq = sequenceStore.sequence
+    const lo = range ? range[0] : 0
+    const hi = range ? range[1] : seq.length - 1
+
+    const clusters: Cluster[] = []
+    const directionOverrides: (ArpeggioDirection | undefined)[] = []
+    const latchOverrides: (boolean | undefined)[] = []
+    const realIndex: number[] = []
+    const repeatInfo: ([number, number] | null)[] = []
+
+    function pushRow(r: number, pool: Pool | undefined, info: [number, number] | null) {
+      clusters.push(seq[r])
+      directionOverrides.push(pool?.playback?.direction)
+      latchOverrides.push(pool?.playback?.latchMode)
+      realIndex.push(r)
+      repeatInfo.push(info)
+    }
+
+    if (reversePlayback.value) {
+      // Repeats aren't supported in reverse yet (Paul's "continue the repeats" ask was
+      // specifically about the forward start-from-selected case) — every row plays once,
+      // in reverse order, same as before; direction/latch overrides still apply since
+      // they don't depend on play order.
+      for (let i = hi; i >= lo; i--) pushRow(i, poolContaining(i), null)
+      return { clusters, directionOverrides, latchOverrides, realIndex, repeatInfo }
+    }
+
+    let i = lo
+    // Starting partway through a pool that has repeats: the partial first pass (from
+    // here to the pool's end) counts as repeat 1, then the pool plays in full for
+    // whatever repeats remain — "continue with the repeats from where it is, not from
+    // the beginning" (Paul, 2026-10-10) — rather than silently dropping the repeat count
+    // just because playback didn't start at the pool's own first row.
+    const startingPool = poolContaining(lo)
+    if (
+      startingPool &&
+      lo > startingPool.range[0] &&
+      startingPool.range[1] <= hi &&
+      (startingPool.playback?.repeatCount ?? 1) > 1
+    ) {
+      const total = startingPool.playback?.repeatCount ?? 1
+      for (let r = lo; r <= startingPool.range[1]; r++) pushRow(r, startingPool, [1, total])
+      for (let rep = 2; rep <= total; rep++) {
+        for (let r = startingPool.range[0]; r <= startingPool.range[1]; r++) {
+          pushRow(r, startingPool, [rep, total])
+        }
+      }
+      i = startingPool.range[1] + 1
+    }
+
+    while (i <= hi) {
+      const pool = poolContaining(i)
+      // Only a pool fully contained within the playing range repeats — one straddling
+      // the range's edge just plays its in-range rows once, same as an ungrouped row,
+      // rather than defining partial-repeat semantics for a boundary case.
+      const fullyContained = !!pool && pool.range[0] >= lo && pool.range[1] <= hi
+      const repeatCount = fullyContained ? (pool!.playback?.repeatCount ?? 1) : 1
+      if (pool && repeatCount > 1 && i === pool.range[0]) {
+        for (let rep = 1; rep <= repeatCount; rep++) {
+          for (let r = pool.range[0]; r <= pool.range[1]; r++) pushRow(r, pool, [rep, repeatCount])
+        }
+        i = pool.range[1] + 1
+      } else {
+        pushRow(i, pool, null)
+        i++
+      }
+    }
+
+    return { clusters, directionOverrides, latchOverrides, realIndex, repeatInfo }
+  }
+
+  // What actually got scheduled on the engine for the current/most recent play — mirrors
+  // activePlaybackRange's old role (mapping engine positions back to real rows for the
+  // highlight) but now also carries repeat progress for the pool header's live counter.
+  // Rebuilt fresh on every playLoop()/startFullLoop()/playOnce() call, same "one-shot,
+  // not persistent" treatment selectedIndex gets.
+  const activePlaybackPlan = ref<PlaybackPlan | null>(null)
+
+  function settingsForPlan(plan: PlaybackPlan) {
+    return {
+      ...playbackSettings.value,
+      directionOverrides: plan.directionOverrides,
+      latchOverrides: plan.latchOverrides,
+    }
   }
 
   // playingIndex from the engine is relative to whatever was actually scheduled (the
-  // sliced range and/or reversed order, when active) — map it back to the full flow's
-  // indices so SequenceHistory highlights the right row instead of always starting at
-  // row 1, or counting backwards when reversed.
+  // expanded, pool-aware timeline) — map it back to the full flow's real row indices so
+  // SequenceHistory highlights the right row instead of always starting at row 1,
+  // counting backwards when reversed, or losing its place during a pool's repeats.
   const displayPlayingIndex = computed(() => {
     if (!isPlaying.value || playingIndex.value < 0) return -1
-    const range = activePlaybackRange.value
-    const rangeOffset = range ? range[0] : 0
-    const scheduledLength = range
-      ? range[1] - range[0] + 1
-      : sequenceStore.sequence.length
-    const indexInSlice = reversePlayback.value
-      ? scheduledLength - 1 - playingIndex.value
-      : playingIndex.value
-    return indexInSlice + rangeOffset
+    return activePlaybackPlan.value?.realIndex[playingIndex.value] ?? -1
+  })
+
+  // Drives the pool header's live "2/3" repeat counter (replacing its normal stream-count
+  // badge while that specific pool is the one playing) — see SequenceHistory.vue's own
+  // poolIsPlaying-adjacent handling. null whenever the currently playing row isn't inside
+  // a pool with a custom repeat count, which is the common case.
+  const currentPoolRepeat = computed<{ poolId: string; current: number; total: number } | null>(() => {
+    if (!isPlaying.value || playingIndex.value < 0) return null
+    const plan = activePlaybackPlan.value
+    const info = plan?.repeatInfo[playingIndex.value]
+    if (!plan || !info) return null
+    const pool = poolContaining(plan.realIndex[playingIndex.value])
+    if (!pool) return null
+    return { poolId: pool.id, current: info[0], total: info[1] }
   })
 
   // The loop-mode half of "start from selected": with no explicit loop-range and a
@@ -1013,11 +1208,12 @@
       const leadInRange: [number, number] = reversePlayback.value
         ? [0, s]
         : [s, sequenceStore.sequence.length - 1]
-      activePlaybackRange.value = leadInRange
+      const plan = buildPlaybackPlan(leadInRange)
+      activePlaybackPlan.value = plan
       selectedIndex.value = -1
       audioEngine.playSequence(
-        engineSequenceFor(leadInRange),
-        playbackSettings.value,
+        plan.clusters,
+        settingsForPlan(plan),
         false,
         () => {
           if (loopActive.value) startFullLoop()
@@ -1029,10 +1225,11 @@
   }
 
   function startFullLoop() {
-    activePlaybackRange.value = loopRange.value
+    const plan = buildPlaybackPlan(loopRange.value)
+    activePlaybackPlan.value = plan
     audioEngine.playSequence(
-      engineSequenceFor(activePlaybackRange.value),
-      playbackSettings.value,
+      plan.clusters,
+      settingsForPlan(plan),
       true
     )
   }
@@ -1050,10 +1247,11 @@
       // reverse toggle.
       range = reversePlayback.value ? [0, s] : [s, sequenceStore.sequence.length - 1]
     }
-    activePlaybackRange.value = range
+    const plan = buildPlaybackPlan(range)
+    activePlaybackPlan.value = plan
     audioEngine.playSequence(
-      engineSequenceFor(range),
-      playbackSettings.value,
+      plan.clusters,
+      settingsForPlan(plan),
       false
     )
     selectedIndex.value = -1
@@ -1822,5 +2020,20 @@
      the arpeggiator row but its own independent toggle, not a 6th direction option */
   .latch-btn {
     margin-left: auto;
+  }
+
+  /* Only rendered at all in pool-playback context (v-if, not just hidden) — there's no
+     global "repeat count" concept this row could otherwise fall back to showing, unlike
+     every other control in this tray, which stays mounted and just gets :disabled. */
+  .repeat-row {
+    align-items: center;
+  }
+  .repeat-label {
+    margin-right: 0.2rem;
+  }
+  .repeat-btn {
+    min-width: 2.2rem;
+    font-size: var(--text-sm);
+    font-family: var(--font-mono);
   }
 </style>

@@ -562,6 +562,17 @@ export interface PlaybackSettings {
   beatsPerBar?: number // time signature's numerator (4 for 4/4, 3 for 3/4) — defaults
   // to 4 if omitted. Matches midiUtils.ts's own beatsPerBar option, which shares this
   // same default, so the two never disagree about what "a bar" means.
+  // Per-cluster overrides (pool playback settings, added 2026-10-10) — same length as
+  // the `sequence` array passed to playSequence(); a defined entry at index i overrides
+  // direction/latch for cluster i specifically. These only ever affect that cluster's
+  // arpeggiation *pattern* (which notes play when, within its bar) — bar length itself
+  // (clusterDuration, computed from `direction`/`subdivision` above) stays one uniform
+  // value for the whole sequence regardless, same reasoning subdivision/time-signature
+  // staying global already rests on: only pattern varies per pool, never bar length.
+  // Omitted entirely by every caller except SessionView.vue's pool-aware playback path —
+  // export, cluster preview, etc. all keep working exactly as before.
+  directionOverrides?: (ArpeggioDirection | undefined)[]
+  latchOverrides?: (boolean | undefined)[]
 }
 
 // Fixed note durations for plucky/percussive instruments
@@ -1226,15 +1237,25 @@ function playSequence(
 
   const dur = noteDuration()
 
-  const events = sequence.flatMap((cluster, i) =>
-    buildClusterEvents(
+  // Per cluster, not hoisted out of the loop: a pool-overridden direction can switch a
+  // specific cluster into/out of 'chord', which needs its own strum-speed interval
+  // (chordInterval) rather than the arpeggio interval every other direction uses — the
+  // single `interval`/`isChord` computed above is only ever the bar-length baseline now,
+  // not what actually gets used to space out a given cluster's notes.
+  const events = sequence.flatMap((cluster, i) => {
+    const clusterDirection = settings.directionOverrides?.[i] ?? settings.direction
+    const clusterLatch = settings.latchOverrides?.[i] ?? (settings.latch ?? false)
+    const clusterInterval = clusterDirection === 'chord'
+      ? chordInterval(currentInstrumentType)
+      : intervalFromBpm(settings.bpm, settings.subdivision)
+    return buildClusterEvents(
       cluster,
-      settings.direction,
-      interval,
+      clusterDirection,
+      clusterInterval,
       clusterDuration,
-      settings.latch ?? false
+      clusterLatch
     ).map((e) => ({ time: i * clusterDuration + e.time, notes: e.notes }))
-  )
+  })
 
   const totalDuration = sequence.length * clusterDuration
 
