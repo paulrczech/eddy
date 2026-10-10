@@ -768,17 +768,24 @@ const TAPE_DELAY_SETTINGS: Partial<
 // one instrument, so any future instrument configured with DELAY_SETTINGS gets the same
 // treatment for free. Paul's own ear tuned these by direct comparison: half notes ->
 // quarter-note echo, quarter notes -> eighth-note echo, triplets -> sixteenth-note-
-// triplet echo, sixteenth notes -> quarter-note triplet (deliberately not "half the
-// grid" — the dotted-eighth fallback read as messy against 16ths specifically at slower
-// tempos, and a quarter-note-triplet echo gives a 3-against-2 feel against the straight
-// 16th-note grid instead). Eighth notes are the one case still on the original fixed
-// dotted-eighth value, since that's the one grid it was never reported as a problem on.
+// triplet echo, eighth notes -> dotted-eighth (the one grid still on its original fixed
+// value, confirmed still good with the tape delay too, 2026-10-10).
+//
+// Sixteenth notes were originally quarter-note triplet ('4t', deliberately not "half the
+// grid" — a dotted-eighth echo read as messy there, and 4t gave a 3-against-2 feel instead)
+// — that held up fine against the old plain ping-pong delay, but against the tape delay's
+// slower-decaying, darkened repeats it read as "too fast, like uneven 32nd notes": at 16th-
+// note speed the source notes arrive faster than 4t's own interval, so echoes from several
+// different source notes overlap at positions that don't line up with the grid, reading as
+// chaotic density rather than a clean cross-rhythm. Backed off to the next slower step in
+// the same triplet family ('2t', half-note triplet) to thin that overlap out — an
+// experiment Paul's ear still needs to confirm, not a re-tuned final value yet.
 function delayTimeForSubdivision(subdivision: Subdivision): string {
   switch (subdivision) {
     case 0.5: return '4n'
     case 1: return '8n'
     case 3: return '16t'
-    case 4: return '4t'
+    case 4: return '2t'
     default: return '8n.' // 2 (8th)
   }
 }
@@ -816,10 +823,11 @@ function createTapeDelay(options: {
   // maxDelay is a fixed buffer size set once at construction — Tone.Delay's delayTime
   // Param clamps its own maxValue to whatever that was, so a later live update (the grid-
   // lock in playSequence()) would silently cap short if tempo drops after construction.
-  // Sized to the slowest allowed tempo's longest mapped grid value (40bpm quarter note =
-  // 1.5s, see delayTimeForSubdivision/settingsStore's tempo clamp) with margin, rather
-  // than deriving it from delayTime at whatever bpm happens to be active right now.
-  const delayNode = new Tone.Delay(options.delayTime, 2)
+  // Sized to the slowest allowed tempo's longest mapped grid value (40bpm half-note
+  // triplet, delayTimeForSubdivision's '2t' case, = 2.0s exactly — see settingsStore's
+  // tempo clamp) with real margin above that exact figure, rather than deriving it from
+  // delayTime at whatever bpm happens to be active right now.
+  const delayNode = new Tone.Delay(options.delayTime, 3)
   const feedbackFilter = new Tone.Filter(options.filterFrequency, 'lowpass', options.filterRolloff)
   const feedbackGain = new Tone.Gain(options.feedback)
 
