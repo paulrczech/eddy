@@ -134,6 +134,25 @@
               </div>
             </div>
 
+            <div class="sheet-group">
+              <p class="sheet-label">starting streams</p>
+              <div class="seed-count-row">
+                <button
+                  class="icon-btn seed-count-btn"
+                  :disabled="settingsStore.seedStreamCount <= 1"
+                  @click="settingsStore.setSeedStreamCount(settingsStore.seedStreamCount - 1)">
+                  <IonIcon :icon="removeOutline" />
+                </button>
+                <span class="seed-count-value">{{ settingsStore.seedStreamCount }}</span>
+                <button
+                  class="icon-btn seed-count-btn"
+                  :disabled="settingsStore.seedStreamCount >= 8"
+                  @click="settingsStore.setSeedStreamCount(settingsStore.seedStreamCount + 1)">
+                  <IonIcon :icon="addOutline" />
+                </button>
+              </div>
+            </div>
+
             <button class="btn-primary" @click="saveDefault()">
               save as default
             </button>
@@ -245,7 +264,7 @@
     IonSegmentButton,
     IonLabel,
   } from '@ionic/vue'
-  import { playOutline, helpCircleOutline, closeOutline, chevronForwardOutline } from 'ionicons/icons'
+  import { playOutline, helpCircleOutline, closeOutline, chevronForwardOutline, removeOutline, addOutline } from 'ionicons/icons'
   import AboutModal from '../components/ui/AboutModal.vue'
   import SavedSessions from '../components/ui/SavedSessions.vue'
   import type { SavedSession } from '../utils/sessionStorage'
@@ -253,6 +272,8 @@
   import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, SHOW_ANALOG_SYNTH_TEMP } from '../stores/settingsStore'
   import { useSequenceStore } from '../stores/sequenceStore'
   import { useAudioEngine, INSTRUMENT_NOTE_RANGE } from '../composables/useAudioEngine'
+  import { useStrategyDeck } from '../composables/useStrategyDeck'
+  import { generateCandidates } from '../composables/useVoiceLeading'
   import {
     midiToName,
     MAX_CLUSTER_SPREAD,
@@ -453,6 +474,44 @@
     manualMidi.value[voiceIndex] = event.detail.value
   }
 
+  // Auto-chains `count - 1` real voice-led steps onto whatever single cluster start()/
+  // randomStart() just seeded, before the session ever becomes visible — a strategy
+  // drawn, candidates generated from the previous step, one picked at random, confirmed,
+  // repeat. Deliberately the exact same draw-generate-confirm shape SessionView.vue's own
+  // advance() uses (same retry-on-dead-end bound, same VoiceLeadingOptions shape), just
+  // run here with a random pick instead of a tap, and run in a tight loop instead of one
+  // step per user action (Paul, 2026-10-10 — a workflow he'd found through real use:
+  // generate several rough streams fast, then hand-edit each one, rather than one
+  // strategy card at a time). A fresh useStrategyDeck() instance scoped to just this
+  // call — entirely separate from the one SessionView.vue instantiates once the user
+  // actually lands there, so nothing here leaks into or interferes with that screen's own
+  // deck state. If a drawn strategy ever has no valid moves even after retrying, the
+  // chain just stops early rather than looping forever or pushing an invalid cluster —
+  // same "always have a bounded, safe fallback" principle randomStart() itself follows
+  // for the seed cluster.
+  function autoChainStreams(count: number) {
+    if (count <= 1) return
+    const { draw } = useStrategyDeck(() => settingsStore.keyLockActive)
+    for (let i = 1; i < count; i++) {
+      const current = sequenceStore.currentCluster
+      if (!current) break
+      let attempts = 0
+      let candidates: Cluster[] = []
+      while (attempts < 5 && candidates.length === 0) {
+        const drawn = draw()
+        if (!drawn) break
+        candidates = generateCandidates(current, drawn, {
+          keyLockActive: settingsStore.keyLockActive,
+          keyRoot: settingsStore.keyRoot,
+          scaleId: settingsStore.scaleId,
+        })
+        attempts++
+      }
+      if (candidates.length === 0) break
+      sequenceStore.confirm(candidates[Math.floor(Math.random() * candidates.length)])
+    }
+  }
+
   async function startRandom() {
     // A new flow starts from the default playback settings, not whatever tempo/
     // direction/grid/instrument a previous flow happened to leave live in the store —
@@ -462,6 +521,7 @@
     await init(settingsStore.instrument)
     setAmbience(settingsStore.ambience)
     sequenceStore.randomStart(settingsStore.voiceCount)
+    autoChainStreams(settingsStore.seedStreamCount)
     router.push('/session')
   }
 
@@ -526,6 +586,7 @@
     await init(settingsStore.instrument)
     setAmbience(settingsStore.ambience)
     sequenceStore.start(sorted, range)
+    autoChainStreams(settingsStore.seedStreamCount)
     router.push('/session')
   }
 </script>

@@ -94,6 +94,7 @@ interface StoredDefaults {
   latchMode?: boolean
   ambience?: number
   timeSignature?: TimeSignature
+  seedStreamCount?: number              // optional — old saved defaults predate this
 }
 
 // Hardcoded fallback for the per-flow playback settings (instrument/tempo/direction/grid/
@@ -120,6 +121,19 @@ const PLAYBACK_FALLBACK = {
 export const useSettingsStore = defineStore('settings', () => {
   const voiceCount = ref<VoiceCount>(3)
   const movementSize = ref<MovementSize>('step')
+  // How many streams a new session starts with — 1 (play a strategy card yourself from
+  // here) is the factory default and covers the app's whole normal, guided-discovery
+  // identity; anything higher auto-chains that many real voice-led steps (a random
+  // strategy drawn, candidates generated from the previous step, one picked at random,
+  // confirmed, repeat — see HomeView.vue's autoChainStreams()) before the session ever
+  // becomes visible. Deliberately opt-in, buried in settings, never raised by onboarding
+  // — this serves a workflow Paul found through real use (generate several rough streams
+  // fast, then hand-edit each one), not something a first-time user should ever be
+  // nudged toward before they've even seen a strategy card (Paul, 2026-10-10). Capped at
+  // 8 — Paul's own example ceiling, and consistent with pools' own repeat-count cap
+  // reasoning: past a small bound, there's always another existing tool (here, duplicate
+  // mode) to get more.
+  const seedStreamCount = ref<number>(1)
   const keyLockMode = ref<KeyLockMode>('free')
   const keyRoot = ref<number>(60)    // MIDI C4
   const scaleId = ref<string>('major')
@@ -150,6 +164,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function setVoiceCount(n: VoiceCount) { voiceCount.value = n }
   function setMovementSize(m: MovementSize) { movementSize.value = m }
+  function setSeedStreamCount(n: number) { seedStreamCount.value = Math.min(8, Math.max(1, n)) }
   function setKeyLockMode(mode: KeyLockMode) { keyLockMode.value = mode }
   function setKeyRoot(midi: number) { keyRoot.value = midi }
   function setScaleId(id: string) { scaleId.value = id }
@@ -174,6 +189,7 @@ export const useSettingsStore = defineStore('settings', () => {
       latchMode: latchMode.value,
       ambience: ambience.value,
       timeSignature: timeSignature.value,
+      seedStreamCount: seedStreamCount.value,
     }
     localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults))
   }
@@ -186,6 +202,7 @@ export const useSettingsStore = defineStore('settings', () => {
       if (defaults.voiceCount) voiceCount.value = defaults.voiceCount
       if (defaults.movementSize) movementSize.value = defaults.movementSize
       if (defaults.instrument) instrument.value = defaults.instrument
+      if (defaults.seedStreamCount) seedStreamCount.value = defaults.seedStreamCount
     } catch {
       // corrupt storage — ignore
     }
@@ -219,6 +236,7 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     voiceCount,
     movementSize,
+    seedStreamCount,
     keyLockMode,
     keyRoot,
     scaleId,
@@ -234,6 +252,7 @@ export const useSettingsStore = defineStore('settings', () => {
     keyLockActive,
     setVoiceCount,
     setMovementSize,
+    setSeedStreamCount,
     setKeyLockMode,
     setKeyRoot,
     setScaleId,
