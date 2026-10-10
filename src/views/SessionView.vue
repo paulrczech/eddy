@@ -271,11 +271,11 @@
         </button>
       </div>
 
-      <div class="footer-tray" :class="{ open: footerExpanded }">
+      <div ref="footerTrayRef" class="footer-tray" :class="{ open: footerExpanded }">
         <div class="tray-inner">
           <div class="tray-row playback-row">
             <span class="tray-label playback-label">{{
-              poolPlaybackContext ? `pool "${poolPlaybackContext.name}"` : 'playback'
+              poolPlaybackContext ? `pool '${poolPlaybackContext.name}' playback` : 'playback'
             }}</span>
             <div class="toggle-row">
               <button
@@ -540,14 +540,28 @@
   const candidatesBlockRef = ref<HTMLElement | null>(null)
   const confirmBlockRef = ref<HTMLElement | null>(null)
   const nowBlockRef = ref<HTMLElement | null>(null)
+  // The footer tray itself — used below so tapping its own controls (direction, latch,
+  // repeat count) never counts as "tapping away" from pool-context mode. The pool
+  // header's own playback-settings icon never reaches this handler at all regardless
+  // (it's bound with .stop), so switching straight from one pool's context to another's
+  // is handled entirely by openPoolPlayback() itself, not by this outside-click reset.
+  const footerTrayRef = ref<HTMLElement | null>(null)
 
   function handleOutsideClick(event: MouseEvent) {
-    if (selectedIndices.value.length === 0) return
     const target = event.target as Node
-    if (candidatesBlockRef.value?.contains(target)) return
-    if (confirmBlockRef.value?.contains(target)) return
-    if (nowBlockRef.value?.contains(target)) return
-    selectedIndices.value = []
+    if (selectedIndices.value.length > 0) {
+      const insideCandidateUi =
+        candidatesBlockRef.value?.contains(target) ||
+        confirmBlockRef.value?.contains(target) ||
+        nowBlockRef.value?.contains(target)
+      if (!insideCandidateUi) selectedIndices.value = []
+    }
+    // "Tap outside the pool header [or the drawer itself] resets to global playback"
+    // (Paul, 2026-10-10) — rather than requiring the same icon be tapped again to back
+    // out of pool-context mode.
+    if (poolPlaybackContextId.value && !footerTrayRef.value?.contains(target)) {
+      poolPlaybackContextId.value = null
+    }
   }
 
   onMounted(() => document.addEventListener('click', handleOutsideClick))

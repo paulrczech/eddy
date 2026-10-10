@@ -21,7 +21,7 @@
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-.btn-outline:hover {
+.btn-outline:hover:not(:disabled) {
   border-color: var(--color-text-dim);
   color: var(--color-text);
 }
@@ -29,6 +29,10 @@
   border-color: var(--color-accent);
   color: var(--color-text);
   background: var(--color-accent);
+}
+.btn-outline:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* Borderless, tinted — toolbar/nav icons and in-content icon-only affordances. Visible
