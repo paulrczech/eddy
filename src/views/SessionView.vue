@@ -7,7 +7,23 @@
             <ion-icon :icon="arrowBack" /> new
           </button>
         </ion-buttons>
-        <ion-title class="session-title">{{ headerTitle }}</ion-title>
+        <ion-title class="session-title">
+          <input
+            v-if="isEditingTitle"
+            ref="titleInputRef"
+            v-model="editTitleName"
+            class="session-title-input"
+            @keydown.enter="commitTitleRename"
+            @keydown.escape="cancelTitleRename"
+            @blur="commitTitleRename" />
+          <span
+            v-else
+            class="session-title-text"
+            :class="{ editable: !!sequenceStore.savedSessionId }"
+            @click="startEditTitle">
+            {{ headerTitle }}
+          </span>
+        </ion-title>
         <ion-buttons slot="end">
           <button
             class="icon-btn save-btn"
@@ -419,7 +435,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+  import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
   import { onIonViewWillEnter } from '@ionic/vue'
   import { useRouter } from 'vue-router'
   import {
@@ -480,6 +496,7 @@
     saveSession,
     overwriteSession,
     listSessions,
+    renameSession,
   } from '../utils/sessionStorage'
   import {
     exportSequenceAsMidi,
@@ -1395,7 +1412,16 @@
 
   const showSaveConfirm = ref(false)
 
+  // listSessions() reads localStorage directly, not a reactive source — savedSessionName
+  // below only re-derives when its tracked reactive deps change (just savedSessionId), so a
+  // rename via renameSession() wouldn't otherwise be picked up (same id, same session, only
+  // the name changed). Bumped by commitTitleRename() purely as a dependency to force
+  // recomputation, same problem SavedSessions.vue solves differently (it re-reads
+  // listSessions() into its own local ref after every mutation).
+  const titleRenameTick = ref(0)
+
   const savedSessionName = computed(() => {
+    titleRenameTick.value
     const id = sequenceStore.savedSessionId
     if (!id) return ''
     return listSessions().find((s) => s.id === id)?.name ?? 'this flow'
@@ -1407,6 +1433,37 @@
   // filenames that leave the app, but is redundant here since the app chrome already
   // supplies that context — stripped for display only, not from the stored name itself.
   const headerTitle = computed(() => savedSessionName.value.replace(/^eddy-/, '') || 'eddy')
+
+  // Inline title rename — only meaningful once a session is actually saved (nothing to
+  // rename in Past Flows otherwise), so the title stays plain, non-interactive text for a
+  // fresh/unsaved session, same "eddy" fallback as headerTitle above. Mirrors
+  // SavedSessions.vue's own tap-to-rename pattern (prefill, select-all, commit on
+  // enter/blur, Escape to cancel without saving) rather than inventing a different one.
+  const isEditingTitle = ref(false)
+  const editTitleName = ref('')
+  const titleInputRef = ref<HTMLInputElement | null>(null)
+
+  function startEditTitle() {
+    if (!sequenceStore.savedSessionId) return
+    editTitleName.value = savedSessionName.value
+    isEditingTitle.value = true
+    nextTick(() => titleInputRef.value?.select())
+  }
+
+  function commitTitleRename() {
+    if (!isEditingTitle.value) return
+    const id = sequenceStore.savedSessionId
+    const trimmed = editTitleName.value.trim()
+    if (id && trimmed) {
+      renameSession(id, trimmed)
+      titleRenameTick.value++
+    }
+    isEditingTitle.value = false
+  }
+
+  function cancelTitleRename() {
+    isEditingTitle.value = false
+  }
 
   function flashSaved() {
     savedFlash.value = true
@@ -1633,6 +1690,33 @@
        back button) doesn't actually need as much room. */
     padding-inline-start: calc(3 * var(--tap-min));
     padding-inline-end: calc(3 * var(--tap-min));
+  }
+
+  .session-title-text.editable {
+    cursor: pointer;
+  }
+  .session-title-text.editable:active {
+    color: var(--color-text);
+  }
+
+  /* Matches .session-title's own font/size/color exactly so swapping to edit mode doesn't
+     shift layout — border-bottom (not a full input border) is the only visual delta,
+     signaling "this is editable" without looking like a generic form field. */
+  .session-title-input {
+    width: 100%;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--color-accent);
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    text-align: center;
+    color: var(--color-text);
+    padding: 0;
+  }
+  .session-title-input:focus {
+    outline: none;
   }
 
   /* .icon-btn (box model, touch target) comes from theme/buttons.css — back-to-home
