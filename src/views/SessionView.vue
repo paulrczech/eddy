@@ -7,7 +7,7 @@
             <ion-icon :icon="arrowBack" /> new
           </button>
         </ion-buttons>
-        <ion-title class="session-title">eddy</ion-title>
+        <ion-title class="session-title">{{ headerTitle }}</ion-title>
         <ion-buttons slot="end">
           <button
             class="icon-btn save-btn"
@@ -1400,6 +1400,13 @@
     if (!id) return ''
     return listSessions().find((s) => s.id === id)?.name ?? 'this flow'
   })
+
+  // Header title mirrors a saved file's name back to the user (Logic/Docs convention) —
+  // falls back to the "eddy" wordmark for a fresh/unsaved session. The "eddy-" default-name
+  // prefix (see defaultSessionName() in sessionStorage.ts) earns its keep on exported
+  // filenames that leave the app, but is redundant here since the app chrome already
+  // supplies that context — stripped for display only, not from the stored name itself.
+  const headerTitle = computed(() => savedSessionName.value.replace(/^eddy-/, '') || 'eddy')
 
   function flashSaved() {
     savedFlash.value = true
