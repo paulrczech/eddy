@@ -7,7 +7,7 @@
             <ion-icon :icon="arrowBack" /> new
           </button>
         </ion-buttons>
-        <ion-title class="session-title">{{ headerTitle }}</ion-title>
+        <ion-title size="small" class="session-title">{{ headerTitle }}</ion-title>
         <ion-buttons slot="end">
           <button
             class="icon-btn save-btn"
