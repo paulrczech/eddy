@@ -136,21 +136,14 @@
 
             <div class="sheet-group">
               <p class="sheet-label">starting streams</p>
-              <div class="seed-count-row">
-                <button
-                  class="icon-btn seed-count-btn"
-                  :disabled="settingsStore.seedStreamCount <= 1"
-                  @click="settingsStore.setSeedStreamCount(settingsStore.seedStreamCount - 1)">
-                  <IonIcon :icon="removeOutline" />
-                </button>
-                <span class="seed-count-value">{{ settingsStore.seedStreamCount }}</span>
-                <button
-                  class="icon-btn seed-count-btn"
-                  :disabled="settingsStore.seedStreamCount >= 8"
-                  @click="settingsStore.setSeedStreamCount(settingsStore.seedStreamCount + 1)">
-                  <IonIcon :icon="addOutline" />
-                </button>
-              </div>
+              <IonSegment
+                class="seed-count-segment"
+                :value="settingsStore.seedStreamCount"
+                @ionChange="settingsStore.setSeedStreamCount(Number(($event as CustomEvent).detail.value))">
+                <IonSegmentButton v-for="n in [1, 2, 3, 4, 5, 6, 7, 8]" :key="n" :value="n">
+                  <IonLabel>{{ n }}</IonLabel>
+                </IonSegmentButton>
+              </IonSegment>
             </div>
 
             <button class="btn-primary" @click="saveDefault()">
@@ -264,7 +257,7 @@
     IonSegmentButton,
     IonLabel,
   } from '@ionic/vue'
-  import { playOutline, helpCircleOutline, closeOutline, chevronForwardOutline, removeOutline, addOutline } from 'ionicons/icons'
+  import { playOutline, helpCircleOutline, closeOutline, chevronForwardOutline } from 'ionicons/icons'
   import AboutModal from '../components/ui/AboutModal.vue'
   import SavedSessions from '../components/ui/SavedSessions.vue'
   import type { SavedSession } from '../utils/sessionStorage'

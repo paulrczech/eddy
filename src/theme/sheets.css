@@ -100,24 +100,12 @@ ion-segment-button {
   white-space: nowrap;
 }
 
-/* Starting-streams stepper (settings sheet) — a 1-8 bounded range, same stepper shape
-   as SessionView's own tempo +/- control, not an ion-segment: 8 options in one
-   non-scrollable row (scrollable ion-segment paints blank labels in WKWebView sheets,
-   see CLAUDE.md) would be too cramped to fit cleanly the way Voices'/Drift's smaller
-   option counts do. */
-.seed-count-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-.seed-count-value {
-  font-size: var(--text-base);
-  font-family: var(--font-mono);
-  color: var(--color-text);
-  min-width: 1.4rem;
-  text-align: center;
-}
-.seed-count-btn {
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+/* Starting-streams (settings sheet) — 8 options, but single digits rather than Drift's
+   multi-character labels, so the same tightened-padding treatment that merely keeps
+   Drift's 5 text labels from overflowing fits these 8 numbers comfortably. */
+.seed-count-segment ion-segment-button {
+  --padding-start: 0.1rem;
+  --padding-end: 0.1rem;
+  min-width: 0;
+  font-size: var(--text-xs);
 }
