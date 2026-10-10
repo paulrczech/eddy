@@ -123,6 +123,8 @@ async function rebuildAudioContext(): Promise<void> {
   outputTapeDelay = null
   disposeQuietly('outputFilter', outputFilter)
   outputFilter = null
+  disposeQuietly('outputAutoFilter', outputAutoFilter)
+  outputAutoFilter = null
 
   Tone.setContext(new AudioContext(), true)
   await startToneWithTimeout()
@@ -133,6 +135,7 @@ async function rebuildAudioContext(): Promise<void> {
   outputDelay = chain.delay
   outputTapeDelay = chain.tapeDelay
   outputFilter = chain.filter
+  outputAutoFilter = chain.autoFilter
 
   const sampler = await createSampler(buffers, instrumentType)
   if (chain.firstStage) {
@@ -705,6 +708,23 @@ const FILTER_SETTINGS: Partial<
   Record<InstrumentType, { frequency: number; rolloff: Tone.FilterRollOff }>
 > = {}
 
+// Filter sweep — a slow, free-running LFO wobbling the cutoff up and down, for a
+// subtly-evolving texture rather than a fixed tone color (Paul's side-question from the
+// tape delay session: "some type of filter sweep effect where the sound subtly changes
+// over time"). Unlike FILTER_SETTINGS above (a fixed, static cutoff), this is Tone's own
+// built-in AutoFilter — a real out-of-the-box fit, unlike the tape delay above which
+// needed hand-wired primitives. Deliberately NOT synced to tempo/grid (no
+// delayTimeForSubdivision-style live update) — the point is a slow ambient drift
+// independent of whatever rhythm is playing, not a rhythmic wah locked to the beat.
+const AUTO_FILTER_SETTINGS: Partial<
+  Record<
+    InstrumentType,
+    { frequency: number; baseFrequency: number; octaves: number; wet: number }
+  >
+> = {
+  'analog-synth-temp': { frequency: 0.12, baseFrequency: 700, octaves: 2.2, wet: 0.6 },
+}
+
 // Chorus (a subtle detune wobble) and ping-pong delay (stereo, alternating left/right
 // echoes) — chorus is genuinely new, no instrument used it before guitar-acoustic. Chorus
 // wet is likewise now the Ambience dial's ceiling (doubled from the original 0.25, same
@@ -870,6 +890,7 @@ let outputChorus: Tone.Chorus | null = null
 let outputDelay: Tone.PingPongDelay | null = null
 let outputTapeDelay: TapeDelay | null = null
 let outputFilter: Tone.Filter | null = null
+let outputAutoFilter: Tone.AutoFilter | null = null
 let currentInstrumentType: InstrumentType | null = null
 // Cached from the most recent successful load — an AudioBuffer isn't tied to any
 // particular BaseAudioContext (unlike an AudioNode), so rebuildAudioContext() below can
@@ -950,6 +971,7 @@ interface EffectsChain {
   delay: Tone.PingPongDelay | null
   tapeDelay: TapeDelay | null
   filter: Tone.Filter | null
+  autoFilter: Tone.AutoFilter | null
   firstStage: Tone.ToneAudioNode | null
 }
 
@@ -976,6 +998,7 @@ async function buildEffectsChain(
   const delaySettings = DELAY_SETTINGS[instrumentType]
   const tapeDelaySettings = TAPE_DELAY_SETTINGS[instrumentType]
   const filterSettings = FILTER_SETTINGS[instrumentType]
+  const autoFilterSettings = AUTO_FILTER_SETTINGS[instrumentType]
   const clamped = Math.min(1, Math.max(0, ambienceLevel))
 
   let reverb: Tone.Reverb | null = null
@@ -983,6 +1006,7 @@ async function buildEffectsChain(
   let tapeDelay: TapeDelay | null = null
   let chorus: Tone.Chorus | null = null
   let filter: Tone.Filter | null = null
+  let autoFilter: Tone.AutoFilter | null = null
 
   // Built furthest-downstream-first (reverb, then delay/tapeDelay, then chorus, then
   // filter), each stage connecting to whatever's already been built or straight to
@@ -1049,6 +1073,21 @@ async function buildEffectsChain(
     if (next) filter.connect(next)
     else filter.toDestination()
   }
+  if (autoFilterSettings) {
+    // Furthest upstream of everything — the sweep colors the raw source signal before any
+    // of it reaches chorus/delay/reverb, so a delay's echoes (if configured) drift in
+    // brightness along with the dry signal rather than staying fixed while only the dry
+    // tone moves.
+    autoFilter = new Tone.AutoFilter({
+      frequency: autoFilterSettings.frequency,
+      baseFrequency: autoFilterSettings.baseFrequency,
+      octaves: autoFilterSettings.octaves,
+    }).start()
+    autoFilter.wet.value = autoFilterSettings.wet
+    const next: Tone.ToneAudioNode | null = filter ?? chorus ?? tapeDelay?.input ?? delay ?? reverb
+    if (next) autoFilter.connect(next)
+    else autoFilter.toDestination()
+  }
 
   return {
     reverb,
@@ -1056,7 +1095,8 @@ async function buildEffectsChain(
     delay,
     tapeDelay,
     filter,
-    firstStage: filter ?? chorus ?? tapeDelay?.input ?? delay ?? reverb,
+    autoFilter,
+    firstStage: autoFilter ?? filter ?? chorus ?? tapeDelay?.input ?? delay ?? reverb,
   }
 }
 
@@ -1107,6 +1147,10 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
     outputFilter.dispose()
     outputFilter = null
   }
+  if (outputAutoFilter) {
+    outputAutoFilter.dispose()
+    outputAutoFilter = null
+  }
 
   await Tone.start()
   currentInstrumentType = instrumentType
@@ -1127,6 +1171,7 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
     outputDelay = chain.delay
     outputTapeDelay = chain.tapeDelay
     outputFilter = chain.filter
+    outputAutoFilter = chain.autoFilter
 
     const sampler = await createSampler(buffers, instrumentType)
     if (chain.firstStage) {
@@ -1681,6 +1726,10 @@ function dispose(): void {
   if (outputFilter) {
     outputFilter.dispose()
     outputFilter = null
+  }
+  if (outputAutoFilter) {
+    outputAutoFilter.dispose()
+    outputAutoFilter = null
   }
 }
 
