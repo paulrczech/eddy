@@ -45,8 +45,13 @@ export function buildArpeggioNotes(cluster: number[], direction: ArpeggioDirecti
       const inner = sorted.slice(1, sorted.length - 1).reverse()
       return [...sorted, ...inner]
     }
-    case 'random':
-      return [...sorted].sort(() => Math.random() - 0.5)
+    case 'random': {
+      // Bottom voice anchors the pattern — shuffling it in with the rest let the lowest
+      // note (the one that grounds the ear's sense of the cluster) land anywhere,
+      // including last, which read as too chaotic. Only the upper voices randomize.
+      const [bottom, ...rest] = sorted
+      return [bottom, ...rest.sort(() => Math.random() - 0.5)]
+    }
     default:
       return sorted
   }
