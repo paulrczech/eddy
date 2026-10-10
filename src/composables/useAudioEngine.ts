@@ -119,6 +119,8 @@ async function rebuildAudioContext(): Promise<void> {
   outputChorus = null
   disposeQuietly('outputDelay', outputDelay)
   outputDelay = null
+  disposeQuietly('outputTapeDelay', outputTapeDelay)
+  outputTapeDelay = null
   disposeQuietly('outputFilter', outputFilter)
   outputFilter = null
 
@@ -129,6 +131,7 @@ async function rebuildAudioContext(): Promise<void> {
   outputReverb = chain.reverb
   outputChorus = chain.chorus
   outputDelay = chain.delay
+  outputTapeDelay = chain.tapeDelay
   outputFilter = chain.filter
 
   const sampler = await createSampler(buffers, instrumentType)
@@ -736,6 +739,26 @@ const DELAY_SETTINGS: Partial<
   // only this config entry is gone.
 }
 
+// Space Echo-style tape delay — a genuinely different mechanism from DELAY_SETTINGS above
+// (Tone.PingPongDelay), not a replacement for it. A plain feedback delay just attenuates
+// the same unmodified signal every repeat; a real tape unit's echoes also progressively
+// lose high end each pass, since they're circulating back through the same record/
+// playback head chain. Confirmed by reading Tone.js's own source: FeedbackDelay and
+// PingPongDelay are both bare delay-line + feedback-gain, no filtering/saturation/
+// modulation anywhere in the loop — Tone ships nothing that models this out of the box.
+// Modeled here (tier 1, darkening only — no saturation or pitch wobble yet, see
+// createTapeDelay()'s comment) by routing the feedback loop itself through a lowpass
+// filter rather than just filtering the final mix, so repeat N is audibly duller than
+// repeat N-1, compounding with every pass.
+const TAPE_DELAY_SETTINGS: Partial<
+  Record<
+    InstrumentType,
+    { feedback: number; wet: number; filterFrequency: number; filterRolloff: Tone.FilterRollOff }
+  >
+> = {
+  'analog-synth-temp': { feedback: 0.38, wet: 0.3, filterFrequency: 2800, filterRolloff: -12 },
+}
+
 // Maps Eddy's own Subdivision values (see settingsStore.ts) to a Tone.js note-value delay
 // time that stays musically locked to whatever grid is currently playing, rather than one
 // fixed interval that can clash against certain grids — a dotted-eighth echo read as
@@ -760,6 +783,72 @@ function delayTimeForSubdivision(subdivision: Subdivision): string {
   }
 }
 
+// Plain object, not a Tone.Effect subclass — exposes only what buildEffectsChain() and
+// playSequence() actually need (delayTime for the live grid-lock, dispose for teardown,
+// connect/toDestination for chaining) rather than the full Effect API surface. Callers
+// must connect INTO `.input` explicitly (not into the wrapper itself) since this isn't a
+// real ToneAudioNode and Tone's own connect() can't duck-type its way into a plain object.
+interface TapeDelay {
+  input: Tone.Gain
+  delayTime: Tone.Delay['delayTime']
+  connect: (destination: Tone.ToneAudioNode) => Tone.Gain
+  toDestination: () => Tone.Gain
+  dispose: () => void
+}
+
+// Tier 1: darkening only, no saturation or pitch wobble yet (see TAPE_DELAY_SETTINGS'
+// comment above for why this needs hand-wired primitives instead of a stock delay class).
+// The feedback loop reads: delay -> filter -> {feedbackGain -> back into delay, wetGain ->
+// output}. One filter instance serves both taps, so even the first audible repeat is
+// already slightly darker than the dry signal, same as a real tape unit, and every lap
+// around the loop compounds the rolloff further on top of that.
+function createTapeDelay(options: {
+  delayTime: string
+  feedback: number
+  wet: number
+  filterFrequency: number
+  filterRolloff: Tone.FilterRollOff
+}): TapeDelay {
+  const input = new Tone.Gain(1)
+  const dry = new Tone.Gain(1 - options.wet)
+  const wetGain = new Tone.Gain(options.wet)
+  const output = new Tone.Gain(1)
+  // maxDelay is a fixed buffer size set once at construction — Tone.Delay's delayTime
+  // Param clamps its own maxValue to whatever that was, so a later live update (the grid-
+  // lock in playSequence()) would silently cap short if tempo drops after construction.
+  // Sized to the slowest allowed tempo's longest mapped grid value (40bpm quarter note =
+  // 1.5s, see delayTimeForSubdivision/settingsStore's tempo clamp) with margin, rather
+  // than deriving it from delayTime at whatever bpm happens to be active right now.
+  const delayNode = new Tone.Delay(options.delayTime, 2)
+  const feedbackFilter = new Tone.Filter(options.filterFrequency, 'lowpass', options.filterRolloff)
+  const feedbackGain = new Tone.Gain(options.feedback)
+
+  input.connect(dry)
+  dry.connect(output)
+  input.connect(delayNode)
+  delayNode.connect(feedbackFilter)
+  feedbackFilter.connect(wetGain)
+  wetGain.connect(output)
+  feedbackFilter.connect(feedbackGain)
+  feedbackGain.connect(delayNode)
+
+  return {
+    input,
+    delayTime: delayNode.delayTime,
+    connect: (destination) => output.connect(destination),
+    toDestination: () => output.toDestination(),
+    dispose: () => {
+      input.dispose()
+      dry.dispose()
+      wetGain.dispose()
+      output.dispose()
+      delayNode.dispose()
+      feedbackFilter.dispose()
+      feedbackGain.dispose()
+    },
+  }
+}
+
 function noteDuration(): string {
   const type = currentInstrumentType ?? 'piano'
   return NOTE_DURATIONS[type] ?? '2n'
@@ -771,6 +860,7 @@ let instrument: ToneInstrument | null = null
 let outputReverb: Tone.Reverb | null = null
 let outputChorus: Tone.Chorus | null = null
 let outputDelay: Tone.PingPongDelay | null = null
+let outputTapeDelay: TapeDelay | null = null
 let outputFilter: Tone.Filter | null = null
 let currentInstrumentType: InstrumentType | null = null
 // Cached from the most recent successful load — an AudioBuffer isn't tied to any
@@ -850,6 +940,7 @@ interface EffectsChain {
   reverb: Tone.Reverb | null
   chorus: Tone.Chorus | null
   delay: Tone.PingPongDelay | null
+  tapeDelay: TapeDelay | null
   filter: Tone.Filter | null
   firstStage: Tone.ToneAudioNode | null
 }
@@ -875,18 +966,20 @@ async function buildEffectsChain(
   const reverbSettings = REVERB_SETTINGS[instrumentType]
   const chorusSettings = CHORUS_SETTINGS[instrumentType]
   const delaySettings = DELAY_SETTINGS[instrumentType]
+  const tapeDelaySettings = TAPE_DELAY_SETTINGS[instrumentType]
   const filterSettings = FILTER_SETTINGS[instrumentType]
   const clamped = Math.min(1, Math.max(0, ambienceLevel))
 
   let reverb: Tone.Reverb | null = null
   let delay: Tone.PingPongDelay | null = null
+  let tapeDelay: TapeDelay | null = null
   let chorus: Tone.Chorus | null = null
   let filter: Tone.Filter | null = null
 
-  // Built furthest-downstream-first (reverb, then delay, then chorus, then filter), each
-  // stage connecting to whatever's already been built or straight to destination if it's
-  // the last stage. Any subset can be configured per instrument; an instrument with none
-  // of them behaves exactly as before (sampler.toDestination()).
+  // Built furthest-downstream-first (reverb, then delay/tapeDelay, then chorus, then
+  // filter), each stage connecting to whatever's already been built or straight to
+  // destination if it's the last stage. Any subset can be configured per instrument; an
+  // instrument with none of them behaves exactly as before (sampler.toDestination()).
   if (reverbSettings) {
     // Reverb's impulse response is generated asynchronously (it's rendered via
     // Tone.Offline internally) — has to be awaited before anything connects to it,
@@ -904,6 +997,21 @@ async function buildEffectsChain(
     if (reverb) delay.connect(reverb)
     else delay.toDestination()
   }
+  if (tapeDelaySettings) {
+    // Grid-locked the same way PingPongDelay's delayTime is above, via the same shared
+    // delayTimeForSubdivision() — playSequence() re-applies this live on every call so a
+    // grid change carries into a restart, same precedent as DELAY_SETTINGS.
+    tapeDelay = createTapeDelay({
+      delayTime: delayTimeForSubdivision(subdivision ?? 4),
+      feedback: tapeDelaySettings.feedback,
+      wet: tapeDelaySettings.wet,
+      filterFrequency: tapeDelaySettings.filterFrequency,
+      filterRolloff: tapeDelaySettings.filterRolloff,
+    })
+    if (delay) tapeDelay.connect(delay)
+    else if (reverb) tapeDelay.connect(reverb)
+    else tapeDelay.toDestination()
+  }
   if (chorusSettings) {
     // Chorus is LFO-driven — silent without it.
     chorus = new Tone.Chorus(
@@ -912,7 +1020,10 @@ async function buildEffectsChain(
       chorusSettings.depth
     ).start()
     chorus.wet.value = chorusSettings.wet * clamped
-    if (delay) chorus.connect(delay)
+    // tapeDelay isn't a real ToneAudioNode (see its own comment) — anything connecting
+    // into it has to target its exposed `.input` Gain specifically.
+    if (tapeDelay) chorus.connect(tapeDelay.input)
+    else if (delay) chorus.connect(delay)
     else if (reverb) chorus.connect(reverb)
     else chorus.toDestination()
   }
@@ -926,7 +1037,7 @@ async function buildEffectsChain(
       'lowpass',
       filterSettings.rolloff
     )
-    const next: Tone.ToneAudioNode | null = chorus ?? delay ?? reverb
+    const next: Tone.ToneAudioNode | null = chorus ?? tapeDelay?.input ?? delay ?? reverb
     if (next) filter.connect(next)
     else filter.toDestination()
   }
@@ -935,8 +1046,9 @@ async function buildEffectsChain(
     reverb,
     chorus,
     delay,
+    tapeDelay,
     filter,
-    firstStage: filter ?? chorus ?? delay ?? reverb,
+    firstStage: filter ?? chorus ?? tapeDelay?.input ?? delay ?? reverb,
   }
 }
 
@@ -979,6 +1091,10 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
     outputDelay.dispose()
     outputDelay = null
   }
+  if (outputTapeDelay) {
+    outputTapeDelay.dispose()
+    outputTapeDelay = null
+  }
   if (outputFilter) {
     outputFilter.dispose()
     outputFilter = null
@@ -1001,6 +1117,7 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
     outputReverb = chain.reverb
     outputChorus = chain.chorus
     outputDelay = chain.delay
+    outputTapeDelay = chain.tapeDelay
     outputFilter = chain.filter
 
     const sampler = await createSampler(buffers, instrumentType)
@@ -1213,6 +1330,9 @@ function playSequence(
   // carries the right timing into its restart (see delayTimeForSubdivision's own comment).
   if (outputDelay && currentInstrumentType && DELAY_SETTINGS[currentInstrumentType]) {
     outputDelay.delayTime.value = delayTimeForSubdivision(settings.subdivision ?? 4)
+  }
+  if (outputTapeDelay && currentInstrumentType && TAPE_DELAY_SETTINGS[currentInstrumentType]) {
+    outputTapeDelay.delayTime.value = delayTimeForSubdivision(settings.subdivision ?? 4)
   }
 
   const isChord = settings.direction === 'chord'
@@ -1545,6 +1665,10 @@ function dispose(): void {
   if (outputDelay) {
     outputDelay.dispose()
     outputDelay = null
+  }
+  if (outputTapeDelay) {
+    outputTapeDelay.dispose()
+    outputTapeDelay = null
   }
   if (outputFilter) {
     outputFilter.dispose()
