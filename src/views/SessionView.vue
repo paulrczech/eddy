@@ -7,7 +7,7 @@
             <ion-icon :icon="arrowBack" /> new
           </button>
         </ion-buttons>
-        <ion-title size="small" class="session-title">{{ headerTitle }}</ion-title>
+        <ion-title class="session-title">{{ headerTitle }}</ion-title>
         <ion-buttons slot="end">
           <button
             class="icon-btn save-btn"
@@ -1618,21 +1618,21 @@
 
   .session-title {
     font-family: var(--font-serif);
-    font-size: var(--text-lg);
+    font-size: var(--text-md);
     font-weight: 300;
     letter-spacing: 0.12em;
     text-align: center;
     color: var(--color-text-dim);
-  }
-
-  /* size="small" makes ion-title a genuine flex item centered in the real leftover gap
-     between the start/end ion-buttons — correct and overlap-safe, but the gap isn't
-     actually centered on screen unless both sides reserve equal width. The end slot
-     holds 3 fixed-size icon buttons (save/undo/redo); give the start slot's single
-     back button the same deterministic footprint so the title lands dead center rather
-     than drifting toward whichever side is narrower. */
-  ion-buttons[slot='start'] {
-    min-width: calc(3 * var(--tap-min));
+    /* ion-title's default mode (used here, not size="small" — that flips white-space to
+       normal and wraps instead of truncating) is an absolutely-positioned, full-width
+       overlay with built-in single-line ellipsis; its default 90px inline padding
+       assumes a single standard nav button per side, too narrow for this toolbar's 3
+       fixed-size icon buttons (save/undo/redo) on the end. Widen it symmetrically to
+       that cluster's known width (not a guess) on BOTH sides — the overlay stays
+       truly centered only when the padding is equal, even though the start side (one
+       back button) doesn't actually need as much room. */
+    padding-inline-start: calc(3 * var(--tap-min));
+    padding-inline-end: calc(3 * var(--tap-min));
   }
 
   /* .icon-btn (box model, touch target) comes from theme/buttons.css — back-to-home
