@@ -1136,7 +1136,13 @@ function confirmDelete(index: number) {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 0.1rem;
+  /* Widened from 0.1rem (Paul, 2026-10-13): the pool header's rename/playback-settings
+     icons sit right next to each other, and a tap near the boundary between their two
+     44px tap targets could register on the wrong one. Couldn't find any shared state or
+     event-bubbling path between the two handlers (both are correctly @click.stop'd, no
+     logic connects them) — this is a tap-target-proximity mitigation to try, not a
+     confirmed root-cause fix. */
+  gap: 0.5rem;
   flex-shrink: 0;
 }
 
