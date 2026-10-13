@@ -313,16 +313,39 @@
                 <ion-icon :icon="drawerLatch ? lockClosedOutline : lockOpenOutline" />
               </button>
             </div>
-            <div v-if="poolPlaybackContext" class="toggle-row repeat-row">
-              <span class="tray-label repeat-label">repeat</span>
-              <button
-                v-for="n in [1, 2, 3, 4]"
-                :key="n"
-                class="btn-icon-outline toggle-btn repeat-btn"
-                :class="{ active: drawerRepeatCount === n }"
-                @click="drawerRepeatCount = n">
-                {{ n }}
-              </button>
+            <div v-if="poolPlaybackContext" class="pool-adjust-row">
+              <div class="adjust-group">
+                <span class="tray-label">repeat</span>
+                <div class="adjust-buttons">
+                  <button
+                    v-for="n in [1, 2, 3, 4]"
+                    :key="n"
+                    class="btn-icon-outline toggle-btn repeat-btn"
+                    :class="{ active: drawerRepeatCount === n }"
+                    @click="drawerRepeatCount = n">
+                    {{ n }}
+                  </button>
+                </div>
+              </div>
+              <div class="adjust-group">
+                <span class="tray-label">shift</span>
+                <div class="adjust-buttons">
+                  <button
+                    class="btn-icon-outline toggle-btn shift-btn"
+                    :disabled="!canShiftPoolDown"
+                    title="shift pool down an octave"
+                    @click="shiftPoolOctave(-1)">
+                    −12
+                  </button>
+                  <button
+                    class="btn-icon-outline toggle-btn shift-btn"
+                    :disabled="!canShiftPoolUp"
+                    title="shift pool up an octave"
+                    @click="shiftPoolOctave(1)">
+                    +12
+                  </button>
+                </div>
+              </div>
             </div>
             <div class="tempo-control">
               <button
@@ -669,6 +692,26 @@
       }
     },
   })
+
+  // Pool octave shift — an immediate edit to the pool's actual notes (not a persisted
+  // playback setting like direction/latch/repeatCount above), so there's no writable
+  // computed here, just a disabled check + a one-shot action. Same all-or-nothing/restart-
+  // if-playing treatment as the settings above.
+  const canShiftPoolDown = computed(() =>
+    !!poolPlaybackContext.value && sequenceStore.canTransposePoolOctave(poolPlaybackContext.value.id, -1)
+  )
+  const canShiftPoolUp = computed(() =>
+    !!poolPlaybackContext.value && sequenceStore.canTransposePoolOctave(poolPlaybackContext.value.id, 1)
+  )
+  function shiftPoolOctave(direction: 1 | -1) {
+    const pool = poolPlaybackContext.value
+    if (!pool) return
+    sequenceStore.transposePoolOctave(pool.id, direction)
+    if (isPlaying.value) {
+      audioEngine.stopLoop(true)
+      playLoop()
+    }
+  }
 
   const directionOptions = [
     { value: 'up', icon: arrowUpOutline },
@@ -1273,19 +1316,15 @@
     )
   }
 
+  // Reverted "play once from the selected row" (Paul, 2026-10-13) — the non-looping,
+  // play-then-stop case read as confusing, and loop mode's own lead-in-from-selection
+  // (playLoop() below) already covers "start from a selected stream" for the case where
+  // it actually reads clearly. playOnce() now always plays the explicit loop-range (or the
+  // whole flow) regardless of whatever row was last tapped to preview — selectedIndex is
+  // still cleared below, since a stale selection surviving into a later playLoop() call
+  // would be a confusing surprise there too.
   function playOnce() {
-    let range = loopRange.value
-    // selectedIndex only applies when there's no explicit loop-range already scoping
-    // playback, and only within current sequence bounds (a stale index surviving a
-    // deletion is treated as no selection rather than clamped/guessed at).
-    if (!range && selectedIndex.value >= 0 && selectedIndex.value < sequenceStore.sequence.length) {
-      const s = selectedIndex.value
-      // Reverse: start audibly at the selected row, play backward to the start — mirrors
-      // forward's "selected row to the end" under whichever direction is active (Paul,
-      // 2026-10-09), rather than always meaning "forward from here" regardless of the
-      // reverse toggle.
-      range = reversePlayback.value ? [0, s] : [s, sequenceStore.sequence.length - 1]
-    }
+    const range = loopRange.value
     const plan = buildPlaybackPlan(range)
     activePlaybackPlan.value = plan
     audioEngine.playSequence(
@@ -2146,16 +2185,33 @@
   }
 
   /* Only rendered at all in pool-playback context (v-if, not just hidden) — there's no
-     global "repeat count" concept this row could otherwise fall back to showing, unlike
-     every other control in this tray, which stays mounted and just gets :disabled. */
-  .repeat-row {
-    align-items: center;
+     global "repeat count"/"shift" concept this row could otherwise fall back to showing,
+     unlike every other control in this tray, which stays mounted and just gets :disabled.
+     Two label-above-buttons groups side by side (repeat, shift) — same visual language as
+     .playback-label above .toggle-row, just applied at a finer grain since these two sit
+     together in what used to be repeat's single inline row (Paul, 2026-10-13: wanted
+     repeat's label out of line with its buttons, and the new shift buttons to match). */
+  .pool-adjust-row {
+    display: flex;
+    gap: 1.5rem;
+    flex: 1 1 100%;
   }
-  .repeat-label {
-    margin-right: 0.2rem;
+  .adjust-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .adjust-buttons {
+    display: flex;
+    gap: 0.3rem;
   }
   .repeat-btn {
     min-width: 2.2rem;
+    font-size: var(--text-sm);
+    font-family: var(--font-mono);
+  }
+  .shift-btn {
+    min-width: 2.8rem;
     font-size: var(--text-sm);
     font-family: var(--font-mono);
   }
