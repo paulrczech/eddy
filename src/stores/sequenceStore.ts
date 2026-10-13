@@ -1,6 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { Cluster, sortCluster, isValidCluster, clustersEqual, clusterDissonance } from '../utils/noteUtils'
+import {
+  Cluster,
+  sortCluster,
+  isValidCluster,
+  clustersEqual,
+  clusterDissonance,
+  canTransposeOctave as canShiftOctave,
+} from '../utils/noteUtils'
 import { MIDI_SEED_MIN, MIDI_SEED_MAX, MIDI_MIN, MIDI_MAX } from '../data/notes'
 import type { ArpeggioDirection } from './settingsStore'
 
@@ -267,6 +274,36 @@ export const useSequenceStore = defineStore('sequence', () => {
     candidates.value = []
   }
 
+  // Pool-level sibling of canTransposeOctave/transposeOctave above — same all-or-nothing
+  // contract (every voice in every row across the whole pool must land in range, or the
+  // button's disabled and nothing moves) rather than silently shifting some rows and
+  // skipping others. Reuses noteUtils' generic canShiftOctave (bounds-parameterized, not
+  // tied to store state) instead of re-deriving the same MIDI_MIN/MAX check inline.
+  function canTransposePoolOctave(poolId: string, direction: 1 | -1): boolean {
+    const pool = pools.value.find(p => p.id === poolId)
+    if (!pool) return false
+    for (let i = pool.range[0]; i <= pool.range[1]; i++) {
+      const cluster = sequence.value[i]
+      if (!cluster) continue
+      if (!canShiftOctave(cluster, direction, { min: MIDI_MIN, max: MIDI_MAX })) return false
+    }
+    return true
+  }
+
+  function transposePoolOctave(poolId: string, direction: 1 | -1) {
+    if (!canTransposePoolOctave(poolId, direction)) return
+    const pool = pools.value.find(p => p.id === poolId)
+    if (!pool) return
+    pushHistory()
+    for (let i = pool.range[0]; i <= pool.range[1]; i++) {
+      sequence.value[i] = sequence.value[i].map(n => n + direction * 12) as Cluster
+    }
+    // Only the last row's transpose invalidates the shown "streams" candidates (they're
+    // generated from it) — same reasoning transposeOctave's own clear above has, just
+    // conditional here since a pool transpose doesn't always touch the last row.
+    if (pool.range[1] === sequence.value.length - 1) candidates.value = []
+  }
+
   function editClusterAt(index: number, newCluster: Cluster, bounds?: { min: number; max: number }) {
     if (index < 0 || index >= sequence.value.length) return
     const sorted = sortCluster(newCluster)
@@ -511,6 +548,8 @@ export const useSequenceStore = defineStore('sequence', () => {
     redo,
     canTransposeOctave,
     transposeOctave,
+    canTransposePoolOctave,
+    transposePoolOctave,
     editClusterAt,
     duplicateAt,
     duplicateRange,
