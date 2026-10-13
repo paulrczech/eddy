@@ -818,6 +818,7 @@ function delayTimeForSubdivision(subdivision: Subdivision): string {
 interface TapeDelay {
   input: Tone.Gain
   delayTime: Tone.Delay['delayTime']
+  setWet: (wet: number) => void
   connect: (destination: Tone.ToneAudioNode) => Tone.Gain
   toDestination: () => Tone.Gain
   dispose: () => void
@@ -863,6 +864,14 @@ function createTapeDelay(options: {
   return {
     input,
     delayTime: delayNode.delayTime,
+    // Ramped (not snapped) so toggling it off at the 16th-note grid doesn't click — same
+    // short ramp constant setAmbience() uses elsewhere for live wet-value changes. Keeps
+    // dry/wetGain complementary (dry = 1 - wet), same relationship construction sets up.
+    setWet: (wet: number) => {
+      const now = Tone.now()
+      dry.gain.rampTo(1 - wet, AMBIENCE_RAMP_TIME, now)
+      wetGain.gain.rampTo(wet, AMBIENCE_RAMP_TIME, now)
+    },
     connect: (destination) => output.connect(destination),
     toDestination: () => output.toDestination(),
     dispose: () => {
@@ -1032,11 +1041,14 @@ async function buildEffectsChain(
   if (tapeDelaySettings) {
     // Grid-locked the same way PingPongDelay's delayTime is above, via the same shared
     // delayTimeForSubdivision() — playSequence() re-applies this live on every call so a
-    // grid change carries into a restart, same precedent as DELAY_SETTINGS.
+    // grid change carries into a restart, same precedent as DELAY_SETTINGS. Wet is bypassed
+    // (0) at the 16th-note grid — even the slowed half-note-triplet echo read as clutter
+    // there, 16ths are busy enough without it — baked in here too (not just playSequence()'s
+    // live update) so an offline WAV export, which never calls playSequence(), matches.
     tapeDelay = createTapeDelay({
       delayTime: delayTimeForSubdivision(subdivision ?? 4),
       feedback: tapeDelaySettings.feedback,
-      wet: tapeDelaySettings.wet,
+      wet: subdivision === 4 ? 0 : tapeDelaySettings.wet,
       filterFrequency: tapeDelaySettings.filterFrequency,
       filterRolloff: tapeDelaySettings.filterRolloff,
     })
@@ -1378,14 +1390,39 @@ function playSequence(
 
   stopLoop()
 
+  // Set BEFORE the delay-time updates below — delayTimeForSubdivision() returns a
+  // Tone.js time string ('2t', '8n', etc.), and assigning it to a Param resolves it to
+  // absolute seconds ONCE, against whatever Transport.bpm is at that exact moment, not a
+  // live binding that re-resolves later. Setting bpm first here used to happen further
+  // down (right before building the Tone.Part) — on the very first play of a session, or
+  // any time actual bpm doesn't already happen to match the transport's current value from
+  // a previous call, the delay would resolve against the stale/default bpm and come out
+  // "way off," only correcting itself on the next call once this same assignment (from the
+  // wrong-bpm call) had already brought the transport up to date in time for that one
+  // (Paul, 2026-10-13: analog synth delay wrong on first loop, correct after a stop/
+  // restart). transport.loop/loopStart/loopEnd still get set in their original spot
+  // further down — those don't affect delay-time resolution and depend on clusterDuration,
+  // not computed yet this early.
+  const transport = Tone.getTransport()
+  transport.bpm.value = settings.bpm
+
   // Keeps a configured delay's echo time musically locked to whatever grid is actually
   // playing — updated on every call, not just at construction, so a grid change always
   // carries the right timing into its restart (see delayTimeForSubdivision's own comment).
   if (outputDelay && currentInstrumentType && DELAY_SETTINGS[currentInstrumentType]) {
     outputDelay.delayTime.value = delayTimeForSubdivision(settings.subdivision ?? 4)
   }
-  if (outputTapeDelay && currentInstrumentType && TAPE_DELAY_SETTINGS[currentInstrumentType]) {
-    outputTapeDelay.delayTime.value = delayTimeForSubdivision(settings.subdivision ?? 4)
+  if (outputTapeDelay && currentInstrumentType) {
+    const tapeDelaySettings = TAPE_DELAY_SETTINGS[currentInstrumentType]
+    if (tapeDelaySettings) {
+      outputTapeDelay.delayTime.value = delayTimeForSubdivision(settings.subdivision ?? 4)
+      // 16th notes are fast enough on their own — even the slowed-down half-note-triplet
+      // echo (see delayTimeForSubdivision's own comment) still read as extra clutter
+      // rather than texture at that grid, so bypass the delay there entirely rather than
+      // chase another timing value. Sweep (AUTO_FILTER_SETTINGS) is unaffected — that one
+      // sounded good throughout, this is delay-specific.
+      outputTapeDelay.setWet(settings.subdivision === 4 ? 0 : tapeDelaySettings.wet)
+    }
   }
 
   const isChord = settings.direction === 'chord'
@@ -1432,9 +1469,8 @@ function playSequence(
 
   const totalDuration = sequence.length * clusterDuration
 
-  // Configure Transport loop params BEFORE starting
-  const transport = Tone.getTransport()
-  transport.bpm.value = settings.bpm
+  // Configure remaining Transport loop params BEFORE starting — bpm itself is already set,
+  // above, ahead of the delay-time resolution earlier in this function.
   transport.loop = loop
   transport.loopStart = 0
   transport.loopEnd = totalDuration
