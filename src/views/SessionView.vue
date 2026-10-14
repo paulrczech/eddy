@@ -193,6 +193,7 @@
             :pools="sequenceStore.pools"
             :loop-point="sequenceStore.loopPoint"
             :playing-index="displayPlayingIndex"
+            :just-duplicated-index="justDuplicatedIndex ?? undefined"
             :current-pool-repeat="currentPoolRepeat"
             :pool-playback-context-id="poolPlaybackContextId"
             @audition="onHistoryAudition"
@@ -915,6 +916,7 @@
   onUnmounted(() => {
     audioEngine.stopLoop(true)
     clearTempoHold()
+    if (justDuplicatedTimeout) clearTimeout(justDuplicatedTimeout)
   })
 
   function advance() {
@@ -1305,10 +1307,25 @@
   // duplicateAt/duplicateRange never change the sequence's last cluster's value (they only
   // insert, never modify or remove an existing entry) — so unlike edit/reorder above,
   // there's no advance() call here, same reasoning as deleteCluster's non-last-row case.
+  // Briefly highlights the newly-inserted row (duplicateAt always inserts right after the
+  // source, at index + 1 — see its own comment in sequenceStore.ts) rather than a toast,
+  // which would only say "it happened," not "where" (Paul, 2026-10-14). Timeout tracked so
+  // a second duplicate fired before the first one's highlight fades (still possible via
+  // repeated swipes) retargets cleanly instead of racing an earlier clear against the new
+  // highlight.
+  const justDuplicatedIndex = ref<number | null>(null)
+  let justDuplicatedTimeout: ReturnType<typeof setTimeout> | null = null
+
   function duplicateCluster(index: number) {
     audioEngine.stopLoop(true)
     sequenceStore.duplicateAt(index)
     sequenceStore.setLoopResolved(false)
+    if (justDuplicatedTimeout) clearTimeout(justDuplicatedTimeout)
+    justDuplicatedIndex.value = index + 1
+    justDuplicatedTimeout = setTimeout(() => {
+      justDuplicatedIndex.value = null
+      justDuplicatedTimeout = null
+    }, 1800)
   }
 
   // A toast here, but deliberately not for duplicateCluster() above — a single-row

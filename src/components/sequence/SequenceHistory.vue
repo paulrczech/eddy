@@ -75,6 +75,7 @@
                   current: item.seqIndex === activeIndex,
                   'loop-origin': item.seqIndex === loopPoint,
                   playing: item.seqIndex === playingIndex,
+                  'just-duplicated': item.seqIndex === justDuplicatedIndex,
                   'in-range': isInRange(item.seqIndex),
                   'range-block-start': rangeEdge(item.seqIndex) === 'start',
                   'range-block-end': rangeEdge(item.seqIndex) === 'end',
@@ -344,6 +345,11 @@ const props = defineProps<{
   pools: Pool[]
   loopPoint?: number
   playingIndex?: number
+  // Briefly lit after a duplicate (swipe or, if ENABLE_TAP_DUPLICATE_MODE ever comes back,
+  // tap-mode) lands — SessionView.vue clears it on a timer, this file just renders whatever
+  // it's currently pointed at. See the .just-duplicated animation below for the actual
+  // fade.
+  justDuplicatedIndex?: number
   // Drives the pool header's live repeat badge ("2/3") in place of its normal stream
   // count, only for whichever pool is currently playing a custom repeat count — see
   // SessionView.vue's own currentPoolRepeat computed for how this gets built.
@@ -1126,6 +1132,26 @@ function duplicateRowAction(index: number) {
 .history-entry.playing {
   background: rgba(126, 184, 212, 0.08);
   border-color: rgba(126, 184, 212, 0.35);
+}
+
+/* Briefly lit after a duplicate lands (swipe or, if ENABLE_TAP_DUPLICATE_MODE ever comes
+   back, tap-mode) — a toast only says "it happened," not "where," and the new row is
+   exactly the thing that answer needs to point at (Paul, 2026-10-14). animation (not a
+   transition) so it plays once and holds its faded-out end state on its own; SessionView's
+   JS timeout that actually removes the class runs slightly longer than this duration so
+   the class never gets pulled mid-animation. */
+@keyframes duplicate-flash {
+  from {
+    background: rgba(69, 74, 104, 0.4);
+    border-color: var(--color-accent);
+  }
+  to {
+    background: transparent;
+    border-color: var(--color-border);
+  }
+}
+.history-entry.just-duplicated {
+  animation: duplicate-flash 1.6s ease-out forwards;
 }
 
 .entry-index {
