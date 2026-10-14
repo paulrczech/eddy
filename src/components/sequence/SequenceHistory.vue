@@ -4,6 +4,7 @@
       <p class="section-label">the flow</p>
       <div class="flow-header-actions">
         <button
+          v-if="ENABLE_TAP_DUPLICATE_MODE"
           class="icon-btn duplicate-toggle-btn"
           :class="{ active: duplicateModeActive }"
           :disabled="sequence.length < 1 || rangeSelectActive"
@@ -99,6 +100,9 @@
               </div>
             </IonItem>
             <IonItemOptions side="end">
+              <IonItemOption @click="duplicateRowAction(item.seqIndex)">
+                <IonIcon slot="icon-only" :icon="copyOutline" />
+              </IonItemOption>
               <IonItemOption color="danger" @click="confirmDelete(item.seqIndex)">
                 <IonIcon slot="icon-only" :icon="trashOutline" />
               </IonItemOption>
@@ -196,6 +200,7 @@
         <p class="range-hint">playing in reverse</p>
       </div>
       <button
+        v-if="ENABLE_TAP_DUPLICATE_MODE"
         class="icon-btn duplicate-toggle-btn"
         :class="{ active: duplicateModeActive }"
         :disabled="sequence.length < 1 || rangeSelectActive"
@@ -640,6 +645,15 @@ function toggleRangeSelect() {
   setRangeMode(!rangeSelectActive.value)
 }
 
+// Replaced by swipe-to-duplicate (the row's own IonItemOptions, same as pool duplicate) as
+// the default, 2026-10-14 — Paul's taking swipe for a real-device test drive with a real
+// chance of reverting, so this is a trial, not a confirmed removal. Gated off rather than
+// deleted: flipping this back to true (and nothing else) restores the toggle buttons below
+// and duplicate-mode's tap-anywhere behavior exactly as it was. If swipe wins after real
+// use, delete duplicate-mode's code for real in a follow-up rather than leave this flag
+// around forever — same precedent as SHOW_AMBIENCE_CONTROL in SessionView.vue.
+const ENABLE_TAP_DUPLICATE_MODE = false
+
 // Duplicate-mode: a global toggle (not the old per-row icon, removed 2026-10-08 — it made
 // every row visibly busier, worse the more voices a cluster had) that repurposes every row
 // tap into "duplicate this row immediately," repeatable without limit — built specifically
@@ -906,6 +920,14 @@ function onEntryClick(cluster: Cluster, index: number) {
 function confirmDelete(index: number) {
   closeSliding(index)
   emit('delete', index)
+}
+
+// Swipe-to-duplicate for a single stream, replacing duplicate-mode (the old tap-anywhere
+// toggle, see ENABLE_TAP_DUPLICATE_MODE below) as the default — same underlying 'duplicate'
+// emit either way, so SessionView.vue's handler didn't need to change.
+function duplicateRowAction(index: number) {
+  closeSliding(index)
+  emit('duplicate', index)
 }
 </script>
 
