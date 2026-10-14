@@ -1080,10 +1080,6 @@
     // the old range (Paul, 2026-10-04).
     stopIfPlaying()
     if (active && !loopActive.value) loopActive.value = true
-    // Mirrors SequenceHistory's own activeIndex clear on entering range-select mode (see
-    // setRangeMode() there) — a stray "start from selected" row shouldn't survive into a
-    // mode that repurposes taps for something else entirely.
-    if (active) selectedIndex.value = -1
   }
 
   // Also used whenever a marker tap lands mid-playback (see SequenceHistory's 'range-tap')
@@ -1119,32 +1115,17 @@
   function onDuplicateModeChange(active: boolean) {
     duplicateModeActive.value = active
     stopIfPlaying()
-    // Same reasoning as onRangeModeChange's clear above.
-    if (active) selectedIndex.value = -1
   }
 
   // Export-facing scope only ("this loop" in the export menu, plus whatever MIDI/WAV
   // export reads) — loop-range (explicit, persistent user intent) plus reverse, nothing
-  // else. Deliberately blind to selectedIndex below: a row left highlighted from earlier
-  // browsing is not a statement about what the user wants exported, and silently scoping
-  // an export to "from wherever I last tapped" would be a surprising, easy-to-miss trap
-  // (Paul, 2026-10-09).
+  // else.
   const playbackSequence = computed(() => {
     const base = loopRange.value
       ? sequenceStore.sequence.slice(loopRange.value[0], loopRange.value[1] + 1)
       : sequenceStore.sequence
     return reversePlayback.value ? [...base].reverse() : base
   })
-
-  // The row most recently tapped to preview in "the flow" (SequenceHistory's own
-  // activeIndex, mirrored here via the audition event) — lets a non-looping play resume
-  // from there instead of always starting at the top. Ephemeral, not sticky: spent
-  // (cleared) the instant it's actually used to start playback (see playOnce() below),
-  // and cleared early whenever SequenceHistory would itself clear its highlight (entering
-  // range-select or duplicate mode) so a stale selection never lingers into a mode that's
-  // repurposed what a tap means. Never read by playbackSequence/export above — see that
-  // computed's own comment.
-  const selectedIndex = ref(-1)
 
   // Pool-aware playback: resolves pool direction/latch overrides and repeat counts into
   // a flat, already-expanded timeline that the engine schedules directly — the engine
@@ -1239,8 +1220,7 @@
   // What actually got scheduled on the engine for the current/most recent play — mirrors
   // activePlaybackRange's old role (mapping engine positions back to real rows for the
   // highlight) but now also carries repeat progress for the pool header's live counter.
-  // Rebuilt fresh on every playLoop()/startFullLoop()/playOnce() call, same "one-shot,
-  // not persistent" treatment selectedIndex gets.
+  // Rebuilt fresh on every playLoop()/startFullLoop()/playOnce() call.
   const activePlaybackPlan = ref<PlaybackPlan | null>(null)
 
   function settingsForPlan(plan: PlaybackPlan) {
@@ -1274,35 +1254,14 @@
     return { poolId: pool.id, current: info[0], total: info[1] }
   })
 
-  // The loop-mode half of "start from selected": with no explicit loop-range and a
-  // valid selected row, loop mode still starts there — but only for the first pass. It
-  // plays a one-shot lead-in from the selection (forward to the end, or backward to the
-  // start if reversed, same direction rule as playOnce() below) and, only once that
-  // completes naturally, settles into looping the whole flow from the top (Paul,
-  // 2026-10-09) — "pick up from here, then loop the flow," not "loop from here forever."
-  // onComplete's own staleness guard (see playSequence() in useAudioEngine.ts) means a
-  // manual stop or a settings-change restart mid-lead-in simply never reaches
-  // startFullLoop() — no risk of a stray loop kicking in after the user's moved on.
+  // Reverted "start from a selected/previewed row" entirely (Paul, 2026-10-14) — this used
+  // to also have a loop-mode lead-in-then-settle-into-the-full-loop variant, but Paul's
+  // original ask was for playback to always start at the top of the flow, full stop; the
+  // first pass at this revert only caught the non-looping playOnce() case (see its own
+  // comment below). playLoop() is now a thin wrapper kept only because it already has many
+  // call sites — collapsing them all to call startFullLoop() directly wasn't worth the
+  // touch count for what's now a one-line difference.
   function playLoop() {
-    const range = loopRange.value
-    if (!range && selectedIndex.value >= 0 && selectedIndex.value < sequenceStore.sequence.length) {
-      const s = selectedIndex.value
-      const leadInRange: [number, number] = reversePlayback.value
-        ? [0, s]
-        : [s, sequenceStore.sequence.length - 1]
-      const plan = buildPlaybackPlan(leadInRange)
-      activePlaybackPlan.value = plan
-      selectedIndex.value = -1
-      audioEngine.playSequence(
-        plan.clusters,
-        settingsForPlan(plan),
-        false,
-        () => {
-          if (loopActive.value) startFullLoop()
-        }
-      )
-      return
-    }
     startFullLoop()
   }
 
@@ -1316,13 +1275,8 @@
     )
   }
 
-  // Reverted "play once from the selected row" (Paul, 2026-10-13) — the non-looping,
-  // play-then-stop case read as confusing, and loop mode's own lead-in-from-selection
-  // (playLoop() below) already covers "start from a selected stream" for the case where
-  // it actually reads clearly. playOnce() now always plays the explicit loop-range (or the
-  // whole flow) regardless of whatever row was last tapped to preview — selectedIndex is
-  // still cleared below, since a stale selection surviving into a later playLoop() call
-  // would be a confusing surprise there too.
+  // Always plays the explicit loop-range (or the whole flow) from the top — see playLoop()
+  // above for the full "start from selected" revert.
   function playOnce() {
     const range = loopRange.value
     const plan = buildPlaybackPlan(range)
@@ -1332,15 +1286,13 @@
       settingsForPlan(plan),
       false
     )
-    selectedIndex.value = -1
   }
 
   function auditionHistoryCluster(cluster: Cluster) {
     audioEngine.playCluster(cluster, playbackSettings.value)
   }
 
-  function onHistoryAudition(cluster: Cluster, index: number) {
-    selectedIndex.value = index
+  function onHistoryAudition(cluster: Cluster) {
     auditionHistoryCluster(cluster)
   }
 
