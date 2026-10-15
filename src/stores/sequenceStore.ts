@@ -9,6 +9,7 @@ import {
   canTransposeOctave as canShiftOctave,
 } from '../utils/noteUtils'
 import { MIDI_SEED_MIN, MIDI_SEED_MAX, MIDI_MIN, MIDI_MAX } from '../data/notes'
+import { getScaleNotes, SCALE_MAP } from '../data/scales'
 import type { ArpeggioDirection } from './settingsStore'
 
 // Ceiling on a random seed's average pairwise dissonance rank (see clusterDissonance()).
@@ -163,9 +164,19 @@ export const useSequenceStore = defineStore('sequence', () => {
     sequence.value = [sorted]
   }
 
-  function randomStart(voiceCount: number) {
+  // `channel` (the key lock — see settingsStore's keyLocked/keyRoot/scaleId) restricts the
+  // seed to that scale's notes; omitted means the usual chromatic seed. Same retry loop
+  // and dissonance gate either way, so a locked seed is still a comfortable opening chord,
+  // just one drawn from inside the channel.
+  function randomStart(voiceCount: number, channel?: { keyRoot: number; scaleId: string }) {
     let notes: number[] = []
     let found = false
+    const allowed = channel && SCALE_MAP[channel.scaleId]
+      ? new Set(getScaleNotes(channel.keyRoot, channel.scaleId, MIDI_MIN, MIDI_MAX))
+      : undefined
+    const seedPool = allowed
+      ? [...allowed].filter(n => n >= MIDI_SEED_MIN && n < MIDI_SEED_MAX)
+      : undefined
 
     // Retry until we get exactly voiceCount valid, comfortably-consonant notes.
     // Previous approach broke early when notes went too high, producing silent failures.
@@ -173,7 +184,9 @@ export const useSequenceStore = defineStore('sequence', () => {
       notes = []
       // Seed within the dedicated seed zone (octave 2-3), leaving headroom for voices above
       const seedRange = MIDI_SEED_MAX - MIDI_SEED_MIN
-      notes.push(MIDI_SEED_MIN + Math.floor(Math.random() * seedRange))
+      notes.push(seedPool
+        ? seedPool[Math.floor(Math.random() * seedPool.length)]
+        : MIDI_SEED_MIN + Math.floor(Math.random() * seedRange))
 
       while (notes.length < voiceCount) {
         const prev = notes[notes.length - 1]
@@ -182,7 +195,15 @@ export const useSequenceStore = defineStore('sequence', () => {
         // Reserve at least 1 semitone per remaining voice
         const maxStep = Math.min(14 - spread - (remaining - 1), 5)
         if (maxStep < 1) break
-        const step = 1 + Math.floor(Math.random() * maxStep)
+        let step = 1 + Math.floor(Math.random() * maxStep)
+        if (allowed) {
+          // Nearest in-channel notes above prev within the step budget — picking a raw
+          // step then discarding misses would starve sparse scales (pentatonic gaps).
+          const options: number[] = []
+          for (let n = prev + 1; n <= prev + maxStep; n++) if (allowed.has(n)) options.push(n)
+          if (options.length === 0) break
+          step = options[Math.floor(Math.random() * options.length)] - prev
+        }
         notes.push(prev + step)
       }
 
@@ -205,6 +226,18 @@ export const useSequenceStore = defineStore('sequence', () => {
         4: [60, 64, 67, 71], // C4 E4 G4 B4
       }
       notes = fallbacks[voiceCount] ?? [60, 64, 67]
+      // Locked: stack every-other degree of the scale (1-3-5-7, or 1-3-5 for three voices)
+      // upward from the root in octave 3 — always in-channel, always valid, whatever the
+      // scale. Degree indices wrap into the next octave for the 5-note pentatonics.
+      const scale = channel && SCALE_MAP[channel.scaleId]
+      if (scale) {
+        const base = 48 + (channel!.keyRoot % 12)  // C3..B3
+        notes = Array.from({ length: voiceCount }, (_, v) => {
+          const degree = v * 2
+          return base + scale.intervals[degree % scale.intervals.length]
+            + 12 * Math.floor(degree / scale.intervals.length)
+        })
+      }
     }
 
     start(notes)

@@ -1,13 +1,16 @@
 import { ref } from 'vue'
-import { STRATEGIES, Strategy } from '../data/strategies'
+import { STRATEGIES, KEY_LEAVING_STRATEGY_IDS, Strategy } from '../data/strategies'
 
 export function useStrategyDeck(keyLockActive: () => boolean) {
   const currentStrategy = ref<Strategy | null>(null)
   const drawHistory = ref<Strategy[]>([])
 
-  // Eligible strategies given current key lock state
+  // Eligible strategies given current key lock state. The key-leaving ones are never
+  // eligible: locked means locked, and they only made sense with a lock on anyway.
   function eligibleStrategies(): Strategy[] {
-    return STRATEGIES.filter(s => !s.requiresKeyLock || keyLockActive())
+    return STRATEGIES.filter(
+      s => !KEY_LEAVING_STRATEGY_IDS.has(s.id) && (!s.requiresKeyLock || keyLockActive())
+    )
   }
 
   // Draw a new strategy, avoiding the last drawn if possible

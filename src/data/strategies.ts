@@ -49,6 +49,15 @@ export interface Strategy {
   notes?: string  // optional clarification for implementation
 }
 
+// Strategies whose whole point is landing notes OUTSIDE the active key (the parallel
+// major/minor, the IV scale). The channel is a strict lock — every note a move lands on is
+// in the scale — so these are held out of the deck entirely (see useStrategyDeck.ts) rather
+// than letting a locked flow leave its scale. Kept intact for a future explicit "cross the
+// channel" feature where the lock itself visibly changes (2026-10-15 design conversation).
+// The other three requiresKeyLock strategies (tritone-sub, relative-shift, modal-interchange)
+// all stay inside the scale and remain in the deck.
+export const KEY_LEAVING_STRATEGY_IDS = new Set(['parallel-mode', 'resolve-wrong'])
+
 export const STRATEGIES: Strategy[] = [
   {
     id: 'hold-one-move-others-step',

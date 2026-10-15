@@ -1,4 +1,4 @@
-import { Strategy } from '../data/strategies'
+import { Strategy, KEY_LEAVING_STRATEGY_IDS } from '../data/strategies'
 import { getScaleNotes } from '../data/scales'
 import { MIDI_MIN, MIDI_MAX } from '../data/notes'
 import {
@@ -47,6 +47,7 @@ function intervalBounds(movementType: string): { min: number; max: number } {
 // so they're bucketed to whichever binary quality they read closest to.
 const MINOR_QUALITY_SCALES = new Set([
   'minor', 'dorian', 'phrygian', 'locrian', 'harmonic_minor', 'pentatonic_minor',
+  'melodic_minor', 'altered', 'diminished_hw', 'diminished_wh',
 ])
 
 function parallelScaleId(scaleId: string): string {
@@ -194,7 +195,11 @@ function generateAllVoicesIndependentCandidates(
 // case). The bass voice is treated as the root and held fixed; every voice above it
 // independently steps to the nearest note whose pitch class matches the root or the
 // fifth above it.
-function generatePowerChordCandidates(cluster: Cluster, bounds: { min: number; max: number }): Cluster[] {
+function generatePowerChordCandidates(
+  cluster: Cluster,
+  allowedNotes: Set<number> | undefined,
+  bounds: { min: number; max: number }
+): Cluster[] {
   const { min, max } = intervalBounds('power')
   const root = cluster[0]
   const rootPc = root % 12
@@ -203,7 +208,9 @@ function generatePowerChordCandidates(cluster: Cluster, bounds: { min: number; m
   const targetNotes = new Set<number>()
   for (let midi = bounds.min; midi <= bounds.max; midi++) {
     const pc = midi % 12
-    if (pc === rootPc || pc === fifthPc) targetNotes.add(midi)
+    // Under a key lock the fifth only counts if it's actually in the scale (it isn't for
+    // e.g. the 7th degree of locrian) — otherwise this strategy walked straight out of it.
+    if ((pc === rootPc || pc === fifthPc) && (!allowedNotes || allowedNotes.has(midi))) targetNotes.add(midi)
   }
 
   const movingIndices = cluster.map((_, i) => i).slice(1)
@@ -345,7 +352,7 @@ export function generateCandidates(
           : undefined
         candidates = generateAllVoicesIndependentCandidates(cluster, strategy, ivNotes, bounds)
       } else if (strategy.movementType === 'power') {
-        candidates = generatePowerChordCandidates(cluster, bounds)
+        candidates = generatePowerChordCandidates(cluster, allowedNotes, bounds)
       } else {
         candidates = generateSingleVoiceCandidates(cluster, strategy, allowedNotes, bounds)
       }
@@ -372,6 +379,23 @@ export function generateCandidates(
   // Remove duplicates, remove the current cluster itself, cap results
   const unique = deduplicateClusters(candidates)
   const sortedCluster = sortCluster(cluster)
-  const filtered = unique.filter(c => !c.every((n, i) => n === sortedCluster[i]))
+  let filtered = unique.filter(c => !c.every((n, i) => n === sortedCluster[i]))
+
+  // Under a key lock, `allowedNotes` only filters where *moving* voices land — a held voice
+  // keeps whatever note it had. So once a stray (out-of-key) note exists — a key-lock
+  // strategy borrowed from outside the scale on purpose, a hand-entered source, or the
+  // channel just changed mid-flow — every later move would carry it along, and ~20-30% of
+  // a long locked flow ended up with one. Settle instead: of this strategy's candidates,
+  // keep only those with the fewest strays, so each move pulls strays back in as far as
+  // the strategy's rules allow (a one-voice move fixes one stray, an all-voice move fixes
+  // them all) and never adds any. A cluster that's already fully in key keeps every
+  // candidate (fewest = 0 for all of them). Skipped for the key-leaving strategies, which
+  // are never in the locked deck anyway (KEY_LEAVING_STRATEGY_IDS).
+  if (allowedNotes && !KEY_LEAVING_STRATEGY_IDS.has(strategy.id) && filtered.length > 0) {
+    const strays = (c: Cluster) => c.filter(n => !allowedNotes.has(n)).length
+    const fewest = Math.min(...filtered.map(strays))
+    filtered = filtered.filter(c => strays(c) === fewest)
+  }
+
   return sampleCandidates(filtered, MAX_CANDIDATES, sortedCluster)
 }
