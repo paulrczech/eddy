@@ -764,12 +764,14 @@ const rangeOverlapsPool = computed(() => {
   return props.pools.some(p => rangeStart.value! <= p.range[1] && rangeEnd.value! >= p.range[0])
 })
 
-// Same "consume and clear, don't exit range-select mode" treatment as duplicateRange()
-// above — "loop set — tap to start a new one" still applies afterward.
+// Unlike duplicateRange() above, this exits range-select mode entirely (Paul, 2026-10-15):
+// the range was consumed into a pool, which is now its own unit, so leaving the toggle lit
+// just kept row taps in "mark a boundary" mode when the next move is almost certainly
+// something else. setRangeMode(false) also clears the range.
 function createPoolFromRange() {
   if (rangeStart.value === null || rangeEnd.value === null) return
   emit('create-pool', rangeStart.value, rangeEnd.value)
-  clearRange()
+  setRangeMode(false)
 }
 
 const pickerOpen = ref(false)
