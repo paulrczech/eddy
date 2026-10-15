@@ -18,12 +18,11 @@ import type { ArpeggioDirection } from './settingsStore'
 // don't, without ever exhausting the retry loop below into the guaranteed fallback.
 const SEED_DISSONANCE_CEILING = 6
 
-// Floor on the random seed's *highest* voice — not a spread minimum. A tight, closely
-// voiced cluster sounds fine once it's sitting at or above octave 3; it's specifically a
-// cluster stuck entirely down in octave 2 that reads as muddy/hard to hear on small
-// speakers (Paul, 2026-10-04). The seed zone's low end (MIDI_SEED_MIN, E2) needs up to 8
-// semitones of lift to clear this — comfortably inside the existing 14-semitone max-spread
-// cap below, so this never needs to loosen that cap, just require it actually gets used.
+// Floor on the random seed's *highest* voice — not a spread minimum. A cluster stuck
+// entirely down in octave 2 reads as muddy/hard to hear on small speakers (Paul,
+// 2026-10-04). Since MIDI_SEED_MIN moved up to C3 (2026-10-15) every seed's bass already
+// sits at or above 48, so this can no longer bind — kept as a cheap safety net rather than
+// removed.
 const SEED_MIN_TOP_VOICE = 48 // C3
 
 // A pool is a pure UI/organizational layer over `sequence` — never a separate copy of the
