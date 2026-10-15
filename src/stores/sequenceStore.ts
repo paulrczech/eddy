@@ -27,11 +27,14 @@ const SEED_MIN_TOP_VOICE = 48 // C3
 
 // Smallest gap (semitones) a random seed may leave above a note, by that note's register —
 // the usual "low interval limit" rule of thumb: dense overtones down low blur together, so
-// the bottom of a seed is voiced openly and tight clusters are only allowed higher up.
-// Below E3: at least a major third; below C4: at least a minor third; above: anything.
+// the lower the note, the wider the opening above it, and tight clusters are only allowed
+// higher up. Octave 2 is allowed (Paul, 2026-10-15: a low note sounds fine as long as
+// there's enough distance above it) but needs a perfect fifth; softened from an earlier,
+// stricter major-third/minor-third version that halved the number of distinct starts.
 function seedMinGap(lowerNote: number): number {
-  if (lowerNote < 52) return 4  // E3
-  if (lowerNote < 60) return 3  // C4
+  if (lowerNote < 48) return 7  // below C3 (octave 2): a fifth
+  if (lowerNote < 52) return 3  // below E3: a minor third
+  if (lowerNote < 60) return 2  // below C4: a second
   return 1
 }
 
@@ -202,12 +205,13 @@ export const useSequenceStore = defineStore('sequence', () => {
         const spread = prev - notes[0]
         const remaining = voiceCount - notes.length
         // Reserve at least 1 semitone per remaining voice
-        const maxStep = Math.min(14 - spread - (remaining - 1), 5)
+        const minStep = seedMinGap(prev)
+        // The usual 5-semitone ceiling, widened just enough for an octave-2 note's fifth.
+        const maxStep = Math.min(14 - spread - (remaining - 1), Math.max(5, minStep + 2))
         // Open at the bottom, closer at the top: the lower note's register sets the
         // smallest gap allowed above it (see seedMinGap) — a randomly drawn step used to
         // land a second or a minor third right on top of a low bass, which is what read
         // as muddy even once the bass itself was up in octave 3.
-        const minStep = seedMinGap(prev)
         if (maxStep < minStep) break
         let step = minStep + Math.floor(Math.random() * (maxStep - minStep + 1))
         if (allowed) {
