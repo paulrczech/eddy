@@ -723,6 +723,9 @@ const AUTO_FILTER_SETTINGS: Partial<
   >
 > = {
   'analog-synth-temp': { frequency: 0.12, baseFrequency: 700, octaves: 2.2, wet: 0.6 },
+  // Trial (Paul, 2026-10-15): the analog synth's exact sweep on Yindad Acoustic, to hear how
+  // a slow cutoff drift sits on a plucked guitar. Delete this line to revert.
+  'guitar-acoustic': { frequency: 0.12, baseFrequency: 700, octaves: 2.2, wet: 0.6 },
 }
 
 // Chorus (a subtle detune wobble) and ping-pong delay (stereo, alternating left/right
