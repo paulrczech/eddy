@@ -104,6 +104,8 @@
       position="bottom"
       @did-dismiss="onRecoveryToastDismiss" />
 
+    <ChannelPicker :is-open="channelOpen" @close="channelOpen = false" @confirm="advance" />
+
     <ion-content class="ion-padding" fullscreen>
       <div class="session-layout">
         <!-- Loop resolved banner -->
@@ -138,6 +140,13 @@
             <p class="section-label">streams — tap to hear</p>
             <div class="streams-actions">
               <button
+                class="icon-btn refresh-streams-btn lock-streams-btn"
+                :class="{ 'is-locked': settingsStore.keyLocked }"
+                :aria-label="settingsStore.keyLocked ? 'open the channel' : 'lock to the channel'"
+                @click="toggleChannelLock">
+                <IonIcon :icon="settingsStore.keyLocked ? lockClosedOutline : lockOpenOutline" />
+              </button>
+              <button
                 class="icon-btn refresh-streams-btn"
                 aria-label="another"
                 @click="redraw">
@@ -151,6 +160,9 @@
               </button>
             </div>
           </div>
+          <button v-if="settingsStore.keyLocked" class="channel-chip" @click="channelOpen = true">
+            {{ channelLabel }}
+          </button>
           <div class="candidates-grid" :class="{ 'multi-active': multiSelect }">
             <button
               v-for="(cluster, i) in candidates"
@@ -183,6 +195,10 @@
           <p>
             no valid moves —
             <button class="inline-btn" @click="redraw">try another</button>
+            <template v-if="settingsStore.keyLocked">
+              or
+              <button class="inline-btn" @click="toggleChannelLock">open the channel</button>
+            </template>
           </p>
         </div>
 
@@ -504,6 +520,7 @@
   import StrategyCard from '../components/strategy/StrategyCard.vue'
   import SequenceHistory from '../components/sequence/SequenceHistory.vue'
   import NoteGlyph from '../components/ui/NoteGlyph.vue'
+  import ChannelPicker from '../components/ui/ChannelPicker.vue'
 
   import { useSequenceStore, type Pool } from '../stores/sequenceStore'
   import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, SHOW_ANALOG_SYNTH_TEMP, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
@@ -512,7 +529,8 @@
   import { useLoopDetection } from '../composables/useLoopDetection'
   import { generateCandidates } from '../composables/useVoiceLeading'
 
-  import { midiToName, MIDI_MIN, MIDI_MAX } from '../data/notes'
+  import { midiToName, MIDI_MIN, MIDI_MAX, NOTE_NAMES } from '../data/notes'
+  import { SCALE_MAP } from '../data/scales'
   import type { Strategy } from '../data/strategies'
   import type { Cluster } from '../utils/noteUtils'
   import { sortCluster } from '../utils/noteUtils'
@@ -944,6 +962,27 @@
   }
 
   function redraw() {
+    advance()
+  }
+
+  const channelOpen = ref(false)
+  const channelLabel = computed(
+    () =>
+      `${NOTE_NAMES[settingsStore.keyRoot % 12]} ${(SCALE_MAP[settingsStore.scaleId]?.name ?? '').toLowerCase()}`
+  )
+
+  // Lock icon in the streams header: locked -> open (keeps the chosen scale remembered);
+  // open -> re-lock the remembered scale, or open the picker first if none was ever chosen.
+  // Either way streams are regenerated, since the current ones were drawn under the old rule.
+  function toggleChannelLock() {
+    if (settingsStore.keyLocked) {
+      settingsStore.setKeyLocked(false)
+    } else if (settingsStore.keyChosen) {
+      settingsStore.setKeyLocked(true)
+    } else {
+      channelOpen.value = true
+      return
+    }
     advance()
   }
 
@@ -1485,6 +1524,14 @@
     saveAsNew()
   }
 
+  function channelState() {
+    return {
+      keyLocked: settingsStore.keyLocked,
+      keyRoot: settingsStore.keyRoot,
+      scaleId: settingsStore.scaleId,
+    }
+  }
+
   function saveAsNew() {
     const saved = saveSession(
       sequenceStore.sequence,
@@ -1497,7 +1544,8 @@
       settingsStore.latchMode,
       settingsStore.ambience,
       settingsStore.timeSignature,
-      sequenceStore.pools
+      sequenceStore.pools,
+      channelState()
     )
     sequenceStore.setSavedSessionId(saved.id)
     flashSaved()
@@ -1516,7 +1564,8 @@
       settingsStore.latchMode,
       settingsStore.ambience,
       settingsStore.timeSignature,
-      sequenceStore.pools
+      sequenceStore.pools,
+      channelState()
     )
     flashSaved()
   }
@@ -2126,6 +2175,40 @@
   }
 
   /* .btn-outline (box model, touch target) comes from theme/buttons.css */
+  /* Equal air between the lock, refresh, and multi glyphs without overlapping tap targets
+     (an earlier negative-margin version let refresh swallow the lock's taps). Two adjacent
+     44px icon boxes leave a full box of space between glyphs, while an icon box next to
+     the bordered multi button only leaves half — so push multi out by that half. */
+  .streams-actions {
+    /* 36px-wide (still 44px tall) icon boxes: at the full 44px the header no longer fit on
+       one line at 375pt (iPhone SE/mini) and the "streams — tap to hear" label wrapped. */
+    --streams-icon-w: 2.25rem;
+  }
+  .streams-actions .refresh-streams-btn {
+    min-width: var(--streams-icon-w);
+  }
+  .streams-actions .multi-toggle {
+    margin-left: calc((var(--streams-icon-w) - var(--icon-sm)) / 2);
+  }
+  .lock-streams-btn.is-locked {
+    color: var(--color-text);
+  }
+
+  .channel-chip {
+    display: block;
+    margin: -0.25rem 0 0.6rem;
+    padding: 0.2rem 0;
+    background: none;
+    border: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    color: var(--color-text-dim);
+  }
+  .channel-chip:hover {
+    color: var(--color-text);
+  }
+
   .multi-toggle {
     letter-spacing: 0.12em;
   }

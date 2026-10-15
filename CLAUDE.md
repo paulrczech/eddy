@@ -21,7 +21,7 @@ A minimal music utility for voice leading guided by oblique strategies. Users mo
 
 - `src/data/notes.ts` — MIDI constants, NOTE_NAMES, midiToName(), dissonanceRank()
 - `src/data/strategies.ts` — 20 Strategy objects {id, text, hint, voicesAllowedToMove, movementType, direction, requiresKeyLock}
-- `src/data/scales.ts` — 12 scale/mode definitions
+- `src/data/scales.ts` — 18 scale/mode definitions (chromatic = "open", i.e. no lock), ordered as the Channel picker shows them
 - `src/utils/noteUtils.ts` — Cluster type, sortCluster(), isValidCluster(), reachableNotes(), deduplicateClusters()
 - `src/utils/arpeggioEngine.ts` — framework-free shared note-scheduling: intervalFromBpm(), buildArpeggioNotes() (direction ordering), buildClusterEvents() (latch's repeat-to-fill-the-bar), humanVelocity() (jitter+taper). Imported by both useAudioEngine.ts (live) and midiUtils.ts (export) so the two can't drift out of sync — they did before this file existed (MIDI export had no latch support and a flat, unhumanized velocity)
 - `src/utils/sessionStorage.ts` — SavedSession, listSessions(), saveSession(), deleteSession(), renameSession()
@@ -41,6 +41,7 @@ A minimal music utility for voice leading guided by oblique strategies. Users mo
 - `src/components/strategy/StrategyCard.vue` — IonPopover hint, "another" button
 - `src/components/sequence/SequenceHistory.vue` — swipe-to-delete, inline note editing, playing row highlight
 - `src/components/ui/SavedSessions.vue` — inline name editing (tap name), load via metadata area
+- `src/components/ui/ChannelPicker.vue` — "the channel" (UI name for the key/scale lock) drawer: two IonPicker columns (root with "open" first = no lock, scale), draft state committed on "done". Shared by HomeView's channel row and SessionView's streams-header lock/chip
 - `src/components/ui/AboutModal.vue`
 - `src/router/index.ts` — /home, /session
 - `src/theme/variables.css` — design tokens
@@ -66,6 +67,7 @@ Source of truth: `src/theme/variables.css` ("New Moon" palette — cool, night-w
 
 - **Capacitor iOS**: `fetch()` on `capacitor://` returns status 0 / `ok=false` with an intact body, so Tone's own sample loader rejects everything — `useAudioEngine.ts` fetches + decodes buffers itself (`loadBuffers`). MIDI export uses Filesystem (cache dir) + Share on native, `<a download>` on web. Scrollable `ion-segment` paints blank labels in WKWebView sheets — don't use `scrollable` there. Ionic overlays (`ion-action-sheet`, `ion-alert`) need `!important` on theme variables. `swipeBackEnabled: false` in main.ts's `IonicVue` config — the iOS edge-swipe-back gesture was competing with in-tray range sliders near the screen edge (tempo/ambience), occasionally sliding SessionView aside and triggering the "start fresh?" guard. Verify anything native-looking in the simulator, not just headless Chromium.
 
+- **The channel (key/scale lock)**: `settingsStore.keyLocked`/`keyRoot`/`scaleId` (+ `keyChosen`, so the session lock icon can re-lock a remembered scale in one tap). Per-app-run, not part of saveAsDefault; saved with a flow (`ChannelState` in sessionStorage.ts, optional for old saves). It constrains *movement* — a hand-entered source is never blocked, only noted — and `randomStart(voiceCount, channel?)` seeds from in-scale notes (scale-aware fallback chord: stacked 1-3-5-7). The lock is **strict**: every note a move lands on is in the scale. The two strategies that deliberately leave the key (`KEY_LEAVING_STRATEGY_IDS` in strategies.ts: parallel-mode, resolve-wrong) are held out of the deck entirely (kept in code for a future explicit "cross the channel" feature); the other three `requiresKeyLock` strategies stay in-scale and only enter the deck while locked. In `generateCandidates()`, strategies "settle": only the candidates with the fewest out-of-key notes survive, so held strays (hand-entered source, a mid-flow key change, a hand-edited stream) get pulled back in; measured ~1% of locked-flow clusters carry a stray. Session lock icon toggles + regenerates streams; the dim scale line under the header opens the picker. Per-pool locks and a pool key label were deliberately not built (pools hold already-generated rows; a label would be wrong for mixed pools) — see the design conversation 2026-10-15.
 - **Strategy card bug fix**: `activeStrategy` is a local ref in SessionView, set atomically in `advance()` — never use `currentStrategy` from the composable directly in the template
 - **Loop playback**: Use Transport.loop (not Part.loop). Set all loop params BEFORE `loopPart.start(0)`. Start transport with `'+0.05'` offset.
 - **randomStart()**: Uses retry loop (30 attempts) + guaranteed fallback cluster — never passes invalid cluster to start()

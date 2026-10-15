@@ -41,8 +41,26 @@
             <ion-icon class="trigger-arrow" :icon="chevronForwardOutline" />
           </button>
 
+          <!-- The channel (key/scale lock) — feeds the source below, so it sits above it -->
+          <div class="trigger-row trigger-row--split">
+            <button class="option-btn source-main" @click="channelOpen = true">
+              <span class="trigger-label">the channel</span>
+              <span class="trigger-value">
+                <span class="trigger-hint-main">{{ channelLabel }}</span>
+                <ion-icon v-if="!settingsStore.keyLocked" class="trigger-arrow" :icon="chevronForwardOutline" />
+              </span>
+            </button>
+            <button
+              v-if="settingsStore.keyLocked"
+              class="row-edge-btn"
+              @click="settingsStore.setKeyLocked(false)"
+              title="open the channel (no lock)">
+              <ion-icon :icon="closeOutline" />
+            </button>
+          </div>
+
           <!-- The source (starting notes) -->
-          <div class="trigger-row trigger-row--source">
+          <div class="trigger-row trigger-row--split">
             <button class="option-btn source-main" @click="openPicker">
               <span class="trigger-label">the source</span>
               <span
@@ -84,6 +102,9 @@
         </div>
 
         <p v-if="manualError" class="error-msg">{{ manualError }}</p>
+        <p v-else-if="sourceOutsideChannel" class="channel-note">
+          some notes sit outside {{ channelLabel }} —<br />they settle in as voices move
+        </p>
       </div>
 
       <!-- Settings sheet -->
@@ -225,6 +246,8 @@
       </IonContent>
     </IonModal>
 
+    <ChannelPicker :is-open="channelOpen" @close="channelOpen = false" />
+
     <!-- Save default toast -->
     <IonToast
       :is-open="toastOpen"
@@ -260,6 +283,7 @@
   import { playOutline, helpCircleOutline, closeOutline, chevronForwardOutline } from 'ionicons/icons'
   import AboutModal from '../components/ui/AboutModal.vue'
   import SavedSessions from '../components/ui/SavedSessions.vue'
+  import ChannelPicker from '../components/ui/ChannelPicker.vue'
   import type { SavedSession } from '../utils/sessionStorage'
   import { listSessions } from '../utils/sessionStorage'
   import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, SHOW_ANALOG_SYNTH_TEMP } from '../stores/settingsStore'
@@ -270,7 +294,9 @@
   import {
     midiToName,
     MAX_CLUSTER_SPREAD,
+    NOTE_NAMES,
   } from '../data/notes'
+  import { SCALE_MAP, getScaleNotes } from '../data/scales'
   import type { Cluster } from '../utils/noteUtils'
   import { isValidCluster, sortCluster, canTransposeOctave } from '../utils/noteUtils'
 
@@ -321,6 +347,14 @@
         ?.label ?? settingsStore.instrument
   )
 
+  const channelOpen = ref(false)
+  // "open" = no key lock; otherwise e.g. "C lydian" (sharps only, per the app-wide rule)
+  const channelLabel = computed(() =>
+    settingsStore.keyLocked
+      ? `${NOTE_NAMES[settingsStore.keyRoot % 12]} ${(SCALE_MAP[settingsStore.scaleId]?.name ?? '').toLowerCase()}`
+      : 'open'
+  )
+
   const showAbout = ref(false)
   const showManual = ref(false)
   const settingsOpen = ref(false)
@@ -354,6 +388,15 @@
       manualMidi.value[i] += direction * 12
     }
   }
+
+  // A hand-entered source isn't blocked by the channel — the lock constrains movement, not
+  // the seed — but say so when some of its notes sit outside it, since those notes only
+  // settle in once their voice moves (a held voice keeps its note).
+  const sourceOutsideChannel = computed(() => {
+    if (!showManual.value || !settingsStore.keyLocked) return false
+    const inKey = new Set(getScaleNotes(settingsStore.keyRoot, settingsStore.scaleId, 0, 127))
+    return manualMidi.value.slice(0, voiceCount.value).some(n => !inKey.has(n))
+  })
 
   const pickerSnapshot = ref<{ midi: number[]; showManual: boolean } | null>(
     null
@@ -513,7 +556,12 @@
     settingsStore.resetPlaybackDefaults()
     await init(settingsStore.instrument)
     setAmbience(settingsStore.ambience)
-    sequenceStore.randomStart(settingsStore.voiceCount)
+    sequenceStore.randomStart(
+      settingsStore.voiceCount,
+      settingsStore.keyLocked
+        ? { keyRoot: settingsStore.keyRoot, scaleId: settingsStore.scaleId }
+        : undefined
+    )
     autoChainStreams(settingsStore.seedStreamCount)
     router.push('/session')
   }
@@ -536,6 +584,12 @@
     // ambience is a 0-1 float — 0 is a meaningful saved value (fully dry), same reasoning
     // as the latchMode check above, so this can't use a truthy check either.
     if (session.ambience !== undefined) settingsStore.setAmbience(session.ambience)
+    // Channel: older saves predate it (undefined -> open). Always assigned, never left over
+    // from whatever the previous flow had locked.
+    settingsStore.setKeyLocked(session.keyLocked ?? false)
+    if (session.keyRoot !== undefined) settingsStore.setKeyRoot(session.keyRoot)
+    if (session.scaleId) settingsStore.setScaleId(session.scaleId)
+    settingsStore.keyChosen = session.keyRoot !== undefined && !!session.scaleId
     await init(settingsStore.instrument)
     setAmbience(settingsStore.ambience)
     settingsStore.setVoiceCount(session.voiceCount as 3 | 4)
@@ -643,10 +697,10 @@
     gap: 0.75rem;
   }
 
-  /* Source row — split into main action + reset button. Not itself an .option-btn
+  /* Split rows (the channel, the source) — main action + reset button. Not itself an .option-btn
      (it wraps two separate buttons), so it doesn't pick up option-list's automatic
      .option-btn + .option-btn divider — add the same border explicitly. */
-  .trigger-row--source {
+  .trigger-row--split {
     display: flex;
     padding: 0;
     gap: 0;
@@ -728,6 +782,13 @@
   /* Primary button */
   .start-block {
     width: 100%;
+  }
+
+  .channel-note {
+    font-size: var(--text-xs);
+    color: var(--color-text);
+    margin: 0;
+    text-align: center;
   }
 
   .error-msg {

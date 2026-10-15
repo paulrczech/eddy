@@ -18,7 +18,7 @@
         <p class="hint-title">{{ strategy.text }}</p>
         <p class="hint-text">{{ strategy.hint }}</p>
         <p v-if="strategy.requiresKeyLock" class="hint-lock">
-          Requires Key Lock to be active.
+          Needs the channel locked to a scale.
         </p>
       </div>
     </IonModal>

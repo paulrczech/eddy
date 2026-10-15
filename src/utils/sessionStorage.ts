@@ -3,6 +3,9 @@ import { clusterLabel } from './noteUtils'
 import type { InstrumentType, ArpeggioDirection, Subdivision, TimeSignature } from '../stores/settingsStore'
 import type { Pool } from '../stores/sequenceStore'
 
+// The channel (key lock) as saved alongside a flow — see settingsStore's keyLocked/keyRoot/scaleId
+export type ChannelState = { keyLocked: boolean; keyRoot: number; scaleId: string }
+
 export interface SavedSession {
   id: string
   name: string
@@ -17,6 +20,9 @@ export interface SavedSession {
   ambience?: number
   timeSignature?: TimeSignature
   pools?: Pool[]         // optional — older saves predate pools entirely
+  keyLocked?: boolean    // the channel (key lock) — older saves predate it, read as open
+  keyRoot?: number
+  scaleId?: string
 }
 
 const STORAGE_KEY = 'note-threader-sessions'
@@ -59,7 +65,8 @@ export function saveSession(
   latchMode?: boolean,
   ambience?: number,
   timeSignature?: TimeSignature,
-  pools?: Pool[]
+  pools?: Pool[],
+  channel?: ChannelState
 ): SavedSession {
   const sessions = loadAll()
   const session: SavedSession = {
@@ -76,6 +83,7 @@ export function saveSession(
     ambience,
     timeSignature,
     pools,
+    ...channel,
   }
   sessions.push(session)
   saveAll(sessions)
@@ -93,7 +101,8 @@ export function overwriteSession(
   latchMode?: boolean,
   ambience?: number,
   timeSignature?: TimeSignature,
-  pools?: Pool[]
+  pools?: Pool[],
+  channel?: ChannelState
 ): SavedSession | null {
   const sessions = loadAll()
   const target = sessions.find(s => s.id === id)
@@ -108,6 +117,7 @@ export function overwriteSession(
   target.ambience = ambience
   target.timeSignature = timeSignature
   target.pools = pools
+  if (channel) Object.assign(target, channel)
   target.savedAt = Date.now()
   saveAll(sessions)
   return target

@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 
 export type VoiceCount = 3 | 4
 export type MovementSize = 'half' | 'step' | 'whole' | 'third' | 'free'
-export type KeyLockMode = 'free' | 'diatonic' | 'modal'
 export type LoopMode = 'auto' | 'manual' | 'capped'
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
 export type InstrumentType =
@@ -134,8 +133,18 @@ export const useSettingsStore = defineStore('settings', () => {
   // reasoning: past a small bound, there's always another existing tool (here, duplicate
   // mode) to get more.
   const seedStreamCount = ref<number>(1)
-  const keyLockMode = ref<KeyLockMode>('free')
-  const keyRoot = ref<number>(60)    // MIDI C4
+  // "The channel" (UI name for the key lock). keyLocked is deliberately separate from
+  // keyRoot/scaleId so toggling the lock off keeps the chosen scale for one-tap re-lock —
+  // same "user's intent survives a toggle" precedent as latchMode vs. chord direction.
+  // Per-app-run only: not part of saveAsDefault()/resetPlaybackDefaults(), since the
+  // channel is a choice made at the start of each flow, like the source notes.
+  const keyLocked = ref<boolean>(false)
+  // Whether a channel has ever been picked this app run (or restored from a saved flow) —
+  // lets SessionView's lock icon re-lock the remembered scale in one tap, but open the
+  // picker first when there's nothing remembered yet (keyRoot/scaleId's defaults are just
+  // placeholders, not a choice the user made).
+  const keyChosen = ref<boolean>(false)
+  const keyRoot = ref<number>(60)    // MIDI note — only the pitch class (% 12) matters
   const scaleId = ref<string>('major')
   const loopMode = ref<LoopMode>('auto')
   const maxMoves = ref<number>(32)   // cap for 'capped' loop mode
@@ -160,12 +169,12 @@ export const useSettingsStore = defineStore('settings', () => {
   // restart (see the SessionView watcher), not a ramp.
   const timeSignature = ref<TimeSignature>('4/4')
 
-  const keyLockActive = computed(() => keyLockMode.value !== 'free')
+  const keyLockActive = computed(() => keyLocked.value)
 
   function setVoiceCount(n: VoiceCount) { voiceCount.value = n }
   function setMovementSize(m: MovementSize) { movementSize.value = m }
   function setSeedStreamCount(n: number) { seedStreamCount.value = Math.min(8, Math.max(1, n)) }
-  function setKeyLockMode(mode: KeyLockMode) { keyLockMode.value = mode }
+  function setKeyLocked(on: boolean) { keyLocked.value = on; if (on) keyChosen.value = true }
   function setKeyRoot(midi: number) { keyRoot.value = midi }
   function setScaleId(id: string) { scaleId.value = id }
   function setLoopMode(mode: LoopMode) { loopMode.value = mode }
@@ -237,7 +246,8 @@ export const useSettingsStore = defineStore('settings', () => {
     voiceCount,
     movementSize,
     seedStreamCount,
-    keyLockMode,
+    keyLocked,
+    keyChosen,
     keyRoot,
     scaleId,
     loopMode,
@@ -253,7 +263,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setVoiceCount,
     setMovementSize,
     setSeedStreamCount,
-    setKeyLockMode,
+    setKeyLocked,
     setKeyRoot,
     setScaleId,
     setLoopMode,
