@@ -12,7 +12,7 @@ A minimal music utility for voice leading guided by oblique strategies. Users mo
 
 ## Key constraints
 
-- MIDI range: E2(40)–C6(84). Spread ≤40 semitones. Seed zone C3(48)–B3(59): random starts put the bass in octave 3 (octave 2 read as muddy). Streams can still drift down to E2 over a flow. Picker range is instrument-specific (see useAudioEngine.ts INSTRUMENT_NOTE_RANGE); voice-leading engine stays on the global range regardless of instrument.
+- MIDI range: E2(40)–C6(84). Spread ≤40 semitones. Seed zone C3(48)–B3(59): random starts put the bass in octave 3 (octave 2 read as muddy), voiced open at the bottom (seedMinGap() in sequenceStore.ts: gap above a note below E3 ≥ major 3rd, below C4 ≥ minor 3rd — close clusters only higher up). Streams can still drift down to E2 over a flow. Picker range is instrument-specific (see useAudioEngine.ts INSTRUMENT_NOTE_RANGE); voice-leading engine stays on the global range regardless of instrument.
 - No voice crossing (sorted ascending always). No chord names — purely voice movement.
 - Always sharps (C#, F#, etc.)
 - 3 or 4 voices only (5 = V2)
