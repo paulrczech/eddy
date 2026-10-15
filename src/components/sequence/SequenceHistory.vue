@@ -22,11 +22,11 @@
         </button>
         <button
           class="icon-btn reverse-toggle-btn"
-          :class="{ active: reversed }"
+          :class="{ active: playOrder !== 'forward' }"
           :disabled="sequence.length < 2"
-          :title="reversed ? 'play in order' : 'play in reverse'"
-          @click="toggleReverse">
-          <IonIcon :icon="swapVerticalOutline" />
+          :title="orderTitle"
+          @click="cyclePlayOrder">
+          <IonIcon :icon="orderIcon" />
         </button>
       </div>
     </div>
@@ -51,8 +51,8 @@
     <div v-else-if="duplicateModeActive" class="range-hint-row">
       <p class="range-hint">tap a stream to duplicate it</p>
     </div>
-    <div v-else-if="reversed" class="range-hint-row">
-      <p class="range-hint">playing in reverse</p>
+    <div v-else-if="playOrder !== 'forward'" class="range-hint-row">
+      <p class="range-hint">{{ orderHint }}</p>
     </div>
     <div class="history-scroll">
       <IonReorderGroup :disabled="false" @ionItemReorder="onReorder($event)">
@@ -197,8 +197,8 @@
       <div v-else-if="duplicateModeActive" class="range-hint-row range-hint-row--footer">
         <p class="range-hint">tap a stream to duplicate it</p>
       </div>
-      <div v-else-if="reversed" class="range-hint-row range-hint-row--footer">
-        <p class="range-hint">playing in reverse</p>
+      <div v-else-if="playOrder !== 'forward'" class="range-hint-row range-hint-row--footer">
+        <p class="range-hint">{{ orderHint }}</p>
       </div>
       <button
         v-if="ENABLE_TAP_DUPLICATE_MODE"
@@ -219,11 +219,11 @@
       </button>
       <button
         class="icon-btn reverse-toggle-btn"
-        :class="{ active: reversed }"
+        :class="{ active: playOrder !== 'forward' }"
         :disabled="sequence.length < 2"
-        :title="reversed ? 'play in order' : 'play in reverse'"
-        @click="toggleReverse">
-        <IonIcon :icon="swapVerticalOutline" />
+        :title="orderTitle"
+        @click="cyclePlayOrder">
+        <IonIcon :icon="orderIcon" />
       </button>
     </div>
   </div>
@@ -326,6 +326,8 @@ import {
   playOutline,
   repeatOutline,
   swapVerticalOutline,
+  arrowDownOutline,
+  arrowUpOutline,
   copyOutline,
   folderOutline,
   folderOpenOutline,
@@ -337,6 +339,7 @@ import type { Cluster } from '../../utils/noteUtils'
 import { sortCluster, isValidCluster, canTransposeOctave } from '../../utils/noteUtils'
 import { midiToName, MAX_CLUSTER_SPREAD, MIDI_MIN, MIDI_MAX } from '../../data/notes'
 import type { Pool } from '../../stores/sequenceStore'
+import type { PlayOrder } from '../../stores/settingsStore'
 
 const VOICE_COLORS = ['var(--voice-1)', 'var(--voice-2)', 'var(--voice-3)', 'var(--voice-4)']
 
@@ -369,7 +372,7 @@ const emit = defineEmits<{
   'range-change': [range: [number, number] | null]
   'range-mode-change': [active: boolean]
   'range-tap': []
-  'reverse-change': [reversed: boolean]
+  'play-order-change': [order: PlayOrder]
   duplicate: [index: number]
   'duplicate-range': [start: number, end: number]
   'duplicate-mode-change': [active: boolean]
@@ -684,14 +687,24 @@ function toggleDuplicateMode() {
 }
 
 // Playback order only — never touches props.sequence or its undo history. SessionView.vue
-// reverses whatever's about to actually play (the full flow, or the loop-range slice) at
-// the point of playback/export, so this composes with range selection rather than one
-// silently overriding the other.
-const reversed = ref(false)
-function toggleReverse() {
-  reversed.value = !reversed.value
-  emit('reverse-change', reversed.value)
+// applies it to whatever's about to actually play (the full flow, or the loop-range slice)
+// at the point of playback/export, so this composes with range selection rather than one
+// silently overriding the other. One button cycles forward -> reverse -> bounce ("ebb and
+// flow": forward, then back again, looping) -> forward, like a player's repeat button.
+const playOrder = ref<PlayOrder>('forward')
+const ORDER_CYCLE: PlayOrder[] = ['forward', 'reverse', 'bounce']
+function cyclePlayOrder() {
+  playOrder.value = ORDER_CYCLE[(ORDER_CYCLE.indexOf(playOrder.value) + 1) % ORDER_CYCLE.length]
+  emit('play-order-change', playOrder.value)
 }
+const orderIcon = computed(() =>
+  playOrder.value === 'forward' ? arrowDownOutline : playOrder.value === 'reverse' ? arrowUpOutline : swapVerticalOutline
+)
+// Titles describe what a tap will do (next state), matching the old toggle's convention.
+const orderTitle = computed(() =>
+  playOrder.value === 'forward' ? 'play in reverse' : playOrder.value === 'reverse' ? 'play back and forth' : 'play in order'
+)
+const orderHint = computed(() => (playOrder.value === 'reverse' ? 'playing in reverse' : 'ebb and flow'))
 
 watch(() => props.sequence.length, (len) => {
   // Previously always jumped to the new last row on any length change at all — add,

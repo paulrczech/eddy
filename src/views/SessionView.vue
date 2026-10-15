@@ -220,7 +220,7 @@
             @range-change="setLoopRange"
             @range-mode-change="onRangeModeChange"
             @range-tap="stopIfPlaying"
-            @reverse-change="onReverseChange"
+            @play-order-change="onPlayOrderChange"
             @duplicate="duplicateCluster"
             @duplicate-range="duplicateRangeClusters"
             @duplicate-mode-change="onDuplicateModeChange"
@@ -523,7 +523,7 @@
   import ChannelPicker from '../components/ui/ChannelPicker.vue'
 
   import { useSequenceStore, type Pool } from '../stores/sequenceStore'
-  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, SHOW_ANALOG_SYNTH_TEMP, type Subdivision, type TimeSignature, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, SHOW_ANALOG_SYNTH_TEMP, type Subdivision, type TimeSignature, type PlayOrder, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'
@@ -1131,17 +1131,19 @@
     if (isPlaying.value) audioEngine.stopLoop(true)
   }
 
-  // Reverse (SequenceHistory's "the flow" toggle, next to loop-range): playback-order
-  // only, never touches sequenceStore.sequence or its undo history. Applied after range
-  // slicing below so it composes with loop-range rather than one overriding the other —
-  // "reverse whatever's currently selected to play," same principle as range selection
-  // itself. MIDI/WAV export's "this loop" scope reuses playbackSequence directly, so it
-  // inherits reverse for free; "whole flow" export deliberately still reads
-  // sequenceStore.sequence directly — that scope means the canonical stored order.
-  const reversePlayback = ref(false)
+  // Play order (SequenceHistory's "the flow" order button, next to loop-range): playback-
+  // order only, never touches sequenceStore.sequence or its undo history. Applied after
+  // range slicing below so it composes with loop-range rather than one overriding the
+  // other — "reorder whatever's currently selected to play," same principle as range
+  // selection itself. 'bounce' is forward then back without repeating the end rows
+  // (1-2-3-4-3-2, looping), so a loop never doubles a voicing; the one-shot version adds
+  // the final return to row 1. MIDI/WAV export's "this loop" scope reuses playbackSequence
+  // directly, so it inherits the order for free; "whole flow" export deliberately still
+  // reads sequenceStore.sequence directly — that scope means the canonical stored order.
+  const playOrder = ref<PlayOrder>('forward')
 
-  function onReverseChange(reversed: boolean) {
-    reversePlayback.value = reversed
+  function onPlayOrderChange(order: PlayOrder) {
+    playOrder.value = order
     // Same reasoning as onRangeModeChange/stopIfPlaying below: the engine is scheduled
     // against the old order, and nothing re-triggers a reschedule on its own.
     stopIfPlaying()
@@ -1166,7 +1168,9 @@
     const base = loopRange.value
       ? sequenceStore.sequence.slice(loopRange.value[0], loopRange.value[1] + 1)
       : sequenceStore.sequence
-    return reversePlayback.value ? [...base].reverse() : base
+    if (playOrder.value === 'reverse') return [...base].reverse()
+    if (playOrder.value === 'bounce') return [...base, ...base.slice(1, -1).reverse()]
+    return base
   })
 
   // Pool-aware playback: resolves pool direction/latch overrides and repeat counts into
@@ -1187,7 +1191,7 @@
     return sequenceStore.pools.find((p) => i >= p.range[0] && i <= p.range[1])
   }
 
-  function buildPlaybackPlan(range: [number, number] | null): PlaybackPlan {
+  function buildPlaybackPlan(range: [number, number] | null, loop = true): PlaybackPlan {
     const seq = sequenceStore.sequence
     const lo = range ? range[0] : 0
     const hi = range ? range[1] : seq.length - 1
@@ -1206,7 +1210,7 @@
       repeatInfo.push(info)
     }
 
-    if (reversePlayback.value) {
+    if (playOrder.value === 'reverse') {
       // Repeats aren't supported in reverse yet (Paul's "continue the repeats" ask was
       // specifically about the forward start-from-selected case) — every row plays once,
       // in reverse order, same as before; direction/latch overrides still apply since
@@ -1254,6 +1258,12 @@
         pushRow(i, pool, null)
         i++
       }
+    }
+
+    // Bounce: the return pass, each row once (like reverse, no repeats). Looping stops one
+    // short of row `lo` since the loop itself wraps back to it; a one-shot ends there.
+    if (playOrder.value === 'bounce') {
+      for (let r = hi - 1; r >= (loop ? lo + 1 : lo); r--) pushRow(r, poolContaining(r), null)
     }
 
     return { clusters, directionOverrides, latchOverrides, realIndex, repeatInfo }
@@ -1308,7 +1318,7 @@
   }
 
   function startFullLoop() {
-    const plan = buildPlaybackPlan(loopRange.value)
+    const plan = buildPlaybackPlan(loopRange.value, true)
     activePlaybackPlan.value = plan
     audioEngine.playSequence(
       plan.clusters,
@@ -1321,7 +1331,7 @@
   // above for the full "start from selected" revert.
   function playOnce() {
     const range = loopRange.value
-    const plan = buildPlaybackPlan(range)
+    const plan = buildPlaybackPlan(range, false)
     activePlaybackPlan.value = plan
     audioEngine.playSequence(
       plan.clusters,

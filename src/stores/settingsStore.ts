@@ -3,6 +3,9 @@ import { ref, computed } from 'vue'
 
 export type VoiceCount = 3 | 4
 export type MovementSize = 'half' | 'step' | 'whole' | 'third' | 'free'
+// How the flow's rows are ordered for playback (SequenceHistory's order button, applied in
+// SessionView.vue): top to bottom, bottom to top, or forward then back again, looping.
+export type PlayOrder = 'forward' | 'reverse' | 'bounce'
 export type LoopMode = 'auto' | 'manual' | 'capped'
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
 export type InstrumentType =
