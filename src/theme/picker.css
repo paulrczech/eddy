@@ -72,3 +72,17 @@ ion-picker ion-picker-column-option.option-selected {
 .octave-transpose .transpose-btn:disabled {
   opacity: 0.3;
 }
+
+/* Trial (Paul, 2026-10-15): left-aligned, 20px picker text — Logic's Scale Quantize look.
+   Applies to the channel picker and the note/stream editors alike. ion-picker-column-option
+   exposes no ::part for its inner (centered, flex) button, so each option's text is wrapped
+   in .picker-opt-text, a slotted span that fills the button and left-aligns itself. */
+ion-picker ion-picker-column-option {
+  font-size: 20px;
+  width: 100%;
+}
+.picker-opt-text {
+  display: block;
+  text-align: left;
+  padding-left: 0.75rem;
+}

@@ -24,10 +24,18 @@
     </IonHeader>
     <IonContent :scroll-y="false">
       <IonPicker>
+        <!-- Empty spacer columns either side. Ionic start-aligns the first column and
+             end-aligns the last, and no outside CSS can inset that text (it's laid out in
+             the column's shadow DOM) — so with just two columns the text hugged the edges,
+             unlike the note picker's centered columns. Flanking them makes both real
+             columns inner ones, which Ionic centers. -->
+        <IonPickerColumn class="channel-spacer" value="" aria-hidden="true">
+          <IonPickerColumnOption value="" />
+        </IonPickerColumn>
         <IonPickerColumn :value="draftRoot" @ion-change="onRootChange">
-          <IonPickerColumnOption :value="OPEN">open</IonPickerColumnOption>
+          <IonPickerColumnOption :value="OPEN"><span class="picker-opt-text">open</span></IonPickerColumnOption>
           <IonPickerColumnOption v-for="(name, pc) in NOTE_NAMES" :key="pc" :value="pc">
-            {{ name }}
+            <span class="picker-opt-text">{{ name }}</span>
           </IonPickerColumnOption>
         </IonPickerColumn>
         <IonPickerColumn :value="draftScale" @ion-change="onScaleChange">
@@ -36,8 +44,11 @@
             :key="scale.id"
             :value="scale.id"
             :style="{ opacity: draftRoot === OPEN ? 0.4 : 1 }">
-            {{ scale.name }}
+            <span class="picker-opt-text">{{ scale.name }}</span>
           </IonPickerColumnOption>
+        </IonPickerColumn>
+        <IonPickerColumn class="channel-spacer" value="" aria-hidden="true">
+          <IonPickerColumnOption value="" />
         </IonPickerColumn>
       </IonPicker>
     </IonContent>
@@ -113,6 +124,10 @@
 </script>
 
 <style scoped>
+  .channel-spacer {
+    pointer-events: none;
+  }
+
   .channel-title {
     text-align: center;
     font-size: var(--text-label);

@@ -239,7 +239,7 @@
               :key="midi"
               :value="midi"
               :style="{ color: voiceColors[i] }">
-              {{ midiToName(midi) }}
+              <span class="picker-opt-text">{{ midiToName(midi) }}</span>
             </IonPickerColumnOption>
           </IonPickerColumn>
         </IonPicker>
