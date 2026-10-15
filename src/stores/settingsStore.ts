@@ -139,11 +139,6 @@ export const useSettingsStore = defineStore('settings', () => {
   // Per-app-run only: not part of saveAsDefault()/resetPlaybackDefaults(), since the
   // channel is a choice made at the start of each flow, like the source notes.
   const keyLocked = ref<boolean>(false)
-  // Whether a channel has ever been picked this app run (or restored from a saved flow) —
-  // lets SessionView's lock icon re-lock the remembered scale in one tap, but open the
-  // picker first when there's nothing remembered yet (keyRoot/scaleId's defaults are just
-  // placeholders, not a choice the user made).
-  const keyChosen = ref<boolean>(false)
   const keyRoot = ref<number>(60)    // MIDI note — only the pitch class (% 12) matters
   const scaleId = ref<string>('major')
   const loopMode = ref<LoopMode>('auto')
@@ -174,7 +169,7 @@ export const useSettingsStore = defineStore('settings', () => {
   function setVoiceCount(n: VoiceCount) { voiceCount.value = n }
   function setMovementSize(m: MovementSize) { movementSize.value = m }
   function setSeedStreamCount(n: number) { seedStreamCount.value = Math.min(8, Math.max(1, n)) }
-  function setKeyLocked(on: boolean) { keyLocked.value = on; if (on) keyChosen.value = true }
+  function setKeyLocked(on: boolean) { keyLocked.value = on }
   function setKeyRoot(midi: number) { keyRoot.value = midi }
   function setScaleId(id: string) { scaleId.value = id }
   function setLoopMode(mode: LoopMode) { loopMode.value = mode }
@@ -247,7 +242,6 @@ export const useSettingsStore = defineStore('settings', () => {
     movementSize,
     seedStreamCount,
     keyLocked,
-    keyChosen,
     keyRoot,
     scaleId,
     loopMode,

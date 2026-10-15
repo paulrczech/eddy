@@ -104,7 +104,7 @@
       position="bottom"
       @did-dismiss="onRecoveryToastDismiss" />
 
-    <ChannelPicker :is-open="channelOpen" @close="channelOpen = false" @confirm="advance" />
+    <ChannelPicker :is-open="channelOpen" :relock="channelRelock" @close="channelOpen = false; channelRelock = false" @confirm="advance" />
 
     <ion-content class="ion-padding" fullscreen>
       <div class="session-layout">
@@ -160,7 +160,7 @@
               </button>
             </div>
           </div>
-          <button v-if="settingsStore.keyLocked" class="channel-chip" @click="channelOpen = true">
+          <button v-if="settingsStore.keyLocked" class="channel-chip" @click="channelRelock = false; channelOpen = true">
             {{ channelLabel }}
           </button>
           <div class="candidates-grid" :class="{ 'multi-active': multiSelect }">
@@ -971,19 +971,20 @@
       `${NOTE_NAMES[settingsStore.keyRoot % 12]} ${(SCALE_MAP[settingsStore.scaleId]?.name ?? '').toLowerCase()}`
   )
 
-  // Lock icon in the streams header: locked -> open (keeps the chosen scale remembered);
-  // open -> re-lock the remembered scale, or open the picker first if none was ever chosen.
-  // Either way streams are regenerated, since the current ones were drawn under the old rule.
+  // Lock icon in the streams header: locked -> open instantly (the scale stays remembered);
+  // open -> the channel drawer, preselected to the last key/scale, so locking is always a
+  // visible choice and "done" straight away re-locks to the same one. Streams regenerate
+  // after either (via @confirm on the drawer, or directly here), since the current ones were
+  // drawn under the old rule.
+  const channelRelock = ref(false)
   function toggleChannelLock() {
     if (settingsStore.keyLocked) {
       settingsStore.setKeyLocked(false)
-    } else if (settingsStore.keyChosen) {
-      settingsStore.setKeyLocked(true)
+      advance()
     } else {
+      channelRelock.value = true
       channelOpen.value = true
-      return
     }
-    advance()
   }
 
   // Returns 1-based position in selection order, or 0 if not selected

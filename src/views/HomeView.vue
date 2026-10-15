@@ -589,7 +589,6 @@
     settingsStore.setKeyLocked(session.keyLocked ?? false)
     if (session.keyRoot !== undefined) settingsStore.setKeyRoot(session.keyRoot)
     if (session.scaleId) settingsStore.setScaleId(session.scaleId)
-    settingsStore.keyChosen = session.keyRoot !== undefined && !!session.scaleId
     await init(settingsStore.instrument)
     setAmbience(settingsStore.ambience)
     settingsStore.setVoiceCount(session.voiceCount as 3 | 4)

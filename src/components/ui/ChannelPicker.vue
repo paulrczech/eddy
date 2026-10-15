@@ -66,7 +66,9 @@
   import { SCALES } from '../../data/scales'
   import { NOTE_NAMES } from '../../data/notes'
 
-  const props = defineProps<{ isOpen: boolean }>()
+  // `relock`: opened from the session's lock icon while the lock is off — preselect the last
+  // key/scale instead of "open", so choosing "done" straight away re-locks to it.
+  const props = defineProps<{ isOpen: boolean; relock?: boolean }>()
   // 'confirm' fires after the store is updated, so a parent can react to the new lock
   // (SessionView regenerates stream candidates); 'close' fires on any dismissal.
   const emit = defineEmits<{ (e: 'close'): void; (e: 'confirm'): void }>()
@@ -84,7 +86,7 @@
     () => props.isOpen,
     open => {
       if (!open) return
-      draftRoot.value = settingsStore.keyLocked ? settingsStore.keyRoot % 12 : OPEN
+      draftRoot.value = settingsStore.keyLocked || props.relock ? settingsStore.keyRoot % 12 : OPEN
       draftScale.value = settingsStore.scaleId
     },
     { immediate: true }
