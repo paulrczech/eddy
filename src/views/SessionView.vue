@@ -2035,6 +2035,19 @@
     gap: 0.4rem;
   }
 
+  /* Wide viewports: keep the bar and drawer *backgrounds and dividers* full-width (the usual
+     player-bar look) but line their *contents* up with the 500px column above, so the open
+     drawer isn't a mobile layout stretched across 2000px with controls pinned to the far
+     edges. Padding = half the leftover width, never less than the usual 1rem. */
+  @media (min-width: 560px) {
+    .footer-bar,
+    .tray-row.playback-row,
+    .tray-row.export-row,
+    .grid-section {
+      padding-inline: max(1rem, calc((100% - 500px) / 2));
+    }
+  }
+
   .instrument-select {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
