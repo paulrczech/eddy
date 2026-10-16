@@ -700,11 +700,18 @@ function cyclePlayOrder() {
 const orderIcon = computed(() =>
   playOrder.value === 'forward' ? arrowDownOutline : playOrder.value === 'reverse' ? arrowUpOutline : swapVerticalOutline
 )
-// Titles describe what a tap will do (next state), matching the old toggle's convention.
+// Hover title names the CURRENT mode and what a tap switches to — a title that only named
+// the next mode read as the wrong label next to the state actually on screen (Paul,
+// 2026-10-16). Water vocabulary: downstream = top to bottom with the flow, upstream = bottom
+// to top, against the current, "ebb and flow" = forward then back again.
 const orderTitle = computed(() =>
-  playOrder.value === 'forward' ? 'play in reverse' : playOrder.value === 'reverse' ? 'play back and forth' : 'play in order'
+  playOrder.value === 'forward'
+    ? 'playing downstream — tap for upstream'
+    : playOrder.value === 'reverse'
+      ? 'playing upstream — tap for ebb and flow'
+      : 'playing ebb and flow — tap for downstream'
 )
-const orderHint = computed(() => (playOrder.value === 'reverse' ? 'playing in reverse' : 'ebb and flow'))
+const orderHint = computed(() => (playOrder.value === 'reverse' ? 'playing upstream' : 'ebb and flow'))
 
 watch(() => props.sequence.length, (len) => {
   // Previously always jumped to the new last row on any length change at all — add,

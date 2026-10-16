@@ -143,12 +143,14 @@
                 class="icon-btn refresh-streams-btn lock-streams-btn"
                 :class="{ 'is-locked': settingsStore.keyLocked }"
                 :aria-label="settingsStore.keyLocked ? 'open the channel' : 'lock to the channel'"
+                :title="settingsStore.keyLocked ? 'open the channel (unlock)' : 'lock to a scale'"
                 @click="toggleChannelLock">
                 <IonIcon :icon="settingsStore.keyLocked ? lockClosedOutline : lockOpenOutline" />
               </button>
               <button
                 class="icon-btn refresh-streams-btn"
                 aria-label="another"
+                title="another set of streams"
                 @click="redraw">
                 <IonIcon :icon="refreshOutline" />
               </button>
@@ -258,6 +260,7 @@
         <button
           class="btn-icon-outline play-stop"
           :class="{ playing: isPlaying }"
+          :title="isPlaying ? 'stop' : 'play'"
           :disabled="sequenceStore.sequence.length < 1 || duplicateModeActive"
           @click="isPlaying ? audioEngine.stopLoop(true) : handlePlay()">
           <ion-icon :icon="isPlaying ? stopOutline : playOutline" />
@@ -265,6 +268,7 @@
         <button
           class="btn-icon-outline loop-toggle"
           :class="{ active: loopActive }"
+          :title="loopActive ? 'loop on — tap to play once' : 'play once — tap to loop'"
           @click="toggleLoop">
           <ion-icon :icon="infiniteOutline" />
         </button>
@@ -317,7 +321,7 @@
                 class="btn-icon-outline toggle-btn"
                 :class="{ active: drawerDirection === d.value }"
                 :disabled="isPadInstrument && d.value !== 'chord'"
-                :title="isPadInstrument && d.value !== 'chord' ? 'a pad only really works as a chord — held, not arpeggiated' : undefined"
+                :title="isPadInstrument && d.value !== 'chord' ? 'a pad only really works as a chord — held, not arpeggiated' : DIRECTION_TITLES[d.value]"
                 @click="drawerDirection = d.value as any">
                 <ion-icon :icon="d.icon" />
               </button>
@@ -730,6 +734,16 @@
       audioEngine.stopLoop(true)
       playLoop()
     }
+  }
+
+  // Hover titles for the arpeggio-direction buttons (note order *within* each chord — not to
+  // be confused with the flow's play-order button, which reuses the same arrows for row order).
+  const DIRECTION_TITLES: Record<string, string> = {
+    up: 'arpeggio up',
+    down: 'arpeggio down',
+    updown: 'arpeggio up and down',
+    random: 'arpeggio random',
+    chord: 'play as a chord',
   }
 
   const directionOptions = [
