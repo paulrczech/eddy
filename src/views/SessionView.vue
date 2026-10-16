@@ -2035,18 +2035,6 @@
     gap: 0.4rem;
   }
 
-  /* Trial (2026-10-16): desktop Chrome showed a ~80px band above the open drawer that went
-     away when ion-content's #background-content div lost its background. That div is sized
-     bottom: calc(var(--offset-bottom) * -1) so a fullscreen page's background runs under the
-     footer — but Ionic measures --offset-bottom once (82px, the collapsed footer) and never
-     updates it when the drawer opens, so the div overhangs the content box by exactly that
-     much (measured: content ends y=429, div ends y=511). The footer is opaque, so nothing
-     needs to run under it; pinning the offset to 0 keeps the div inside the content box.
-     !important because Ionic writes it as an inline style. */
-  ion-content {
-    --offset-bottom: 0px !important;
-  }
-
   /* Wide viewports: keep the bar and drawer *backgrounds and dividers* full-width (the usual
      player-bar look) but line their *contents* up with the 500px column above, so the open
      drawer isn't a mobile layout stretched across 2000px with controls pinned to the far
