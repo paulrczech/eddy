@@ -2035,6 +2035,18 @@
     gap: 0.4rem;
   }
 
+  /* Desktop Chrome painted ion-content's own --background as a full-width band ~80px tall
+     above the open drawer, bleeding into the flow rows (Safari/Firefox were fine; Paul,
+     2026-10-16 — disabling this one custom property in DevTools removed it). The page behind
+     is already the same --color-bg (ion-app/body), so transparent loses nothing. Scoped to
+     real desktop pointers only: on touch devices Ionic's page transitions rely on each
+     page's content being opaque so the outgoing page doesn't show through. */
+  @media (hover: hover) and (pointer: fine) {
+    ion-content {
+      --background: transparent;
+    }
+  }
+
   /* Wide viewports: keep the bar and drawer *backgrounds and dividers* full-width (the usual
      player-bar look) but line their *contents* up with the 500px column above, so the open
      drawer isn't a mobile layout stretched across 2000px with controls pinned to the far
