@@ -122,7 +122,11 @@ const PLAYBACK_FALLBACK = {
 
 export const useSettingsStore = defineStore('settings', () => {
   const voiceCount = ref<VoiceCount>(3)
-  const movementSize = ref<MovementSize>('step')
+  // The "drift" size cap on Home (½ step … free) — wired into generateCandidates() on
+  // 2026-10-20; before that it was only displayed and saved, never read by the engine, so
+  // every flow behaved as 'free'. Default stays 'free' so nothing changes audibly until a
+  // cap is chosen (the old 'step' default would have silently capped everyone's flows).
+  const movementSize = ref<MovementSize>('free')
   // How many streams a new session starts with — 1 (play a strategy card yourself from
   // here) is the factory default and covers the app's whole normal, guided-discovery
   // identity; anything higher auto-chains that many real voice-led steps (a random

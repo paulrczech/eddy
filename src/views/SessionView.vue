@@ -967,6 +967,7 @@
         keyLockActive: settingsStore.keyLockActive,
         keyRoot: settingsStore.keyRoot,
         scaleId: settingsStore.scaleId,
+        movement: settingsStore.movementSize,
       })
       attempts++
       if (newCandidates.length > 0) activeStrategy.value = drawn

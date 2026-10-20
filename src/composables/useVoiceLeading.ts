@@ -10,10 +10,26 @@ import {
   deduplicateClusters,
 } from '../utils/noteUtils'
 
+// How far a voice that moves may move, per the "drift" size setting on Home (½ step … free).
+// Kept as a plain string union so this module stays framework-free; callers pass
+// settingsStore.movementSize straight through. Until 2026-10-20 that setting was shown,
+// saved and loaded but never reached the engine (found while comparing with Drift).
+export type MovementLimit = 'half' | 'step' | 'whole' | 'third' | 'free'
+
+// Allowed semitone distance for every voice that moves in a candidate (a voice may always
+// stay put). 'free' has no entry: no limit.
+const MOVEMENT_RANGE: Record<Exclude<MovementLimit, 'free'>, { min: number; max: number }> = {
+  half:  { min: 1, max: 1 },  // "½ step"
+  step:  { min: 1, max: 2 },  // "½–1 step"
+  whole: { min: 2, max: 2 },  // "1 step"
+  third: { min: 1, max: 4 },  // "≤ 3rd" (up to a major third)
+}
+
 export interface VoiceLeadingOptions {
   keyLockActive: boolean
   keyRoot?: number        // MIDI root note (pitch class only used)
   scaleId?: string        // scale id from scales.ts
+  movement?: MovementLimit  // the drift size cap; omitted = 'free'
 }
 
 const MAX_CANDIDATES = 6  // max options returned to the user
@@ -380,6 +396,21 @@ export function generateCandidates(
   const unique = deduplicateClusters(candidates)
   const sortedCluster = sortCluster(cluster)
   let filtered = unique.filter(c => !c.every((n, i) => n === sortedCluster[i]))
+
+  // The drift size cap: keep only candidates where every voice that moves does so within the
+  // setting's range. Strategies whose character is a leap (strip to bones, the bass jumping)
+  // simply yield nothing under a tight cap, and the caller's redraw picks another strategy.
+  // Applied before the key-lock settle step and the sampling below, so those work from
+  // candidates that already respect it.
+  const range = options.movement && options.movement !== 'free' ? MOVEMENT_RANGE[options.movement] : undefined
+  if (range) {
+    filtered = filtered.filter(c =>
+      c.every((n, i) => {
+        const d = Math.abs(n - sortedCluster[i])
+        return d === 0 || (d >= range.min && d <= range.max)
+      })
+    )
+  }
 
   // Under a key lock, `allowedNotes` only filters where *moving* voices land — a held voice
   // keeps whatever note it had. So once a stray (out-of-key) note exists — a key-lock
