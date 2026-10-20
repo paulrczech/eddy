@@ -297,6 +297,7 @@
     NOTE_NAMES,
   } from '../data/notes'
   import { SCALE_MAP, getScaleNotes } from '../data/scales'
+  import { MOOD_MAP } from '../data/moods'
   import type { Cluster } from '../utils/noteUtils'
   import { isValidCluster, sortCluster, canTransposeOctave } from '../utils/noteUtils'
 
@@ -348,10 +349,12 @@
   )
 
   const channelOpen = ref(false)
-  // "open" = no key lock; otherwise e.g. "C lydian" (sharps only, per the app-wide rule)
+  // "open" = no key lock; a mood shows as its word (the root is rolled at flow start, so
+  // no key to show); a hand-picked key as e.g. "C lydian" (sharps only, per the app-wide rule)
   const channelLabel = computed(() =>
     settingsStore.keyLocked
-      ? `${NOTE_NAMES[settingsStore.keyRoot % 12]} ${(SCALE_MAP[settingsStore.scaleId]?.name ?? '').toLowerCase()}`
+      ? (settingsStore.moodId && MOOD_MAP[settingsStore.moodId]?.label) ||
+        `${NOTE_NAMES[settingsStore.keyRoot % 12]} ${(SCALE_MAP[settingsStore.scaleId]?.name ?? '').toLowerCase()}`
       : 'open'
   )
 
@@ -393,7 +396,8 @@
   // the seed — but say so when some of its notes sit outside it, since those notes only
   // settle in once their voice moves (a held voice keeps its note).
   const sourceOutsideChannel = computed(() => {
-    if (!showManual.value || !settingsStore.keyLocked) return false
+    // A mood's root is chosen to fit the source when the flow starts, so there's nothing to warn about
+    if (!showManual.value || !settingsStore.keyLocked || settingsStore.moodId) return false
     const inKey = new Set(getScaleNotes(settingsStore.keyRoot, settingsStore.scaleId, 0, 127))
     return manualMidi.value.slice(0, voiceCount.value).some(n => !inKey.has(n))
   })
@@ -557,6 +561,7 @@
     settingsStore.resetPlaybackDefaults()
     await init(settingsStore.instrument)
     setAmbience(settingsStore.ambience)
+    settingsStore.rollMoodRoot()
     sequenceStore.randomStart(
       settingsStore.voiceCount,
       settingsStore.keyLocked
@@ -588,6 +593,7 @@
     // Channel: older saves predate it (undefined -> open). Always assigned, never left over
     // from whatever the previous flow had locked.
     settingsStore.setKeyLocked(session.keyLocked ?? false)
+    settingsStore.setMoodId(session.moodId ?? null)
     if (session.keyRoot !== undefined) settingsStore.setKeyRoot(session.keyRoot)
     if (session.scaleId) settingsStore.setScaleId(session.scaleId)
     await init(settingsStore.instrument)
@@ -632,6 +638,7 @@
 
     await init(settingsStore.instrument)
     setAmbience(settingsStore.ambience)
+    settingsStore.rollMoodRoot(sorted)
     sequenceStore.start(sorted, range)
     autoChainStreams(settingsStore.seedStreamCount)
     router.push('/session')

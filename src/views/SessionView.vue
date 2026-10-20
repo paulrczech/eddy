@@ -77,6 +77,15 @@
       position="bottom"
       @did-dismiss="savedFlash = false" />
 
+    <!-- The loop banner sits at the top, easy to miss while looking at the streams or the
+         flow — a toast says it once, when it happens. -->
+    <IonToast
+      :is-open="loopFlash"
+      message="a loop has formed"
+      :duration="2500"
+      position="bottom"
+      @did-dismiss="loopFlash = false" />
+
     <IonToast
       :is-open="duplicateFlash"
       :message="duplicateFlashMessage"
@@ -104,13 +113,22 @@
       position="bottom"
       @did-dismiss="onRecoveryToastDismiss" />
 
-    <ChannelPicker :is-open="channelOpen" :relock="channelRelock" @close="channelOpen = false; channelRelock = false" @confirm="advance" />
+    <ChannelPicker :is-open="channelOpen" :relock="channelRelock" :fit-notes="sequenceStore.currentCluster ?? undefined" @close="channelOpen = false; channelRelock = false" @confirm="advance" />
 
     <ion-content class="ion-padding" fullscreen>
       <div class="session-layout">
         <!-- Loop resolved banner -->
         <div v-if="sequenceStore.loopResolved" class="loop-banner">
           a loop has formed — {{ sequenceStore.moveCount }} moves
+          <!-- A loop closes the flow on purpose, but it shouldn't be a dead end: loopPoint -1
+               is the capped-moves ending, which would just re-close on the next move. -->
+          <p v-if="sequenceStore.loopPoint !== -1" class="loop-banner-actions">
+            <button class="inline-btn" @click="keepGoing">keep going</button>
+            <template v-if="settingsStore.keyLocked">
+              or
+              <button class="inline-btn" @click="openChannelAndKeepGoing">open the channel</button>
+            </template>
+          </p>
         </div>
 
         <!-- Strategy card -->
@@ -535,6 +553,7 @@
 
   import { midiToName, MIDI_MIN, MIDI_MAX, NOTE_NAMES } from '../data/notes'
   import { SCALE_MAP } from '../data/scales'
+  import { MOOD_MAP } from '../data/moods'
   import type { Strategy } from '../data/strategies'
   import type { Cluster } from '../utils/noteUtils'
   import { sortCluster } from '../utils/noteUtils'
@@ -589,6 +608,7 @@
   const activeStrategy = ref<Strategy | null>(null)
   const selectedIndices = ref<number[]>([]) // ordered by tap — drives add sequence
   const savedFlash = ref(false)
+  const loopFlash = ref(false)
   const duplicateFlash = ref(false)
   const duplicateFlashMessage = ref('')
   const poolCreatedFlash = ref(false)
@@ -983,6 +1003,7 @@
   const channelOpen = ref(false)
   const channelLabel = computed(
     () =>
+      (settingsStore.moodId && MOOD_MAP[settingsStore.moodId]?.label) ||
       `${NOTE_NAMES[settingsStore.keyRoot % 12]} ${(SCALE_MAP[settingsStore.scaleId]?.name ?? '').toLowerCase()}`
   )
 
@@ -1049,6 +1070,7 @@
       const loopIdx = findLoopPoint(sequenceStore.sequence)
       if (loopIdx !== -1) {
         sequenceStore.setLoopResolved(true, loopIdx)
+        loopFlash.value = true
         return
       }
 
@@ -1057,11 +1079,25 @@
         sequenceStore.moveCount >= settingsStore.maxMoves
       ) {
         sequenceStore.setLoopResolved(true, -1)
+        loopFlash.value = true
         return
       }
     }
 
     advance()
+  }
+
+  // A loop closes the flow, but the banner offers a way on: clear it and draw fresh streams
+  // from the repeated cluster (loop detection only compares the newest move, so continuing
+  // doesn't re-trigger it). Opening the channel too is for when the lock is what keeps
+  // circling back.
+  function keepGoing() {
+    sequenceStore.setLoopResolved(false)
+    advance()
+  }
+  function openChannelAndKeepGoing() {
+    settingsStore.setKeyLocked(false)
+    keepGoing()
   }
 
   function goUndo() {
@@ -1555,6 +1591,7 @@
       keyLocked: settingsStore.keyLocked,
       keyRoot: settingsStore.keyRoot,
       scaleId: settingsStore.scaleId,
+      moodId: settingsStore.moodId ?? undefined,
     }
   }
 
@@ -1867,6 +1904,18 @@
     font-style: italic;
     color: var(--color-accent);
     text-align: center;
+  }
+
+  .loop-banner-actions {
+    margin: 0.5rem 0 0;
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    font-style: normal;
+    color: var(--color-text-dim);
+  }
+
+  .loop-banner-actions .inline-btn {
+    color: var(--color-text);
   }
 
   .candidates-grid {

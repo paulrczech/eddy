@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { MOOD_MAP, pickMoodRoot } from '../data/moods'
 
 export type VoiceCount = 3 | 4
 export type MovementSize = 'half' | 'step' | 'whole' | 'third' | 'free'
@@ -148,6 +149,10 @@ export const useSettingsStore = defineStore('settings', () => {
   const keyLocked = ref<boolean>(false)
   const keyRoot = ref<number>(60)    // MIDI note — only the pitch class (% 12) matters
   const scaleId = ref<string>('major')
+  // The mood chooser's word, when the channel was set that way (null = open, or a hand-picked
+  // key). The mood owns the scale; the root is re-rolled at each flow start (rollMoodRoot).
+  // Survives unlocking, same "intent survives a toggle" precedent as keyRoot/scaleId.
+  const moodId = ref<string | null>(null)
   const loopMode = ref<LoopMode>('auto')
   const maxMoves = ref<number>(32)   // cap for 'capped' loop mode
   const arpeggioDirection = ref<ArpeggioDirection>('up')
@@ -179,6 +184,23 @@ export const useSettingsStore = defineStore('settings', () => {
   function setKeyLocked(on: boolean) { keyLocked.value = on }
   function setKeyRoot(midi: number) { keyRoot.value = midi }
   function setScaleId(id: string) { scaleId.value = id }
+  function setMoodId(id: string | null) { moodId.value = id }
+  // Lock the channel to a mood: its scale, a freshly rolled root. fitNotes (the current
+  // cluster, mid-flow) steers the root toward keeping those notes in key.
+  function applyMood(id: string, fitNotes?: number[]) {
+    const mood = MOOD_MAP[id]
+    if (!mood) return
+    moodId.value = id
+    scaleId.value = mood.scaleId
+    keyLocked.value = true
+    keyRoot.value = 60 + pickMoodRoot(mood.scaleId, fitNotes)
+  }
+  // Re-roll the root for the active mood (no-op for open or a hand-picked key) — called as
+  // a flow begins, so the same word lands in a different key each time.
+  function rollMoodRoot(fitNotes?: number[]) {
+    if (!keyLocked.value || !moodId.value) return
+    keyRoot.value = 60 + pickMoodRoot(scaleId.value, fitNotes)
+  }
   function setLoopMode(mode: LoopMode) { loopMode.value = mode }
   function setMaxMoves(n: number) { maxMoves.value = n }
   function setTempo(bpm: number) { tempo.value = Math.min(200, Math.max(40, bpm)) }
@@ -251,6 +273,7 @@ export const useSettingsStore = defineStore('settings', () => {
     keyLocked,
     keyRoot,
     scaleId,
+    moodId,
     loopMode,
     maxMoves,
     arpeggioDirection,
@@ -267,6 +290,9 @@ export const useSettingsStore = defineStore('settings', () => {
     setKeyLocked,
     setKeyRoot,
     setScaleId,
+    setMoodId,
+    applyMood,
+    rollMoodRoot,
     setLoopMode,
     setMaxMoves,
     setTempo,
