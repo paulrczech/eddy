@@ -1,7 +1,7 @@
 import { Midi } from '@tonejs/midi'
 import type { Cluster } from './noteUtils'
 import { clusterLabel } from './noteUtils'
-import { buildArpeggioNotes, buildClusterEvents, humanVelocity, velocitiesForEvents } from './arpeggioEngine'
+import { buildArpeggioNotes, buildClusterEvents, velocitiesForEvents, humanizeVelocity } from './arpeggioEngine'
 import type { InstrumentType } from '../stores/settingsStore'
 import { saveAndShareBytes } from './fileExport'
 
@@ -69,18 +69,27 @@ export async function exportSequenceAsMidi(
   // downbeat even when a coarse grid needs more than one bar to fit every voice.
   let barCursor = 0
 
-  for (const cluster of sequence) {
+  for (const [clusterIdx, cluster] of sequence.entries()) {
+    const previousCluster = sequence[clusterIdx - 1]
     const barStart = barCursor * barSec
 
     if (opts.direction === 'chord') {
       const notes = buildArpeggioNotes(cluster, 'chord')
-      const total = notes.length
+      const plan = velocitiesForEvents([{ time: 0, notes }], subdivisionSec, {
+        cluster,
+        previousCluster,
+        instrument: opts.instrument,
+        direction: 'chord',
+        beatsPerBar: opts.beatsPerBar,
+        subdivision: opts.subdivision,
+        seed: opts.velocitySeed ?? 0,
+      })
       notes.forEach((midi_note, i) => {
         track.addNote({
           midi: midi_note,
           time: barStart,
           duration: barSec - gapSec,
-          velocity: humanVelocity(0.72, i, total),
+          velocity: plan.jitter[0][i] ? humanizeVelocity(plan.velocities[0][i]) : plan.velocities[0][i],
         })
       })
       barCursor += 1
@@ -102,7 +111,9 @@ export async function exportSequenceAsMidi(
     // Velocity is computed per-event (noteIdx/total relative to that one pass), matching
     // live playback's own per-pass taper exactly — not relative to the flattened list,
     // which would taper across an entire latched bar instead of resetting each repeat.
-    const velocities = velocitiesForEvents(events, subdivisionSec, {
+    const plan = velocitiesForEvents(events, subdivisionSec, {
+      cluster,
+      previousCluster,
       instrument: opts.instrument,
       direction: opts.direction,
       beatsPerBar: opts.beatsPerBar,
@@ -113,7 +124,7 @@ export async function exportSequenceAsMidi(
       event.notes.map((midi_note, i) => ({
         time: event.time + i * subdivisionSec,
         midi_note,
-        velocity: velocities[k][i],
+        velocity: plan.jitter[k][i] ? humanizeVelocity(plan.velocities[k][i]) : plan.velocities[k][i],
       }))
     )
 

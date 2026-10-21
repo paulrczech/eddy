@@ -227,6 +227,7 @@
           <SequenceHistory
             :sequence="sequenceStore.sequence"
             :pools="sequenceStore.pools"
+            :pattern-label="velocityPatternLabel"
             :loop-point="sequenceStore.loopPoint"
             :playing-index="displayPlayingIndex"
             :just-duplicated-index="justDuplicatedIndex ?? undefined"
@@ -303,12 +304,6 @@
           <ion-select-option value="guitar-acoustic">guitar</ion-select-option>
           <ion-select-option value="electric-guitar"
             >e-guitar</ion-select-option
-          >
-          <ion-select-option v-if="SHOW_HOLDSWORTHIAN_PAD" value="holdsworthian-pad"
-            >ambient pad</ion-select-option
-          >
-          <ion-select-option v-if="SHOW_RETRO_PAD" value="retro-pad"
-            >retro pad</ion-select-option
           >
           <ion-select-option value="choir-pad"
             >choir pad</ion-select-option
@@ -545,7 +540,7 @@
   import ChannelPicker from '../components/ui/ChannelPicker.vue'
 
   import { useSequenceStore, type Pool } from '../stores/sequenceStore'
-  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, SHOW_ANALOG_SYNTH_TEMP, type Subdivision, type TimeSignature, type PlayOrder, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_ANALOG_SYNTH_TEMP, SHOW_VELOCITY_PATTERN_LABEL, type Subdivision, type TimeSignature, type PlayOrder, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'
@@ -553,6 +548,7 @@
 
   import { midiToName, MIDI_MIN, MIDI_MAX, NOTE_NAMES } from '../data/notes'
   import { SCALE_MAP } from '../data/scales'
+  import { pickVelocityPattern } from '../utils/arpeggioEngine'
   import { MOOD_MAP } from '../data/moods'
   import type { Strategy } from '../data/strategies'
   import type { Cluster } from '../utils/noteUtils'
@@ -777,7 +773,7 @@
   // A pad's slow swell reads as unclear/muddy when arpeggiated — held together as a
   // chord is the only direction that actually suits it (Paul, 2026-09-30). Add any other
   // pad-type instrument here too.
-  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['holdsworthian-pad', 'retro-pad', 'choir-pad'])
+  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['choir-pad'])
   const isPadInstrument = computed(() => PAD_INSTRUMENTS.has(settingsStore.instrument))
 
   // Remembers whatever direction was active before a pad forced 'chord', and restores it
@@ -903,6 +899,27 @@
     beatsPerBar: TIME_SIGNATURE_BEATS[settingsStore.timeSignature],
     velocitySeed: sequenceStore.velocitySeed,
   }))
+
+  // Which accent pattern is playing, shown beside "the flow" (SHOW_VELOCITY_PATTERN_LABEL):
+  // the letters first so they survive truncation, then the pattern's name. Recomputed as
+  // direction/grid/meter/instrument change, since the eligible patterns do.
+  const velocityPatternLabel = computed(() => {
+    if (!SHOW_VELOCITY_PATTERN_LABEL) return ''
+    const voices = sequenceStore.currentCluster?.length ?? settingsStore.voiceCount
+    const direction = settingsStore.arpeggioDirection
+    const passLength = direction === 'updown' ? Math.max(1, voices * 2 - 2) : voices
+    const pattern = pickVelocityPattern(
+      {
+        instrument: settingsStore.instrument,
+        direction,
+        beatsPerBar: TIME_SIGNATURE_BEATS[settingsStore.timeSignature],
+        subdivision: settingsStore.subdivision,
+        seed: sequenceStore.velocitySeed,
+      },
+      passLength
+    )
+    return pattern ? `${pattern.cell} · ${pattern.name}` : 'flat'
+  })
 
   const TIME_SIGNATURE_OPTIONS: TimeSignature[] = ['4/4', '3/4']
 
@@ -1037,14 +1054,19 @@
 
   function playCurrentCluster() {
     if (!sequenceStore.currentCluster) return
-    audioEngine.playCluster(
-      sequenceStore.currentCluster,
-      playbackSettings.value
-    )
+    audioEngine.playCluster(sequenceStore.currentCluster, {
+      ...playbackSettings.value,
+      previousCluster: sequenceStore.sequence[sequenceStore.sequence.length - 2],
+    })
   }
 
   function selectCandidate(cluster: Cluster, index: number) {
-    audioEngine.playCluster(cluster, playbackSettings.value)
+    // A stream is a move from the current chord — audition it with that context so its
+    // moving-voice accent sounds the way it will in the flow.
+    audioEngine.playCluster(cluster, {
+      ...playbackSettings.value,
+      previousCluster: sequenceStore.currentCluster ?? undefined,
+    })
 
     if (multiSelect.value) {
       const pos = selectedIndices.value.indexOf(index)

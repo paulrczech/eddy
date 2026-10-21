@@ -9,6 +9,7 @@ import {
   buildArpeggioNotes,
   buildClusterEvents,
   velocitiesForEvents,
+  humanizeVelocity,
 } from '../utils/arpeggioEngine'
 import { logDiag } from '../utils/diagLog'
 
@@ -287,53 +288,6 @@ const ELECTRIC_GUITAR_URLS: Record<string, string> = {
   B4: 'B4.mp3',
 }
 
-// Pad voice — "Ultra Ambient Pad" (Paul's own sample pack), replaced the original
-// "Blackhole Guitars" (JWB) holdsworthian pad entirely 2026-09-30 (Paul felt the old one
-// wasn't musically accurate). Kept the InstrumentType key and folder path as
-// 'holdsworthian-pad'/`public/samples/holdsworthian-pad/` — same backward-compatibility
-// reasoning as when Mikor Piano Felt replaced Salamander under the 'piano' key: an old
-// saved session referencing this instrument still resolves to *a* pad, just this one now.
-// Source filenames (YO2_*) were, like every sample pack evaluated so far, one octave
-// lower than true pitch — confirmed via FFT peak analysis across multiple time offsets
-// (autocorrelation alone was unreliable on this heavily chorused/detuned texture). The
-// top root in each of the two alternating-tritone series (labeled A#5/E6) measured a
-// further octave up from there — A#6/E7 — both above Eddy's MIDI_MAX(84), so excluded;
-// six usable roots remain, E3-A#5 alternating every tritone. Trimmed to 7s/1s fade-out
-// and gain-corrected per file (levels varied up to 25dB root to root in the raw pack) to
-// land at the previous pad's own shipped file level, same two-stage (file +
-// INSTRUMENT_VOLUME) treatment. Attribution/license TBD — see CREDITS.md.
-const HOLDSWORTHIAN_PAD_URLS: Record<string, string> = {
-  E3: 'E3.mp3',
-  'A#3': 'As3.mp3',
-  E4: 'E4.mp3',
-  'A#4': 'As4.mp3',
-  E5: 'E5.mp3',
-  'A#5': 'As5.mp3',
-}
-
-// 'retro-pad' — Paul's own recording of a Logic RetroSynth patch (printed to audio note
-// by note, not synthesized live), 2026-10-05. Confirmed by ear as the pad to keep —
-// replaced an earlier from-scratch Tone.js synth-pad attempt outright (see InstrumentType
-// in settingsStore.ts). MIDI-triggered at a fixed velocity across all 12 roots (every
-// major third, E2-C6) for consistent levels. Raw bounces as recorded: 44.1kHz/24-bit/
-// stereo WAV, 8s each, untrimmed and unfaded — still pending the same trim/fade/
-// gain-match production pass every other instrument in this project went through before
-// shipping (file size alone argues for it: WAV here vs. every other instrument's MP3).
-const RETRO_PAD_URLS: Record<string, string> = {
-  E2: 'E2.wav',
-  'G#2': 'Gs2.wav',
-  C3: 'C3.wav',
-  E3: 'E3.wav',
-  'G#3': 'Gs3.wav',
-  C4: 'C4.wav',
-  E4: 'E4.wav',
-  'G#4': 'Gs4.wav',
-  C5: 'C5.wav',
-  E5: 'E5.wav',
-  'G#5': 'Gs5.wav',
-  C6: 'C6.wav',
-}
-
 // Second piano voice — VSCO2 Community Edition's upright piano (Versilian Studios,
 // sampled by Simon Dalzell/Ivy Audio), from Alex Bainter's generative-music course
 // material. Redistribution explicitly permitted per the pack's own Info.txt ("Bearer is
@@ -381,8 +335,8 @@ const UPRIGHT_PIANO_URLS: Record<string, string> = {
 // with natural vocal vibrato rather than a labeling error. Trimmed to 7s/1s fade-out,
 // same convention as holdsworthian-pad; gain-matched by measured RMS against retro-pad
 // (female needed -6dB, male -4dB, baked into the exported files pre-merge). Added
-// 2026-10-09, confirmed by ear as the pad to keep going forward — replaced retro-pad as
-// the default/shown pad (see SHOW_RETRO_PAD in settingsStore.ts).
+// 2026-10-09, confirmed by ear as the pad to keep going forward — replaced the
+// earlier retro pad (since removed).
 const CHOIR_PAD_URLS: Record<string, string> = {
   G2: 'G2.mp3',
   'G#2': 'Gs2.mp3',
@@ -507,17 +461,9 @@ const SAMPLER_CONFIGS: Partial<
     urls: ELECTRIC_GUITAR_URLS,
     baseUrl: '/samples/electric-guitar/',
   },
-  'holdsworthian-pad': {
-    urls: HOLDSWORTHIAN_PAD_URLS,
-    baseUrl: '/samples/holdsworthian-pad/',
-  },
   'piano-salamander': {
     urls: UPRIGHT_PIANO_URLS,
     baseUrl: '/samples/piano-original/',
-  },
-  'retro-pad': {
-    urls: RETRO_PAD_URLS,
-    baseUrl: '/samples/retro-pad/',
   },
   'choir-pad': {
     urls: CHOIR_PAD_URLS,
@@ -540,15 +486,10 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   piano: { min: 33, max: MIDI_MAX }, // A1–C6
   'guitar-acoustic': { min: 40, max: MIDI_MAX }, // E2-C6 — 11 roots every major
   // third, E2-G#5 (Yindad Acoustic); top root sits just 4 semitones below MIDI_MAX,
-  // close enough not to narrow the picker, same reasoning as retro-pad
+  // close enough not to narrow the picker
   'electric-guitar': { min: 38, max: 71 }, // D2-B4
-  'holdsworthian-pad': { min: 52, max: 82 }, // E3-A#5 — matches the ambient
-  // pad's actual 6 usable roots (narrower than the old Blackhole pad's E2 floor, since
-  // the lowest sample here is E3; pitch-shifting further down would be too big a stretch)
   'piano-salamander': { min: 41, max: 81 }, // F2-A5, matches UPRIGHT_PIANO_URLS'
   // 11 usable roots
-  'retro-pad': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, matches all 12 recorded roots
-  // exactly (every major third) — no need to narrow the picker range at all
   'choir-pad': { min: 43, max: 84 }, // G2-C6, matches all 42 recorded roots exactly
   // (fully chromatic, male+female merged — see CHOIR_PAD_URLS) — covers nearly all of
   // MIDI_MIN-MIDI_MAX, missing only the bottom 3 semitones (E2-F#2)
@@ -582,6 +523,10 @@ export interface PlaybackSettings {
   // The flow's accent-pattern pick (sequenceStore.velocitySeed) — see velocitiesForEvents()
   // in utils/arpeggioEngine.ts. Omitted = pattern 0, still deterministic.
   velocitySeed?: number
+  // Single-chord playback only (playCluster): the chord just before this one, so an
+  // auditioned stream gets the same moving-voice accent it will have in the flow.
+  // playSequence/render derive it from the sequence order instead.
+  previousCluster?: number[]
 }
 
 // Fixed note durations for plucky/percussive instruments
@@ -593,9 +538,7 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   // the next chord's downbeat and only started fading during the new chord, reading
   // as "rings through/muddy" even after the release-time cut. Now matches every other
   // instrument's held duration, giving the release a half-bar head start instead
-  'holdsworthian-pad': '1n', // sustained pad character
   'piano-salamander': '2n', // same character class as felt piano
-  'retro-pad': '1n', // same sustained pad character
   'choir-pad': '1n', // sustained pad character
   'analog-synth-temp': '2n', // short, decaying analog synth note — not a pad swell
 }
@@ -607,17 +550,14 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   'electric-guitar': 1.2, // was 2.5 — a note was still near full volume when the next
   // one fired, masking each new note's own (genuinely fast, ~100ms) attack; read as
   // both "too long a sustain" and "attack isn't sharp" from the same cause
-  'holdsworthian-pad': 2.5,
   piano: 2.0, // felt piano rings naturally — default 0.1s cutoff read as harsh
   'guitar-acoustic': 1.5, // pluck decays naturally, avoid the harsh-cutoff class of bug —
   // carried over unchanged from the nylon pack this replaced; not yet retuned by ear
   // against the new Yindad Acoustic content specifically
   'piano-salamander': 2.0, // same treatment as felt piano — avoids the harsh default
   // 0.1s cutoff
-  'retro-pad': 2.5, // matched holdsworthian-pad's as a starting guess — confirmed sounding
-  // good by ear (Paul, 2026-10-05), left as-is
-  'choir-pad': 2.5, // matched holdsworthian-pad's as a starting guess, same as
-  // retro-pad above — not yet tuned by ear
+  'choir-pad': 2.5, // a starting guess carried over from the (since-removed) earlier pads —
+  // not yet tuned by ear
   'analog-synth-temp': 0.8, // short release matching the pack's own natural ~1.9s decay —
   // long enough to avoid a harsh cutoff, short enough not to blur arpeggiated runs
 }
@@ -631,17 +571,14 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   piano: 3, // tried 3 -> 6 -> back to 3 (Paul, 2026-10-08) — preferred the original after
   // hearing both louder. Originally boosted because it read as a little quieter than
   // guitar-acoustic despite matching RMS targets
-  'electric-guitar': -6, // was -10 — Paul heard it as a little quieter than the rest after that cut
-  'holdsworthian-pad': 12,
+  'electric-guitar': 0, // was -10, then -6 (quieter than the rest); +6 on 2026-10-21 — see the level note below
   // Tuned by ear against the sample content now in this slot (VSCO2 upright piano,
   // 2026-09-30): 0 -> +6 -> +10. No effects are on this instrument (no REVERB_SETTINGS/
   // CHORUS_SETTINGS/DELAY_SETTINGS/FILTER_SETTINGS entry exists for it — confirmed by
   // grep, not assumed), so the trim itself is the only lever.
-  'piano-salamander': 10, // tried 10 -> 13 -> 11 -> back to 10 (Paul, 2026-10-08) —
-  // preferred the original after hearing both louder
-  'retro-pad': 3, // Paul heard it as good but asked for "a tad" louder (2026-10-05) —
-  // same modest-boost treatment as piano's +3 above for the same kind of feedback
-  'guitar-acoustic': -5, // Paul heard it as loud/jarring (2026-10-07) — cut back from the
+  'piano-salamander': 16, // tried 10 -> 13 -> 11 -> back to 10 (Paul, 2026-10-08) — preferred the
+  // original after hearing both louder; then +6 on 2026-10-21 (see the level note below)
+  'guitar-acoustic': 1, // was -5: Paul heard it as loud/jarring (2026-10-07) — cut back from the
   // +9dB baked into the exported files during the Yindad Acoustic swap, which was
   // deliberately matched to the outgoing nylon pack's loudness for a fair A/B, not tuned
   // for how it should actually sit once it won. Provisional, same as every other
@@ -649,8 +586,15 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // choir-pad needs no entry — its -6dB (female half)/-4dB (male half) gain-matches
   // (measured RMS against retro-pad) were baked into the exported files directly, same
   // convention as every other instrument's initial content swap.
-  // analog-synth-temp needs no entry either — its -4dB gain-match (measured RMS against
-  // retro-pad's C4) was baked into the exported files the same way.
+  // analog-synth-temp: its -4dB gain-match (measured RMS against retro-pad's C4) was baked
+  // into the exported files; +6 on top, 2026-10-21 (below).
+  'analog-synth-temp': 6,
+  // 2026-10-21 level pass: after the velocity patterns (average ~1.5 dB under the old flat
+  // 0.72) and the bass-root trim, Paul A/B'd a live +0/+2/+4/+6 dB gain and chose +6 for every
+  // instrument but the choir pad (stays 0) and the felt piano ('piano', stays 3: its rendered
+  // peaks reach -0.7 dBFS, so there is no headroom to give). Measured peaks before this pass
+  // (dBFS): synth -14, acoustic guitar -11, VSCO2 piano -10, electric guitar -7.5, choir -4 —
+  // so +6 lands the loudest of those around -1.5, with no limiter in the chain.
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
@@ -693,9 +637,6 @@ const REVERB_SETTINGS: Partial<
   // Decay also extended slightly, giving the tail more time to register at all before the
   // next note's attack — still provisional.
   'electric-guitar': { decay: 2.6, wet: 0.5 },
-  'holdsworthian-pad': { decay: 2.0, wet: 0.25 }, // already the most sustained/spacious
-  // instrument (long release, whole-note held duration), and the "Ultra Ambient Pad"
-  // sample content is already extremely wet/swelling on its own — needs the least on top
 }
 
 // Gentle lowpass filter — unlike reverb/chorus (which add space), this directly targets
@@ -1180,7 +1121,7 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   // WKWebView, fetch() against the capacitor:// scheme returns status 0 / ok=false even
   // though the body is delivered intact, and Tone rejects every sample on !response.ok.
   try {
-    const buffers = await loadBuffers(urls, baseUrl)
+    const buffers = await loadBuffers(urls, baseUrl, ROOT_GAIN_DB[instrumentType])
     cachedBuffers = buffers
     const chain = await buildEffectsChain(instrumentType, 1)
     outputReverb = chain.reverb
@@ -1206,15 +1147,36 @@ async function init(instrumentType: InstrumentType = 'piano'): Promise<void> {
   }
 }
 
+// Per-root-sample gain (dB) applied once, to the freshly decoded buffer, so a sample pack's
+// uneven root levels can be evened out without re-encoding the files. Each root also covers
+// its neighbours (Tone.Sampler repitches the nearest sample), so a hot root is a hot
+// *region*. Measured 2026-10-21 (RMS of the first 0.3s, dBFS) for the VSCO2 upright in
+// 'piano-salamander': F2 -23.7, A2 -23.9, C#3 -24.4 against -27 to -32 for every root from
+// F3 up — the bottom three sat 4-8 dB hot, F2 with the highest peak of any file (-13.3);
+// Paul heard F2 as always extra loud. Trimmed toward ~-28.
+const ROOT_GAIN_DB: Partial<Record<InstrumentType, Record<string, number>>> = {
+  'piano-salamander': { F2: -5, A2: -4, 'C#3': -3 },
+}
+
 async function loadBuffers(
   urls: Record<string, string>,
-  baseUrl: string
+  baseUrl: string,
+  rootGainDb?: Record<string, number>
 ): Promise<Record<string, AudioBuffer>> {
   const ctx = Tone.getContext().rawContext
   const entries = await Promise.all(
     Object.entries(urls).map(async ([note, file]) => {
       const bytes = await (await fetch(baseUrl + file)).arrayBuffer()
-      return [note, await ctx.decodeAudioData(bytes)] as const
+      const buffer = await ctx.decodeAudioData(bytes)
+      const db = rootGainDb?.[note]
+      if (db) {
+        const gain = 10 ** (db / 20)
+        for (let c = 0; c < buffer.numberOfChannels; c++) {
+          const data = buffer.getChannelData(c)
+          for (let i = 0; i < data.length; i++) data[i] *= gain
+        }
+      }
+      return [note, buffer] as const
     })
   )
   return Object.fromEntries(entries)
@@ -1260,7 +1222,9 @@ async function renderSequenceToBuffer(
       clusterDuration,
       settings.latch ?? false
     )
-    const velocities = velocitiesForEvents(clusterEvents, interval, {
+    const plan = velocitiesForEvents(clusterEvents, interval, {
+      cluster,
+      previousCluster: sequence[i - 1],
       instrument: instrumentType,
       direction: settings.direction,
       beatsPerBar,
@@ -1270,7 +1234,8 @@ async function renderSequenceToBuffer(
     return clusterEvents.map((e, k) => ({
       time: i * clusterDuration + e.time,
       notes: e.notes,
-      velocities: velocities[k],
+      velocities: plan.velocities[k],
+      jitter: plan.jitter[k],
     }))
   })
 
@@ -1278,7 +1243,7 @@ async function renderSequenceToBuffer(
   const release = noteRelease(instrumentType)
   const { urls, baseUrl } =
     SAMPLER_CONFIGS[instrumentType] ?? SAMPLER_CONFIGS.piano!
-  const buffers = await loadBuffers(urls, baseUrl)
+  const buffers = await loadBuffers(urls, baseUrl, ROOT_GAIN_DB[instrumentType])
 
   // Pad the render past the last note's trigger time so its full sustain+release tail
   // isn't cut off — live playback never has to worry about this (the Transport just
@@ -1298,7 +1263,7 @@ async function renderSequenceToBuffer(
           midiToTone(midi),
           dur,
           event.time + noteIdx * interval,
-          event.velocities[noteIdx]
+          event.jitter[noteIdx] ? humanizeVelocity(event.velocities[noteIdx]) : event.velocities[noteIdx]
         )
       })
     })
@@ -1348,7 +1313,9 @@ function playCluster(
   const now = Tone.now()
   const dur = noteDuration()
 
-  const [velocities] = velocitiesForEvents([{ time: 0, notes }], interval, {
+  const plan = velocitiesForEvents([{ time: 0, notes }], interval, {
+    cluster,
+    previousCluster: settings.previousCluster,
     instrument: currentInstrumentType ?? undefined,
     direction: settings.direction,
     beatsPerBar: settings.beatsPerBar ?? 4,
@@ -1360,7 +1327,7 @@ function playCluster(
       midiToTone(midi),
       dur,
       now + i * interval,
-      velocities[i]
+      plan.jitter[0][i] ? humanizeVelocity(plan.velocities[0][i]) : plan.velocities[0][i]
     )
   })
 
@@ -1486,7 +1453,9 @@ function playSequence(
       clusterDuration,
       clusterLatch
     )
-    const velocities = velocitiesForEvents(clusterEvents, clusterInterval, {
+    const plan = velocitiesForEvents(clusterEvents, clusterInterval, {
+      cluster,
+      previousCluster: sequence[i - 1],
       instrument: currentInstrumentType ?? undefined,
       direction: clusterDirection,
       beatsPerBar,
@@ -1496,7 +1465,8 @@ function playSequence(
     return clusterEvents.map((e, k) => ({
       time: i * clusterDuration + e.time,
       notes: e.notes,
-      velocities: velocities[k],
+      velocities: plan.velocities[k],
+      jitter: plan.jitter[k],
     }))
   })
 
@@ -1514,7 +1484,8 @@ function playSequence(
         midiToTone(midi),
         dur,
         time + noteIdx * interval,
-        event.velocities[noteIdx]
+        // Rolled here, at trigger time, so every pass and every loop trip differs a little
+        event.jitter[noteIdx] ? humanizeVelocity(event.velocities[noteIdx]) : event.velocities[noteIdx]
       )
     })
   }, events)

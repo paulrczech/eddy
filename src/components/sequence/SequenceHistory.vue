@@ -1,7 +1,10 @@
 <template>
   <div class="sequence-history" ref="rootRef">
     <div class="flow-header">
-      <p class="section-label">the flow</p>
+      <div class="flow-title">
+        <p class="section-label">the flow</p>
+        <span v-if="patternLabel" class="pattern-label">{{ patternLabel }}</span>
+      </div>
       <div class="flow-header-actions">
         <button
           v-if="ENABLE_TAP_DUPLICATE_MODE"
@@ -346,6 +349,7 @@ const VOICE_COLORS = ['var(--voice-1)', 'var(--voice-2)', 'var(--voice-3)', 'var
 const props = defineProps<{
   sequence: Cluster[]
   pools: Pool[]
+  patternLabel?: string // the active velocity pattern, when SHOW_VELOCITY_PATTERN_LABEL is on
   loopPoint?: number
   playingIndex?: number
   // Briefly lit after a duplicate (swipe or, if ENABLE_TAP_DUPLICATE_MODE ever comes back,
@@ -966,6 +970,23 @@ function duplicateRowAction(index: number) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.flow-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.pattern-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--color-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.6rem; /* matches .section-label's bottom margin so the baselines line up */
 }
 
 .flow-header-actions {

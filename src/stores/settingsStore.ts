@@ -17,34 +17,13 @@ export type InstrumentType =
   // upright piano (from Alex Bainter's generative-music course material) after Paul
   // compared them directly and preferred VSCO2. Key/folder kept unchanged across that
   // swap for saved-session backward compatibility, same reasoning as every other content
-  // swap in this project (e.g. holdsworthian-pad below).
+  // swap in this project.
   | 'piano' | 'piano-salamander'
-  // 'holdsworthian-pad' is "Ultra Ambient Pad" content (Julian Morgan via Pianobook) —
-  // replaced the original "Blackhole Guitars" pad entirely 2026-09-30; key/folder path
-  // kept unchanged for saved-session backward compatibility, same reasoning as the piano
-  // swap above. A parallel guitar experiment (nbrosowsky original + lowpass filter, to
-  // tame its harshness) was tried the same day and shelved — kept the current Nylon
-  // guitar. Superseded as the *default/shown* pad by 'retro-pad' below (2026-10-05, see
-  // SHOW_HOLDSWORTHIAN_PAD) — key/type kept, same backward-compatibility reasoning, so an
-  // existing saved session still resolves to real audio instead of silently falling back
-  // to piano.
-  | 'guitar-acoustic' | 'electric-guitar' | 'holdsworthian-pad'
-  // 'retro-pad' — Paul's own recording of a Logic RetroSynth patch, printed to audio note
-  // by note (see RETRO_PAD_URLS in useAudioEngine.ts) rather than synthesized live. Added
-  // 2026-10-05, confirmed by ear as the pad to keep going forward at the time — won out
-  // over both holdsworthian-pad (hidden, see above) and an earlier from-scratch Tone.js
-  // synth-pad attempt (live PolySynth + effects chain, chased through two full reworks
-  // trying to land "lush/calming" and never fully got there — removed entirely, not kept
-  // as a second option, since it never shipped and had no saved-session compatibility to
-  // protect). Superseded as the *default/shown* pad by 'choir-pad' below (2026-10-09, see
-  // SHOW_RETRO_PAD) — key/type kept, same backward-compatibility reasoning as
-  // holdsworthian-pad above, so an existing saved session still resolves to real audio.
-  | 'retro-pad'
+  | 'guitar-acoustic' | 'electric-guitar'
   // 'choir-pad' — Sonatina Symphonic Orchestra's chorus samples (Creative Commons
   // Sampling Plus 1.0), male and female voices merged into one instrument (male below,
   // female above — see CHOIR_PAD_URLS in useAudioEngine.ts). Added 2026-10-09, confirmed
-  // by ear as the pad to keep going forward — replaced retro-pad as the default/shown pad
-  // (see SHOW_RETRO_PAD above).
+  // by ear as the pad to keep going forward — replaced the earlier retro and ambient pads.
   | 'choir-pad'
   // Temp A/B candidate, added 2026-10-09 — "Moog Minitaur - Simple Saw" by modularsamples
   // (freesound.org, Creative Commons 0), UI-labeled "analog synth." Fully chromatic
@@ -55,22 +34,25 @@ export type InstrumentType =
   // every other temp-instrument trial.
   | 'analog-synth-temp'
 
-// Hides holdsworthian-pad from both instrument pickers now that retro-pad (and now
-// choir-pad) has replaced it as the pad of choice — same "keep the mechanism, hide the
-// control" pattern as SHOW_AMBIENCE_CONTROL in SessionView.vue. Not a full deletion like
-// synth-pad got: holdsworthian-pad actually shipped (TestFlight 1.0(5) through 1.0(10)),
-// so an existing saved session may already reference it — the type/samples/config all
-// stay fully intact, just not selectable as a new choice going forward.
-export const SHOW_HOLDSWORTHIAN_PAD = false
-// Hides retro-pad now that choir-pad has replaced it as the pad of choice (2026-10-09) —
-// same reasoning/pattern as SHOW_HOLDSWORTHIAN_PAD above. retro-pad shipped (TestFlight
-// 1.0(8) onward), so an existing saved session may already reference it — type/samples/
-// config all stay fully intact, just not selectable as a new choice going forward.
-export const SHOW_RETRO_PAD = false
+// Instruments that no longer exist but may still be named by a saved flow or saved defaults
+// (they shipped in TestFlight builds): 'holdsworthian-pad' and 'retro-pad' were hidden from
+// the pickers, then deleted along with their samples on 2026-10-20/21. Both were pads, so an
+// old reference resolves to the pad that replaced them.
+const REMOVED_INSTRUMENTS: Record<string, InstrumentType> = {
+  'holdsworthian-pad': 'choir-pad',
+  'retro-pad': 'choir-pad',
+}
+export function normalizeInstrument(raw: string): InstrumentType {
+  return REMOVED_INSTRUMENTS[raw] ?? (raw as InstrumentType)
+}
 // Temporarily on for a simulator A/B listen (2026-10-09) — see analog-synth-temp above.
 // Flip to false (or delete the temp instrument entirely) once Paul's decided whether it
 // becomes a real instrument slot.
 export const SHOW_ANALOG_SYNTH_TEMP = true
+// Shows which velocity pattern the flow is playing, beside "the flow" in SessionView — for
+// working the patterns by ear on a device (TestFlight 1.0(129)). A tuning aid, not a feature:
+// FLIP TO false BEFORE APP STORE SUBMISSION.
+export const SHOW_VELOCITY_PATTERN_LABEL = true
 // Arpeggio note grid, in notes per beat — 0.5 = half, 1 = quarter, 2 = 8th,
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.
@@ -206,7 +188,7 @@ export const useSettingsStore = defineStore('settings', () => {
   function setMaxMoves(n: number) { maxMoves.value = n }
   function setTempo(bpm: number) { tempo.value = Math.min(200, Math.max(40, bpm)) }
   function setArpeggioDirection(d: ArpeggioDirection) { arpeggioDirection.value = d }
-  function setInstrument(i: InstrumentType) { instrument.value = i }
+  function setInstrument(i: InstrumentType) { instrument.value = normalizeInstrument(i) }
   function setSubdivision(s: Subdivision) { subdivision.value = s }
   function setLatchMode(on: boolean) { latchMode.value = on }
   function setAmbience(level: number) { ambience.value = Math.min(1, Math.max(0, level)) }
@@ -235,7 +217,7 @@ export const useSettingsStore = defineStore('settings', () => {
       const defaults = JSON.parse(raw) as StoredDefaults
       if (defaults.voiceCount) voiceCount.value = defaults.voiceCount
       if (defaults.movementSize) movementSize.value = defaults.movementSize
-      if (defaults.instrument) instrument.value = defaults.instrument
+      if (defaults.instrument) instrument.value = normalizeInstrument(defaults.instrument)
       if (defaults.seedStreamCount) seedStreamCount.value = defaults.seedStreamCount
     } catch {
       // corrupt storage — ignore
@@ -258,7 +240,7 @@ export const useSettingsStore = defineStore('settings', () => {
     } catch {
       // corrupt storage — fall through to hardcoded fallback
     }
-    instrument.value = saved?.instrument ?? PLAYBACK_FALLBACK.instrument
+    instrument.value = saved?.instrument ? normalizeInstrument(saved.instrument) : PLAYBACK_FALLBACK.instrument
     tempo.value = saved?.tempo ?? PLAYBACK_FALLBACK.tempo
     arpeggioDirection.value = saved?.arpeggioDirection ?? PLAYBACK_FALLBACK.arpeggioDirection
     subdivision.value = saved?.subdivision ?? PLAYBACK_FALLBACK.subdivision

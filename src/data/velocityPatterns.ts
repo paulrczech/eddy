@@ -57,11 +57,10 @@ export const FAMILY_LEVELS: Record<PatternFamily, Record<VelocityLevel, number>>
 }
 
 // Per-instrument overrides of a family's levels, for an instrument that sits differently
-// (merged over FAMILY_LEVELS). Acoustic guitar's loud notes stuck out a touch (Paul,
-// 2026-10-21) — the pianos' sat well at 0.85.
-export const INSTRUMENT_LEVELS: Partial<Record<InstrumentType, Partial<Record<VelocityLevel, number>>>> = {
-  'guitar-acoustic': { L: 0.8 },
-}
+// (merged over FAMILY_LEVELS). Empty: acoustic guitar's L was trimmed to 0.80 on 2026-10-21
+// because it stuck out, then restored to 0.85 the same day once the per-note variation
+// (VELOCITY_JITTER) was in — the mechanism stays for the next instrument that needs a nudge.
+export const INSTRUMENT_LEVELS: Partial<Record<InstrumentType, Partial<Record<VelocityLevel, number>>>> = {}
 
 // Which instruments use which family's patterns. Anything not listed (synth, the sustained
 // electric-guitar swell, pads) keeps today's flat velocity until it gets its own patterns.

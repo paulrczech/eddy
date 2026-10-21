@@ -44,7 +44,40 @@ export function humanVelocity(baseVelocity: number, noteIdx: number, totalNotes:
 // the arpeggio, replacing random jitter. Off = every note at the flat base velocity again.
 const ENABLE_VELOCITY_PATTERNS = true
 
+// Moving-voice accent: when a chord follows another, the voice(s) that moved lean forward
+// and (chord playback only) the held voices sit back — the voice movement is the music in
+// Eddy, so it should be audible. Deliberately its own flag, separate from the patterns.
+//  - Arpeggios: a small boost (well under the 0.2 steps between L/M/S, so it can't reorder
+//    them) on the *first* time each moved voice sounds in the cluster — the arrival of the
+//    new note — leaving every repeat to the pattern so the groove isn't fought.
+//  - Chord direction (no pattern, and what pads always play): the main phrasing tool, so
+//    stronger — moved voices up, held voices down.
+// Skipped when nothing moved or every voice moved (parallel motion: the boost would cancel
+// out), and when there's no previous chord (a flow's first chord, a lone audition).
+const ENABLE_MOVING_VOICE_ACCENT = true
+const MOVING_VOICE = { arpeggioBoost: 0.05, chordBoost: 0.1, chordHeld: -0.05 }
+
+// Humanization within a level: a performer never plays every "loud" note at exactly the
+// same volume. Each patterned note gets a small random nudge — ±0.03, a fraction of the
+// 0.2 steps between L/M/S, so it never changes which level a note reads as — rolled fresh
+// at the moment the note is triggered (every pass of the arpeggio, every trip round the
+// loop), not baked into the schedule. Only for notes a pattern shaped: flat instruments
+// stay flat, since uncorrelated jitter on a flat line is what sounded sloppy before.
+const ENABLE_VELOCITY_JITTER = true
+const VELOCITY_JITTER = 0.03
+// Which voices get it. A/B (Paul, 2026-10-21): 'lowest' = only the bottom voice — the one
+// whose loud accents were jarring — with the upper voices exactly on their level; 'all' =
+// every patterned note.
+const JITTER_VOICES: 'lowest' | 'all' = 'all'
+
+export function humanizeVelocity(velocity: number): number {
+  if (!ENABLE_VELOCITY_JITTER) return velocity
+  return Math.min(1, Math.max(0.3, velocity + (Math.random() * 2 - 1) * VELOCITY_JITTER))
+}
+
 export interface VelocityContext {
+  cluster?: number[] // this cluster's voices, ascending — needed with previousCluster
+  previousCluster?: number[] // the chord just before it in playback order; same voice count
   instrument?: InstrumentType
   direction: ArpeggioDirection
   beatsPerBar: number
@@ -77,7 +110,9 @@ export function pickVelocityPattern(ctx: VelocityContext, passLength: number): V
 }
 
 // Velocity for every note of every event (one event = one pass of the arpeggio, as
-// buildClusterEvents returns them), aligned with `events[i].notes[j]`. `interval` is the
+// buildClusterEvents returns them), aligned with `velocities[i][j]`. `jitter[i][j]` says that
+// note should go through humanizeVelocity() as it's triggered (a pattern shaped it, and it's
+// one of the voices JITTER_VOICES allows). `interval` is the
 // seconds between notes — used to turn an event's start time back into a bar slot. Falls
 // back to humanVelocity() (flat while it's disabled) whenever no pattern applies: chord
 // direction, an instrument without a family, or a grid nothing tiles.
@@ -85,8 +120,26 @@ export function velocitiesForEvents(
   events: { time: number; notes: number[] }[],
   interval: number,
   ctx: VelocityContext
-): number[][] {
-  const flat = () => events.map(e => e.notes.map((_, i) => humanVelocity(0.72, i, e.notes.length)))
+): { velocities: number[][]; jitter: boolean[][] } {
+  const base = patternVelocities(events, interval, ctx)
+  const lowest = ctx.cluster ? Math.min(...ctx.cluster) : Math.min(...events.flatMap(e => e.notes))
+  return {
+    velocities: applyMovingVoice(base.velocities, events, ctx),
+    jitter: events.map(e =>
+      e.notes.map(note => base.humanize && (JITTER_VOICES === 'all' || note === lowest))
+    ),
+  }
+}
+
+function patternVelocities(
+  events: { time: number; notes: number[] }[],
+  interval: number,
+  ctx: VelocityContext
+): { velocities: number[][]; humanize: boolean } {
+  const flat = () => ({
+    velocities: events.map(e => e.notes.map((_, i) => humanVelocity(0.72, i, e.notes.length))),
+    humanize: false,
+  })
   if (!ENABLE_VELOCITY_PATTERNS || events.length === 0 || interval <= 0) return flat()
 
   const passLength = events[0].notes.length // the first pass is always a full one
@@ -97,7 +150,7 @@ export function velocitiesForEvents(
   const cell = pattern.cell
   const slots = ctx.beatsPerBar * ctx.subdivision
   const byPass = pattern.anchor === 'pass' && cell.length === passLength
-  return events.map(e => {
+  const velocities = events.map(e => {
     const startSlot = Math.round(e.time / interval)
     return e.notes.map((_, i) => {
       const idx = byPass
@@ -106,6 +159,39 @@ export function velocitiesForEvents(
       return levels[cell[idx] as 'L' | 'M' | 'S']
     })
   })
+  return { velocities, humanize: true }
+}
+
+function applyMovingVoice(
+  velocities: number[][],
+  events: { time: number; notes: number[] }[],
+  ctx: VelocityContext
+): number[][] {
+  const { cluster, previousCluster } = ctx
+  if (!ENABLE_MOVING_VOICE_ACCENT || !cluster || !previousCluster) return velocities
+  if (cluster.length !== previousCluster.length) return velocities
+  const moved = new Set<number>()
+  cluster.forEach((note, v) => {
+    if (note !== previousCluster[v]) moved.add(note)
+  })
+  if (moved.size === 0 || moved.size === cluster.length) return velocities
+
+  const isChord = ctx.direction === 'chord'
+  const arrived = new Set<number>()
+  return velocities.map((pass, k) =>
+    pass.map((vel, i) => {
+      const note = events[k].notes[i]
+      let delta = 0
+      if (moved.has(note)) {
+        if (isChord) delta = MOVING_VOICE.chordBoost
+        else if (!arrived.has(note)) delta = MOVING_VOICE.arpeggioBoost
+        arrived.add(note)
+      } else if (isChord) {
+        delta = MOVING_VOICE.chordHeld
+      }
+      return Math.min(1, Math.max(0.3, vel + delta))
+    })
+  )
 }
 
 export function buildArpeggioNotes(cluster: number[], direction: ArpeggioDirection): number[] {

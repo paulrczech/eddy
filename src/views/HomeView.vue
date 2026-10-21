@@ -286,7 +286,7 @@
   import ChannelPicker from '../components/ui/ChannelPicker.vue'
   import type { SavedSession } from '../utils/sessionStorage'
   import { listSessions } from '../utils/sessionStorage'
-  import { useSettingsStore, SHOW_HOLDSWORTHIAN_PAD, SHOW_RETRO_PAD, SHOW_ANALOG_SYNTH_TEMP } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_ANALOG_SYNTH_TEMP } from '../stores/settingsStore'
   import { useSequenceStore } from '../stores/sequenceStore'
   import { useAudioEngine, INSTRUMENT_NOTE_RANGE } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
@@ -321,8 +321,6 @@
     { label: 'felt piano', value: 'piano' },
     { label: 'acoustic guitar', value: 'guitar-acoustic' },
     { label: 'electric guitar', value: 'electric-guitar' },
-    ...(SHOW_HOLDSWORTHIAN_PAD ? [{ label: 'ambient pad', value: 'holdsworthian-pad' }] : []),
-    ...(SHOW_RETRO_PAD ? [{ label: 'retro pad', value: 'retro-pad' }] : []),
     { label: 'choir pad', value: 'choir-pad' },
     ...(SHOW_ANALOG_SYNTH_TEMP ? [{ label: 'analog synth', value: 'analog-synth-temp' }] : []),
   ]
