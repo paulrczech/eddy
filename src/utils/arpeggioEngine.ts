@@ -6,7 +6,14 @@
 // of sync with the other — which is exactly what had happened before this file existed:
 // MIDI export had its own separate, latch-unaware reimplementation of arpeggio ordering.
 import type { Cluster } from './noteUtils'
-import type { ArpeggioDirection, Subdivision } from '../stores/settingsStore'
+import type { ArpeggioDirection, Subdivision, InstrumentType } from '../stores/settingsStore'
+import {
+  VELOCITY_PATTERNS,
+  FAMILY_LEVELS,
+  INSTRUMENT_LEVELS,
+  VELOCITY_FAMILY,
+  type VelocityPattern,
+} from '../data/velocityPatterns'
 
 export function intervalFromBpm(bpm: number, subdivision: Subdivision = 4): number {
   return 60 / bpm / subdivision
@@ -31,6 +38,74 @@ export function humanVelocity(baseVelocity: number, noteIdx: number, totalNotes:
   const jitter = (Math.random() - 0.5) * 0.24  // ±12% random humanization
   const taper = noteIdx === 0 ? 0 : -0.06 * (noteIdx / Math.max(totalNotes - 1, 1))
   return Math.min(1, Math.max(0.3, baseVelocity + jitter + taper))
+}
+
+// Accent patterns (src/data/velocityPatterns.ts) — a player's loud/medium/soft shape over
+// the arpeggio, replacing random jitter. Off = every note at the flat base velocity again.
+const ENABLE_VELOCITY_PATTERNS = true
+
+export interface VelocityContext {
+  instrument?: InstrumentType
+  direction: ArpeggioDirection
+  beatsPerBar: number
+  subdivision: number // notes per beat — slots in a bar = beatsPerBar * subdivision
+  seed: number // per-flow, saved with it: picks among the eligible patterns
+}
+
+// Patterns that can play right now. A 'pass' pattern needs its cell to equal the pass
+// length; a 'bar' pattern needs its cell to divide the bar's slots. If nothing qualifies,
+// 'pass' patterns may tile the bar instead, so odd grids still get a groove where possible.
+function eligiblePatterns(ctx: VelocityContext, passLength: number): VelocityPattern[] {
+  const family = ctx.instrument && VELOCITY_FAMILY[ctx.instrument]
+  if (!family || ctx.direction === 'chord') return []
+  const meter = ctx.beatsPerBar === 3 ? '3/4' : '4/4'
+  const slots = ctx.beatsPerBar * ctx.subdivision
+  const slotsOk = Number.isInteger(slots) && slots >= 2
+  const mine = VELOCITY_PATTERNS.filter(p => p.family === family && p.meter === meter)
+  const tiles = (p: VelocityPattern) => slotsOk && slots % p.cell.length === 0
+  const direct = mine.filter(p => (p.anchor === 'pass' ? p.cell.length === passLength : tiles(p)))
+  if (direct.length > 0) return direct
+  return mine.filter(p => p.anchor === 'pass' && tiles(p))
+}
+
+// The pattern a flow plays with right now (null = flat).
+export function pickVelocityPattern(ctx: VelocityContext, passLength: number): VelocityPattern | null {
+  if (!ENABLE_VELOCITY_PATTERNS) return null
+  const eligible = eligiblePatterns(ctx, passLength)
+  if (eligible.length === 0) return null
+  return eligible[Math.abs(Math.floor(ctx.seed)) % eligible.length]
+}
+
+// Velocity for every note of every event (one event = one pass of the arpeggio, as
+// buildClusterEvents returns them), aligned with `events[i].notes[j]`. `interval` is the
+// seconds between notes — used to turn an event's start time back into a bar slot. Falls
+// back to humanVelocity() (flat while it's disabled) whenever no pattern applies: chord
+// direction, an instrument without a family, or a grid nothing tiles.
+export function velocitiesForEvents(
+  events: { time: number; notes: number[] }[],
+  interval: number,
+  ctx: VelocityContext
+): number[][] {
+  const flat = () => events.map(e => e.notes.map((_, i) => humanVelocity(0.72, i, e.notes.length)))
+  if (!ENABLE_VELOCITY_PATTERNS || events.length === 0 || interval <= 0) return flat()
+
+  const passLength = events[0].notes.length // the first pass is always a full one
+  const pattern = pickVelocityPattern(ctx, passLength)
+  if (!pattern) return flat()
+
+  const levels = { ...FAMILY_LEVELS[pattern.family], ...(ctx.instrument && INSTRUMENT_LEVELS[ctx.instrument]) }
+  const cell = pattern.cell
+  const slots = ctx.beatsPerBar * ctx.subdivision
+  const byPass = pattern.anchor === 'pass' && cell.length === passLength
+  return events.map(e => {
+    const startSlot = Math.round(e.time / interval)
+    return e.notes.map((_, i) => {
+      const idx = byPass
+        ? (ctx.direction === 'down' ? passLength - 1 - i : i)
+        : ((startSlot + i) % slots) % cell.length
+      return levels[cell[idx] as 'L' | 'M' | 'S']
+    })
+  })
 }
 
 export function buildArpeggioNotes(cluster: number[], direction: ArpeggioDirection): number[] {

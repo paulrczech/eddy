@@ -1,7 +1,8 @@
 import { Midi } from '@tonejs/midi'
 import type { Cluster } from './noteUtils'
 import { clusterLabel } from './noteUtils'
-import { buildArpeggioNotes, buildClusterEvents, humanVelocity } from './arpeggioEngine'
+import { buildArpeggioNotes, buildClusterEvents, humanVelocity, velocitiesForEvents } from './arpeggioEngine'
+import type { InstrumentType } from '../stores/settingsStore'
 import { saveAndShareBytes } from './fileExport'
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'
@@ -15,6 +16,8 @@ export interface MidiExportOptions {
   latch: boolean  // repeat the arpeggio to fill the whole bar, matching live playback's
     // latch toggle — see buildClusterEvents() in arpeggioEngine.ts. No effect on 'chord'
     // direction, same as live playback.
+  instrument?: InstrumentType  // picks the accent-pattern family (velocitiesForEvents) — omitted = flat
+  velocitySeed?: number  // the flow's accent-pattern pick, same as live playback's
 }
 
 const DEFAULT_OPTIONS: MidiExportOptions = {
@@ -99,14 +102,20 @@ export async function exportSequenceAsMidi(
     // Velocity is computed per-event (noteIdx/total relative to that one pass), matching
     // live playback's own per-pass taper exactly — not relative to the flattened list,
     // which would taper across an entire latched bar instead of resetting each repeat.
-    const flatNotes = events.flatMap(event => {
-      const total = event.notes.length
-      return event.notes.map((midi_note, i) => ({
+    const velocities = velocitiesForEvents(events, subdivisionSec, {
+      instrument: opts.instrument,
+      direction: opts.direction,
+      beatsPerBar: opts.beatsPerBar,
+      subdivision: opts.subdivision,
+      seed: opts.velocitySeed ?? 0,
+    })
+    const flatNotes = events.flatMap((event, k) =>
+      event.notes.map((midi_note, i) => ({
         time: event.time + i * subdivisionSec,
         midi_note,
-        velocity: humanVelocity(0.72, i, total),
+        velocity: velocities[k][i],
       }))
-    })
+    )
 
     flatNotes.forEach((entry, i) => {
       const isLast = i === flatNotes.length - 1

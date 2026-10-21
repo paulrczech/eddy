@@ -89,6 +89,11 @@ export const useSequenceStore = defineStore('sequence', () => {
   const redoStack = ref<HistoryEntry[]>([])
   const candidates = ref<Cluster[]>([])
   const loopResolved = ref(false)
+  // Which accent pattern a flow plays with (see velocitiesForEvents in arpeggioEngine.ts) —
+  // rolled fresh whenever a flow starts, saved with it, and shared by live playback and both
+  // exports so they always agree. An old save without one loads with 0 (see HomeView).
+  const newVelocitySeed = () => Math.floor(Math.random() * 1_000_000)
+  const velocitySeed = ref<number>(newVelocitySeed())
   const loopPoint = ref<number>(-1)
   const savedSessionId = ref<string | null>(null)
 
@@ -167,6 +172,7 @@ export const useSequenceStore = defineStore('sequence', () => {
     loopResolved.value = false
     loopPoint.value = -1
     savedSessionId.value = null
+    velocitySeed.value = newVelocitySeed()
 
     const sorted = sortCluster(openingCluster)
     if (!isValidCluster(sorted, bounds)) {
@@ -578,9 +584,16 @@ export const useSequenceStore = defineStore('sequence', () => {
     loopResolved.value = false
     loopPoint.value = -1
     savedSessionId.value = null
+    velocitySeed.value = newVelocitySeed()
+  }
+
+  function setVelocitySeed(seed: number) {
+    velocitySeed.value = seed
   }
 
   return {
+    velocitySeed,
+    setVelocitySeed,
     sequence,
     pools,
     candidates,

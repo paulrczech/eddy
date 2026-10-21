@@ -901,6 +901,7 @@
     subdivision: settingsStore.subdivision,
     latch: settingsStore.latchMode,
     beatsPerBar: TIME_SIGNATURE_BEATS[settingsStore.timeSignature],
+    velocitySeed: sequenceStore.velocitySeed,
   }))
 
   const TIME_SIGNATURE_OPTIONS: TimeSignature[] = ['4/4', '3/4']
@@ -1592,6 +1593,7 @@
       keyRoot: settingsStore.keyRoot,
       scaleId: settingsStore.scaleId,
       moodId: settingsStore.moodId ?? undefined,
+      velocitySeed: sequenceStore.velocitySeed,
     }
   }
 
@@ -1718,6 +1720,8 @@
       subdivision: settingsStore.subdivision,
       beatsPerBar: TIME_SIGNATURE_BEATS[settingsStore.timeSignature],
       latch: settingsStore.latchMode,
+      instrument: settingsStore.instrument,
+      velocitySeed: sequenceStore.velocitySeed,
     })
   }
 

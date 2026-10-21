@@ -600,6 +600,8 @@
     setAmbience(settingsStore.ambience)
     settingsStore.setVoiceCount(session.voiceCount as 3 | 4)
     sequenceStore.start(session.sequence[0], INSTRUMENT_NOTE_RANGE[settingsStore.instrument])
+    // start() rolls a fresh accent pattern; a saved flow keeps its own (older saves: 0).
+    sequenceStore.setVelocitySeed(session.velocitySeed ?? 0)
     for (let i = 1; i < session.sequence.length; i++) {
       sequenceStore.confirm(session.sequence[i])
     }

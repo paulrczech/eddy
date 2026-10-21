@@ -4,7 +4,8 @@ import type { InstrumentType, ArpeggioDirection, Subdivision, TimeSignature } fr
 import type { Pool } from '../stores/sequenceStore'
 
 // The channel (key lock) as saved alongside a flow — see settingsStore's keyLocked/keyRoot/scaleId
-export type ChannelState = { keyLocked: boolean; keyRoot: number; scaleId: string; moodId?: string }
+// (Also carries the flow's velocitySeed — the accent-pattern pick — which is saved the same way.)
+export type ChannelState = { keyLocked: boolean; keyRoot: number; scaleId: string; moodId?: string; velocitySeed?: number }
 
 export interface SavedSession {
   id: string
@@ -23,6 +24,7 @@ export interface SavedSession {
   keyLocked?: boolean    // the channel (key lock) — older saves predate it, read as open
   keyRoot?: number
   scaleId?: string
+  velocitySeed?: number  // which accent pattern the flow plays with — older saves predate it, read as 0
   moodId?: string        // the mood chooser's word, if the channel was set that way (display only)
 }
 

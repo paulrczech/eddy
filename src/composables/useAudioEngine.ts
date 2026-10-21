@@ -8,7 +8,7 @@ import {
   intervalFromBpm,
   buildArpeggioNotes,
   buildClusterEvents,
-  humanVelocity,
+  velocitiesForEvents,
 } from '../utils/arpeggioEngine'
 import { logDiag } from '../utils/diagLog'
 
@@ -579,6 +579,9 @@ export interface PlaybackSettings {
   // export, cluster preview, etc. all keep working exactly as before.
   directionOverrides?: (ArpeggioDirection | undefined)[]
   latchOverrides?: (boolean | undefined)[]
+  // The flow's accent-pattern pick (sequenceStore.velocitySeed) — see velocitiesForEvents()
+  // in utils/arpeggioEngine.ts. Omitted = pattern 0, still deterministic.
+  velocitySeed?: number
 }
 
 // Fixed note durations for plucky/percussive instruments
@@ -723,9 +726,8 @@ const AUTO_FILTER_SETTINGS: Partial<
   >
 > = {
   'analog-synth-temp': { frequency: 0.12, baseFrequency: 700, octaves: 2.2, wet: 0.6 },
-  // Trial (Paul, 2026-10-15): the analog synth's exact sweep on Yindad Acoustic, to hear how
-  // a slow cutoff drift sits on a plucked guitar. Delete this line to revert.
-  'guitar-acoustic': { frequency: 0.12, baseFrequency: 700, octaves: 2.2, wet: 0.6 },
+  // (Tried on Yindad Acoustic 2026-10-15; removed 2026-10-21 at Paul's call — only the
+  // analog synth keeps the sweep.)
 }
 
 // Chorus (a subtle detune wobble) and ping-pong delay (stereo, alternating left/right
@@ -1250,15 +1252,27 @@ async function renderSequenceToBuffer(
   const clusterDuration = barsNeeded * beatsPerBar * beat
   const totalDuration = sequence.length * clusterDuration
 
-  const events = sequence.flatMap((cluster, i) =>
-    buildClusterEvents(
+  const events = sequence.flatMap((cluster, i) => {
+    const clusterEvents = buildClusterEvents(
       cluster,
       settings.direction,
       interval,
       clusterDuration,
       settings.latch ?? false
-    ).map((e) => ({ time: i * clusterDuration + e.time, notes: e.notes }))
-  )
+    )
+    const velocities = velocitiesForEvents(clusterEvents, interval, {
+      instrument: instrumentType,
+      direction: settings.direction,
+      beatsPerBar,
+      subdivision: settings.subdivision ?? 4,
+      seed: settings.velocitySeed ?? 0,
+    })
+    return clusterEvents.map((e, k) => ({
+      time: i * clusterDuration + e.time,
+      notes: e.notes,
+      velocities: velocities[k],
+    }))
+  })
 
   const dur = NOTE_DURATIONS[instrumentType] ?? '2n'
   const release = noteRelease(instrumentType)
@@ -1279,14 +1293,12 @@ async function renderSequenceToBuffer(
     else sampler.toDestination()
 
     events.forEach((event) => {
-      const total = event.notes.length
       event.notes.forEach((midi, noteIdx) => {
-        const vel = humanVelocity(0.72, noteIdx, total)
         sampler.triggerAttackRelease(
           midiToTone(midi),
           dur,
           event.time + noteIdx * interval,
-          vel
+          event.velocities[noteIdx]
         )
       })
     })
@@ -1336,13 +1348,19 @@ function playCluster(
   const now = Tone.now()
   const dur = noteDuration()
 
+  const [velocities] = velocitiesForEvents([{ time: 0, notes }], interval, {
+    instrument: currentInstrumentType ?? undefined,
+    direction: settings.direction,
+    beatsPerBar: settings.beatsPerBar ?? 4,
+    subdivision: settings.subdivision ?? 4,
+    seed: settings.velocitySeed ?? 0,
+  })
   notes.forEach((midi, i) => {
-    const vel = humanVelocity(0.72, i, notes.length)
     instrument!.triggerAttackRelease(
       midiToTone(midi),
       dur,
       now + i * interval,
-      vel
+      velocities[i]
     )
   })
 
@@ -1461,13 +1479,25 @@ function playSequence(
     const clusterInterval = clusterDirection === 'chord'
       ? chordInterval(currentInstrumentType)
       : intervalFromBpm(settings.bpm, settings.subdivision)
-    return buildClusterEvents(
+    const clusterEvents = buildClusterEvents(
       cluster,
       clusterDirection,
       clusterInterval,
       clusterDuration,
       clusterLatch
-    ).map((e) => ({ time: i * clusterDuration + e.time, notes: e.notes }))
+    )
+    const velocities = velocitiesForEvents(clusterEvents, clusterInterval, {
+      instrument: currentInstrumentType ?? undefined,
+      direction: clusterDirection,
+      beatsPerBar,
+      subdivision: settings.subdivision ?? 4,
+      seed: settings.velocitySeed ?? 0,
+    })
+    return clusterEvents.map((e, k) => ({
+      time: i * clusterDuration + e.time,
+      notes: e.notes,
+      velocities: velocities[k],
+    }))
   })
 
   const totalDuration = sequence.length * clusterDuration
@@ -1479,14 +1509,12 @@ function playSequence(
   transport.loopEnd = totalDuration
 
   loopPart = new Tone.Part((time, event) => {
-    const total = event.notes.length
     event.notes.forEach((midi: number, noteIdx: number) => {
-      const vel = humanVelocity(0.72, noteIdx, total)
       instrument!.triggerAttackRelease(
         midiToTone(midi),
         dur,
         time + noteIdx * interval,
-        vel
+        event.velocities[noteIdx]
       )
     })
   }, events)
