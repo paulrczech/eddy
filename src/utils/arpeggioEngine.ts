@@ -95,6 +95,16 @@ function eligiblePatterns(ctx: VelocityContext, passLength: number): VelocityPat
   const slots = ctx.beatsPerBar * ctx.subdivision
   const slotsOk = Number.isInteger(slots) && slots >= 2
   const mine = VELOCITY_PATTERNS.filter(p => p.family === family && p.meter === meter)
+  // Random order keeps the bottom voice first and shuffles the rest, so only the voice-style
+  // ('pass') patterns make sense: they put the accent on the bass whichever way the upper
+  // voices fall. A cell longer than the chord just uses its first letters. (Paul, 2026-10-21;
+  // with no such pattern for this meter/voice count, the usual rules below apply.)
+  if (ctx.direction === 'random') {
+    const passOnly = mine.filter(p => p.anchor === 'pass')
+    const fitting = passOnly.filter(p => p.cell.length >= passLength)
+    // none long enough (4 voices in 3/4, whose voice cells are 3 long): the cell repeats
+    if (fitting.length > 0 || passOnly.length > 0) return fitting.length > 0 ? fitting : passOnly
+  }
   const tiles = (p: VelocityPattern) => slotsOk && slots % p.cell.length === 0
   const direct = mine.filter(p => (p.anchor === 'pass' ? p.cell.length === passLength : tiles(p)))
   if (direct.length > 0) return direct
@@ -149,12 +159,14 @@ function patternVelocities(
   const levels = { ...FAMILY_LEVELS[pattern.family], ...(ctx.instrument && INSTRUMENT_LEVELS[ctx.instrument]) }
   const cell = pattern.cell
   const slots = ctx.beatsPerBar * ctx.subdivision
-  const byPass = pattern.anchor === 'pass' && cell.length === passLength
+  const byPass =
+    pattern.anchor === 'pass' &&
+    (cell.length === passLength || ctx.direction === 'random')
   const velocities = events.map(e => {
     const startSlot = Math.round(e.time / interval)
     return e.notes.map((_, i) => {
       const idx = byPass
-        ? (ctx.direction === 'down' ? passLength - 1 - i : i)
+        ? (ctx.direction === 'down' ? passLength - 1 - i : i % cell.length)
         : ((startSlot + i) % slots) % cell.length
       return levels[cell[idx] as 'L' | 'M' | 'S']
     })
