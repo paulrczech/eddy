@@ -464,14 +464,10 @@
           <div
             v-if="sequenceStore.sequence.length > 1"
             class="tray-row export-row">
-            <!-- Export always reads the global flow/loop-range scope (playbackSequence),
-                 never a pool's own range or its custom playback settings — exporting
-                 while the drawer reads "playback - pool 'x'" would silently produce
-                 something that doesn't match what the label implies. Disabled here for
-                 the same reason tempo/subdivision/time-signature/instrument already are
-                 in pool context: not unsupported forever, just not wired up yet (Paul,
-                 2026-10-10) — see the export-sync scoping conversation this is paired
-                 with. -->
+            <!-- Export reads the global flow/loop-range scope — pool repeats and each pool's
+                 direction/latch included, exactly as playback plays them (2026-10-22) — never
+                 a pool's own range on its own. Still disabled while the drawer reads
+                 "playback - pool 'x'" so the label never implies a pool-only export. -->
             <button class="btn-outline export-btn" :disabled="!!poolPlaybackContext" @click="requestExport(exportMidi)">
               <ion-icon :icon="downloadOutline" /> midi
             </button>
@@ -1265,7 +1261,13 @@
     return sequenceStore.pools.find((p) => i >= p.range[0] && i <= p.range[1])
   }
 
-  function buildPlaybackPlan(range: [number, number] | null, loop = true): PlaybackPlan {
+  // `order` defaults to the live play order; export's "whole flow" passes 'forward' so it stays
+  // the canonical stored order regardless of the reverse/bounce toggle.
+  function buildPlaybackPlan(
+    range: [number, number] | null,
+    loop = true,
+    order: PlayOrder = playOrder.value
+  ): PlaybackPlan {
     const seq = sequenceStore.sequence
     const lo = range ? range[0] : 0
     const hi = range ? range[1] : seq.length - 1
@@ -1284,7 +1286,7 @@
       repeatInfo.push(info)
     }
 
-    if (playOrder.value === 'reverse') {
+    if (order === 'reverse') {
       // Repeats aren't supported in reverse yet (Paul's "continue the repeats" ask was
       // specifically about the forward start-from-selected case) — every row plays once,
       // in reverse order, same as before; direction/latch overrides still apply since
@@ -1336,7 +1338,7 @@
 
     // Bounce: the return pass, each row once (like reverse, no repeats). Looping stops one
     // short of row `lo` since the loop itself wraps back to it; a one-shot ends there.
-    if (playOrder.value === 'bounce') {
+    if (order === 'bounce') {
       for (let r = hi - 1; r >= (loop ? lo + 1 : lo); r--) pushRow(r, poolContaining(r), null)
     }
 
@@ -1709,15 +1711,34 @@
   // entirely when no range is active, since there's nothing to disambiguate — the three
   // export functions below all take the sequence to export as a parameter rather than
   // reading sequenceStore.sequence directly, so this is the one place that decides it.
-  const pendingExportRun = ref<((sequence: Cluster[]) => void | Promise<void>) | null>(null)
+  // What export reads is the same expanded, pool-aware timeline playback schedules (pool
+  // repeats unrolled, per-row direction/latch overrides) — before 2026-10-22 export took the
+  // flat stored rows plus the global direction/latch, so pool repeats and pool arpeggio
+  // direction were silently missing from MIDI and WAV (octave shift survived only because it
+  // is baked into the rows). `sequence` is the scope's plain stored rows, for copy-text.
+  interface ExportScope {
+    sequence: Cluster[]
+    plan: PlaybackPlan
+  }
+  type ExportRun = (scope: ExportScope) => void | Promise<void>
+
+  function exportScopeFor(which: 'loop' | 'flow'): ExportScope {
+    if (which === 'flow') {
+      // The canonical stored order, whatever the reverse/bounce toggle says
+      return { sequence: sequenceStore.sequence, plan: buildPlaybackPlan(null, false, 'forward') }
+    }
+    return { sequence: playbackSequence.value, plan: buildPlaybackPlan(loopRange.value, true) }
+  }
+
+  const pendingExportRun = ref<ExportRun | null>(null)
   const showExportScopeConfirm = ref(false)
   // Copy-text isn't really an "export" in the user's own vocabulary — it's a copy. The
   // alert's header verb follows whichever action actually triggered it.
   const exportScopeVerb = ref('export')
 
-  function requestExport(run: (sequence: Cluster[]) => void | Promise<void>, verb = 'export') {
+  function requestExport(run: ExportRun, verb = 'export') {
     if (!loopRange.value) {
-      run(sequenceStore.sequence)
+      run(exportScopeFor('flow'))
       return
     }
     pendingExportRun.value = run
@@ -1725,18 +1746,18 @@
     showExportScopeConfirm.value = true
   }
 
-  function runPendingExport(sequence: Cluster[]) {
-    pendingExportRun.value?.(sequence)
+  function runPendingExport(which: 'loop' | 'flow') {
+    pendingExportRun.value?.(exportScopeFor(which))
     pendingExportRun.value = null
   }
 
   const exportScopeAlertButtons = [
-    { text: 'this loop', handler: () => runPendingExport(playbackSequence.value) },
-    { text: 'whole flow', handler: () => runPendingExport(sequenceStore.sequence) },
+    { text: 'this loop', handler: () => runPendingExport('loop') },
+    { text: 'whole flow', handler: () => runPendingExport('flow') },
   ]
 
-  async function exportMidi(sequence: Cluster[]) {
-    await exportSequenceAsMidi(sequence, {
+  async function exportMidi(scope: ExportScope) {
+    await exportSequenceAsMidi(scope.plan.clusters, {
       bpm: settingsStore.tempo,
       direction: settingsStore.arpeggioDirection,
       subdivision: settingsStore.subdivision,
@@ -1744,6 +1765,8 @@
       latch: settingsStore.latchMode,
       instrument: settingsStore.instrument,
       velocitySeed: sequenceStore.velocitySeed,
+      directionOverrides: scope.plan.directionOverrides,
+      latchOverrides: scope.plan.latchOverrides,
     })
   }
 
@@ -1752,7 +1775,7 @@
   // itself while it runs rather than looking like a dead tap.
   const exportingAudio = ref(false)
 
-  async function exportAudio(sequence: Cluster[]) {
+  async function exportAudio(scope: ExportScope) {
     if (exportingAudio.value) return
     // Tone.Offline() temporarily swaps the *global* Tone context for the duration of the
     // render — if live playback's per-frame tick loop read Tone.getContext() mid-render,
@@ -1763,9 +1786,9 @@
     try {
       await exportSequenceAsWav(
         audioEngine.renderSequenceToBuffer,
-        sequence,
+        scope.plan.clusters,
         settingsStore.instrument,
-        playbackSettings.value,
+        settingsForPlan(scope.plan),
         settingsStore.ambience
       )
     } catch (err) {
@@ -1775,8 +1798,8 @@
     }
   }
 
-  function copyText(sequence: Cluster[]) {
-    const text = exportSequenceAsText(sequence)
+  function copyText(scope: ExportScope) {
+    const text = exportSequenceAsText(scope.sequence)
     navigator.clipboard.writeText(text)
     copiedFlash.value = true
     setTimeout(() => {

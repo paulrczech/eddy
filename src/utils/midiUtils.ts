@@ -18,6 +18,12 @@ export interface MidiExportOptions {
     // direction, same as live playback.
   instrument?: InstrumentType  // picks the accent-pattern family (velocitiesForEvents) — omitted = flat
   velocitySeed?: number  // the flow's accent-pattern pick, same as live playback's
+  // Per-row pool overrides, same length as the sequence passed in (which is the *expanded*
+  // pool timeline — repeats already unrolled): a defined entry at index i replaces
+  // direction/latch for row i, exactly as PlaybackSettings.directionOverrides/
+  // latchOverrides do for live playback and WAV export.
+  directionOverrides?: (ArpeggioDirection | undefined)[]
+  latchOverrides?: (boolean | undefined)[]
 }
 
 const DEFAULT_OPTIONS: MidiExportOptions = {
@@ -44,6 +50,13 @@ export async function exportSequenceAsMidi(
   sequence: Cluster[],
   options: Partial<MidiExportOptions> = {}
 ): Promise<void> {
+  const midi = buildMidi(sequence, options)
+  const filename = `eddy-${clusterLabel(sequence[0])}.mid`
+  await saveAndShareBytes(midi.toArray(), filename, 'audio/midi', 'export midi')
+}
+
+// The pure half of the export (no file I/O), so it can be tested directly.
+export function buildMidi(sequence: Cluster[], options: Partial<MidiExportOptions> = {}): Midi {
   const opts = { ...DEFAULT_OPTIONS, ...options }
 
   const midi = new Midi()
@@ -65,6 +78,15 @@ export async function exportSequenceAsMidi(
   const subdivisionSec = barSec / subdivisionsPerBar
   const gapSec = subdivisionSec * opts.gapFraction
 
+  // Bar length is one uniform value for the whole sequence, decided by the *global*
+  // direction and the widest cluster — exactly what playSequence()/renderSequenceToBuffer()
+  // do — because a pool can only change a row's arpeggiation *pattern*, never how long its
+  // bar is (subdivision and time signature are global). A coarse grid can need more than one
+  // bar to fit every voice; chord direction is always one bar.
+  const maxVoices = Math.max(1, ...sequence.map(c => c.length))
+  const barsPerCluster = opts.direction === 'chord' ? 1 : Math.max(1, Math.ceil(maxVoices / subdivisionsPerBar))
+  const clusterDuration = barsPerCluster * barSec
+
   // barCursor tracks whole bars elapsed, so every cluster still starts on a
   // downbeat even when a coarse grid needs more than one bar to fit every voice.
   let barCursor = 0
@@ -72,8 +94,11 @@ export async function exportSequenceAsMidi(
   for (const [clusterIdx, cluster] of sequence.entries()) {
     const previousCluster = sequence[clusterIdx - 1]
     const barStart = barCursor * barSec
+    const clusterDirection = opts.directionOverrides?.[clusterIdx] ?? opts.direction
+    const clusterLatch = opts.latchOverrides?.[clusterIdx] ?? opts.latch
+    const clusterEnd = barStart + clusterDuration
 
-    if (opts.direction === 'chord') {
+    if (clusterDirection === 'chord') {
       const notes = buildArpeggioNotes(cluster, 'chord')
       const plan = velocitiesForEvents([{ time: 0, notes }], subdivisionSec, {
         cluster,
@@ -88,23 +113,18 @@ export async function exportSequenceAsMidi(
         track.addNote({
           midi: midi_note,
           time: barStart,
-          duration: barSec - gapSec,
+          duration: clusterDuration - gapSec,
           velocity: plan.jitter[0][i] ? humanizeVelocity(plan.velocities[0][i]) : plan.velocities[0][i],
         })
       })
-      barCursor += 1
+      barCursor += barsPerCluster
       continue
     }
 
     // A cluster spans however many bars its grid needs to fit every voice —
     // coarse subdivisions never drop a note, they just take longer to state
     // the gesture (or, with latch, repeat to fill whatever bars that takes).
-    const voiceCount = cluster.length
-    const barsNeeded = Math.max(1, Math.ceil(voiceCount / subdivisionsPerBar))
-    const clusterDuration = barsNeeded * barSec
-    const clusterEnd = barStart + clusterDuration
-
-    const events = buildClusterEvents(cluster, opts.direction, subdivisionSec, clusterDuration, opts.latch)
+    const events = buildClusterEvents(cluster, clusterDirection, subdivisionSec, clusterDuration, clusterLatch)
     // Flatten to a single ordered note list so "last note holds through to the next
     // downbeat" applies to the true last note of the cluster — whichever latch repeat
     // (or partial final pass) it falls in — not just the last note of a single pass.
@@ -115,7 +135,7 @@ export async function exportSequenceAsMidi(
       cluster,
       previousCluster,
       instrument: opts.instrument,
-      direction: opts.direction,
+      direction: clusterDirection,
       beatsPerBar: opts.beatsPerBar,
       subdivision: opts.subdivision,
       seed: opts.velocitySeed ?? 0,
@@ -139,11 +159,10 @@ export async function exportSequenceAsMidi(
       })
     })
 
-    barCursor += barsNeeded
+    barCursor += barsPerCluster
   }
 
-  const filename = `eddy-${clusterLabel(sequence[0])}.mid`
-  await saveAndShareBytes(midi.toArray(), filename, 'audio/midi', 'export midi')
+  return midi
 }
 
 // Export sequence as plain text (note names, one cluster per line)

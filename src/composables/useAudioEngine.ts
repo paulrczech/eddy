@@ -1215,18 +1215,27 @@ async function renderSequenceToBuffer(
   const totalDuration = sequence.length * clusterDuration
 
   const events = sequence.flatMap((cluster, i) => {
+    // Per-row pool overrides (direction/latch) exactly as playSequence() resolves them — the
+    // export sequence is the expanded pool timeline (repeats included), so index i lines up
+    // with settings.directionOverrides/latchOverrides.
+    const clusterDirection = settings.directionOverrides?.[i] ?? settings.direction
+    const clusterLatch = settings.latchOverrides?.[i] ?? (settings.latch ?? false)
+    const clusterInterval =
+      clusterDirection === 'chord'
+        ? chordInterval(instrumentType)
+        : intervalFromBpm(settings.bpm, settings.subdivision)
     const clusterEvents = buildClusterEvents(
       cluster,
-      settings.direction,
-      interval,
+      clusterDirection,
+      clusterInterval,
       clusterDuration,
-      settings.latch ?? false
+      clusterLatch
     )
-    const plan = velocitiesForEvents(clusterEvents, interval, {
+    const plan = velocitiesForEvents(clusterEvents, clusterInterval, {
       cluster,
       previousCluster: sequence[i - 1],
       instrument: instrumentType,
-      direction: settings.direction,
+      direction: clusterDirection,
       beatsPerBar,
       subdivision: settings.subdivision ?? 4,
       seed: settings.velocitySeed ?? 0,
@@ -1236,6 +1245,7 @@ async function renderSequenceToBuffer(
       notes: e.notes,
       velocities: plan.velocities[k],
       jitter: plan.jitter[k],
+      interval: clusterInterval,
     }))
   })
 
@@ -1262,7 +1272,7 @@ async function renderSequenceToBuffer(
         sampler.triggerAttackRelease(
           midiToTone(midi),
           dur,
-          event.time + noteIdx * interval,
+          event.time + noteIdx * event.interval,
           event.jitter[noteIdx] ? humanizeVelocity(event.velocities[noteIdx]) : event.velocities[noteIdx]
         )
       })
@@ -1467,6 +1477,10 @@ function playSequence(
       notes: e.notes,
       velocities: plan.velocities[k],
       jitter: plan.jitter[k],
+      // This row's own spacing: a pool can switch a row into/out of 'chord' (strum-speed
+      // spacing) while the global direction is an arpeggio, or the reverse. Spacing every
+      // note with the global `interval` made such a row play in the *global* style.
+      interval: clusterInterval,
     }))
   })
 
@@ -1483,7 +1497,7 @@ function playSequence(
       instrument!.triggerAttackRelease(
         midiToTone(midi),
         dur,
-        time + noteIdx * interval,
+        time + noteIdx * event.interval,
         // Rolled here, at trigger time, so every pass and every loop trip differs a little
         event.jitter[noteIdx] ? humanizeVelocity(event.velocities[noteIdx]) : event.velocities[noteIdx]
       )
