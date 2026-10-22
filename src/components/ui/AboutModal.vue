@@ -33,10 +33,21 @@
           </p>
         </div>
 
-        <p class="about-credits">
-          Piano, guitar, electric piano, and electric guitar samples via Pianobook.co.uk.
-          holdsworth pad: Blackhole Guitars by JWB. See CREDITS.md.
-        </p>
+        <div class="about-credits">
+          <p class="credits-label">sounds</p>
+          <p>
+            Acoustic guitar: notes rendered from Evolution Songwriter by Orange Tree
+            Samples, used with permission (orangetreesamples.com).
+          </p>
+          <p>
+            Piano: Upright Piano from Versilian Studios' VSCO 2 Community Edition,
+            sampled by Simon Dalzell (Ivy Audio).
+          </p>
+          <p>Felt piano: Mikor Piano Felt, via Pianobook.co.uk.</p>
+          <p>Electric guitar: Afterglow by Frédéric Poirier, via Pianobook.co.uk.</p>
+          <p>Analog synth: Moog Minitaur "Simple Saw" by modularsamples (CC0).</p>
+          <p>Synth strings: original to Eddy.</p>
+        </div>
 
         <div class="diag-row">
           <button class="btn-outline diag-btn" @click="exportDiagnostics">
@@ -146,7 +157,18 @@
     line-height: 1.5;
     color: var(--color-text-muted);
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .about-credits p {
     margin: 0;
+  }
+  .about-credits .credits-label {
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+    margin-bottom: 0.2rem;
   }
 
   .diag-row {

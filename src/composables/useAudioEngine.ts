@@ -240,48 +240,24 @@ const PIANO_URLS: Record<string, string> = {
   'A#6': 'As6.mp3',
 }
 
-// Acoustic guitar — "Yindad Acoustic" (Paul's own pack), replaced "Soft Nylon Guitar
-// Lite" (Mike Georgiades via Pianobook.co.uk) outright 2026-10-07 after a direct A/B in
-// the simulator (same key/folder path kept for saved-session backward compatibility,
-// same reasoning as every other content swap in this project — see holdsworthian-pad).
-// 11 roots, every major third, E2-G#5 — denser and wider coverage than the nylon pack it
-// replaced (7 usable roots, C#3-G4). Unlike most packs evaluated in this project,
-// filenames measured at TRUE pitch — autocorrelation confirmed all 11 within ~10 cents
-// (three readings initially looked ~19 semitones flat on the brighter notes — a
-// subharmonic-locking artifact, not a real pitch issue; a frequency-constrained re-check
-// confirmed all three are correctly pitched too). Gain-boosted +9dB (measured RMS against
-// the outgoing nylon pack on the two exact note-name overlaps, E3/E4) and trimmed to
-// 6s/1s fade-out, same treatment as every other instrument. See CREDITS.md for
-// attribution.
+// Acoustic guitar — notes rendered from Orange Tree Samples' Evolution Songwriter library, used
+// with Orange Tree's written permission (support email, 2026-10-22: 16 rendered notes inside
+// the app, credit requested; revisit if Eddy ever becomes a paid app). Replaced "Yindad
+// Acoustic" (Paul's own recording, 11 major-third roots) outright after a direct A/B; before
+// that "Soft Nylon Guitar Lite" (Pianobook) and the original steel-string samples. Same
+// key/folder-independent slot ('guitar-acoustic') for saved-session backward compatibility.
+// 16 roots, every minor third E2-C6, ~1.5 MB. Pitch verified on the first 0.6s of each note
+// (where a pluck lives — HPS on later windows reads decayed noise): all within 3 cents,
+// fundamental strongest, nothing below. Each file starts at the pluck, is cut at 6s (the
+// renders end there) with a 0.4s fade, and is leveled on its first second's PERCEIVED loudness
+// (A-weighted RMS) against the old guitar's smoothed contour at the same pitch
+// (scripts/samples/guitar-pluck.py) — plain RMS had left the four lowest roots 6-9 dB too soft
+// (their energy is mostly deep fundamentals). 128 kbps MP3, fully dry.
+// THE FILES LIVE IN public/samples/guitar-acoustic-ots/, WHICH IS GIT-EXCLUDED
+// (.git/info/exclude): Orange Tree's permission covers use inside the app, not offering the
+// files standalone, and the GitHub repo is public. Back that folder up outside git; the WAV
+// renders live in ~/Samples/acoustic_guitar.
 const GUITAR_ACOUSTIC_URLS: Record<string, string> = {
-  E2: 'E2.mp3',
-  'G#2': 'Gs2.mp3',
-  C3: 'C3.mp3',
-  E3: 'E3.mp3',
-  'G#3': 'Gs3.mp3',
-  C4: 'C4.mp3',
-  E4: 'E4.mp3',
-  'G#4': 'Gs4.mp3',
-  C5: 'C5.mp3',
-  E5: 'E5.mp3',
-  'G#5': 'Gs5.mp3',
-}
-
-// 'guitar-acoustic-2-temp' — a second sampled acoustic guitar, rendered from Logic by Paul
-// (2026-10-22) for an A/B against the Yindad Acoustic above. Sounds at its named pitch (checked
-// on the first 0.6s, where a pluck lives: all 16 roots within 3 cents, fundamental strongest,
-// nothing below), a root every minor third E2-C6 (16 roots vs the current 11 major thirds).
-// Each file starts at the pluck, is cut at 6s (the renders end there) with a 0.4s fade, and is
-// leveled on its first second's PERCEIVED loudness (A-weighted RMS) to the current guitar's
-// smoothed contour at the same pitch (scripts/samples/guitar-pluck.py). Plain RMS had left the
-// four lowest roots 6-9 dB too soft (their energy is mostly deep fundamentals); on 2026-10-22
-// they were re-leveled this way (+4.7..+8.2 dB), rebuilt straight from the WAV renders. ~1.5 MB, 128 kbps. Source: Orange Tree Samples' Evolution
-// Songwriter, rendered from Paul's own copy. Its licence does not allow redistributing the
-// samples, so Paul has asked Orange Tree for written permission (2026-10-22). UNTIL THAT IS
-// GRANTED: this folder (public/samples/guitar-acoustic-2-temp) is git-excluded (the GitHub repo
-// is public), is for Paul's own device testing only, and must be deleted before any App Store
-// or external-TestFlight build.
-const GUITAR_ACOUSTIC_2_URLS: Record<string, string> = {
   E2: 'E2.mp3',
   G2: 'G2.mp3',
   'A#2': 'As2.mp3',
@@ -457,11 +433,7 @@ const SAMPLER_CONFIGS: Partial<
   piano: { urls: PIANO_URLS, baseUrl: PIANO_BASE },
   'guitar-acoustic': {
     urls: GUITAR_ACOUSTIC_URLS,
-    baseUrl: '/samples/guitar-acoustic/',
-  },
-  'guitar-acoustic-2-temp': {
-    urls: GUITAR_ACOUSTIC_2_URLS,
-    baseUrl: '/samples/guitar-acoustic-2-temp/',
+    baseUrl: '/samples/guitar-acoustic-ots/',
   },
   'electric-guitar': {
     urls: ELECTRIC_GUITAR_URLS,
@@ -490,10 +462,7 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   { min: number; max: number }
 > = {
   piano: { min: 33, max: MIDI_MAX }, // A1–C6
-  'guitar-acoustic': { min: 40, max: MIDI_MAX }, // E2-C6 — 11 roots every major
-  // third, E2-G#5 (Yindad Acoustic); top root sits just 4 semitones below MIDI_MAX,
-  // close enough not to narrow the picker
-  'guitar-acoustic-2-temp': { min: 40, max: MIDI_MAX }, // E2-C6, 16 roots every minor third
+  'guitar-acoustic': { min: 40, max: MIDI_MAX }, // E2-C6 — 16 roots every minor third
   'electric-guitar': { min: 38, max: 71 }, // D2-B4
   'piano-salamander': { min: 41, max: 81 }, // F2-A5, matches UPRIGHT_PIANO_URLS'
   // 11 usable roots
@@ -538,7 +507,6 @@ export interface PlaybackSettings {
 const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   piano: '2n',
   'guitar-acoustic': '2n',
-  'guitar-acoustic-2-temp': '2n', // same as guitar-acoustic for a like-for-like A/B
   'electric-guitar': '2n', // was '1n' — a full bar held at near-full volume before the
   // release fade even began, so it was still essentially at full volume right up to
   // the next chord's downbeat and only started fading during the new chord, reading
@@ -557,10 +525,9 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   // one fired, masking each new note's own (genuinely fast, ~100ms) attack; read as
   // both "too long a sustain" and "attack isn't sharp" from the same cause
   piano: 2.0, // felt piano rings naturally — default 0.1s cutoff read as harsh
-  'guitar-acoustic-2-temp': 1.5, // same as guitar-acoustic for a like-for-like A/B
   'guitar-acoustic': 1.5, // pluck decays naturally, avoid the harsh-cutoff class of bug —
   // carried over unchanged from the nylon pack this replaced; not yet retuned by ear
-  // against the new Yindad Acoustic content specifically
+  // against the Orange Tree content (it was carried over from the Yindad Acoustic before it)
   'piano-salamander': 2.0, // same treatment as felt piano — avoids the harsh default
   // 0.1s cutoff
   'synth-strings': 2.0, // the pad's own release is long (~5s) but Tone's release takes over at note-off; 2s lets chord changes blend
@@ -584,7 +551,6 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // grep, not assumed), so the trim itself is the only lever.
   'piano-salamander': 10, // tried 10 -> 13 -> 11 -> back to 10 (Paul, 2026-10-08) —
   // preferred the original after hearing both louder
-  'guitar-acoustic-2-temp': -5, // same as guitar-acoustic; leveled to its first-second RMS per pitch
   'guitar-acoustic': -5, // Paul heard it as loud/jarring (2026-10-07) — cut back from the
   // +9dB baked into the exported files during the Yindad Acoustic swap, which was
   // deliberately matched to the outgoing nylon pack's loudness for a fair A/B, not tuned
@@ -916,7 +882,6 @@ function midiToTone(midi: number): string {
 const STRUM_INTERVAL = 0.025 // seconds between adjacent strings
 const GUITAR_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set([
   'guitar-acoustic',
-  'guitar-acoustic-2-temp',
   'electric-guitar',
 ])
 

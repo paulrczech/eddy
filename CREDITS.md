@@ -26,13 +26,21 @@ the two directly and preferred it.
 
 ## Guitar (acoustic)
 
-**Yindad Acoustic** — Paul's own recording (not a third-party sample pack, no external
-attribution needed). Replaced **Soft Nylon Guitar Lite** by Mike Georgiades (sourced from
-[Pianobook.co.uk](https://www.pianobook.co.uk)) outright 2026-10-07 after a direct A/B in
-the simulator. Soft Nylon Guitar Lite had itself replaced the original steel-string
-samples (Nicholaus P. Brosowsky's tonejs-instruments, CC-BY 3.0, University of Iowa
-Electronic Music Studios sample library), which read as too bright/harsh under Eddy's
-sustained, looping playback — same reasoning as the piano swap.
+**Orange Tree Samples — Evolution Songwriter.** Sixteen notes (E2-C6, a root every minor third)
+rendered by Paul from his own copy of the library and used inside the app with Orange Tree's
+written permission (email from Orange Tree Samples support, 2026-10-22): the notes may be used in
+the app, a credit mentioning that the samples are used with permission is appreciated, and no
+licensing fee is needed while the app is free — if Eddy ever becomes a paid app, revisit it with
+Orange Tree. Credited in the About screen. **Conditions to keep:** free app only; the notes are used
+for playback inside the app, never offered as standalone files — so
+`public/samples/guitar-acoustic-ots/` is **git-excluded** (the GitHub repo is public) and must stay
+out of commits. (The email itself is kept privately, not in this repo.)
+
+Previously: **Yindad Acoustic** (Paul's own recording) replaced **Soft Nylon Guitar Lite** by
+Mike Georgiades ([Pianobook.co.uk](https://www.pianobook.co.uk)) 2026-10-07, which had replaced
+the original steel-string samples (Nicholaus P. Brosowsky's tonejs-instruments, CC-BY 3.0,
+University of Iowa Electronic Music Studios sample library). Yindad Acoustic was then replaced
+by the Orange Tree notes above after a direct A/B (2026-10-22).
 
 ## Electric guitar
 

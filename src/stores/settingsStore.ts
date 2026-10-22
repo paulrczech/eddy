@@ -20,10 +20,6 @@ export type InstrumentType =
   // swap in this project.
   | 'piano' | 'piano-salamander'
   | 'guitar-acoustic' | 'electric-guitar'
-  // Temp A/B candidate (2026-10-22): a second sampled acoustic guitar, rendered from Logic, to
-  // compare against 'guitar-acoustic' (Yindad Acoustic). Same effects/trim/strum/velocity
-  // patterns as that one (fully dry). The winner takes the 'guitar-acoustic' slot.
-  | 'guitar-acoustic-2-temp'
   // 'synth-strings' — Paul's own synthesized pad (a Logic patch he designed, rendered note by
   // note; no third-party samples, so no attribution needed). Chosen 2026-10-22 over two other
   // candidates (a harsher, brighter strings patch, a sweep pad, a synth choir) and the earlier
@@ -58,8 +54,6 @@ export function normalizeInstrument(raw: string): InstrumentType {
 // Flip to false (or delete the temp instrument entirely) once Paul's decided whether it
 // becomes a real instrument slot.
 export const SHOW_ANALOG_SYNTH_TEMP = true
-// Temp A/B of a second acoustic guitar (2026-10-22) — see 'guitar-acoustic-2-temp' above.
-export const SHOW_GUITAR_2_TEMP = true
 // Shows which velocity pattern the flow is playing, beside "the flow" in SessionView — for
 // working the patterns by ear on a device (TestFlight 1.0(129)). A tuning aid, not a feature:
 // FLIP TO false BEFORE APP STORE SUBMISSION.
