@@ -130,6 +130,17 @@
             </div>
 
             <div class="sheet-group">
+              <p class="sheet-label">spacing</p>
+              <IonSegment
+                :value="settingsStore.spacing"
+                @ionChange="settingsStore.setSpacing(($event as CustomEvent).detail.value)">
+                <IonSegmentButton v-for="sp in ['close', 'normal', 'open']" :key="sp" :value="sp">
+                  <IonLabel>{{ sp }}</IonLabel>
+                </IonSegmentButton>
+              </IonSegment>
+            </div>
+
+            <div class="sheet-group">
               <p class="sheet-label">drift</p>
               <IonSegment
                 class="drift-segment"
@@ -543,6 +554,7 @@
           keyRoot: settingsStore.keyRoot,
           scaleId: settingsStore.scaleId,
           movement: settingsStore.movementSize,
+          spacing: settingsStore.spacing,
         })
         attempts++
       }
@@ -564,7 +576,8 @@
       settingsStore.voiceCount,
       settingsStore.keyLocked
         ? { keyRoot: settingsStore.keyRoot, scaleId: settingsStore.scaleId }
-        : undefined
+        : undefined,
+      settingsStore.spacing
     )
     autoChainStreams(settingsStore.seedStreamCount)
     router.push('/session')

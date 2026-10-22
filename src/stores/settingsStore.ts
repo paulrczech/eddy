@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { MOOD_MAP, pickMoodRoot } from '../data/moods'
+import type { Spacing } from '../data/spacing'
 
 export type VoiceCount = 3 | 4
 export type MovementSize = 'half' | 'step' | 'whole' | 'third' | 'free'
@@ -85,6 +86,7 @@ interface StoredDefaults {
   ambience?: number
   timeSignature?: TimeSignature
   seedStreamCount?: number              // optional — old saved defaults predate this
+  spacing?: Spacing                     // optional — old saved defaults predate this
 }
 
 // Hardcoded fallback for the per-flow playback settings (instrument/tempo/direction/grid/
@@ -110,6 +112,10 @@ const PLAYBACK_FALLBACK = {
 
 export const useSettingsStore = defineStore('settings', () => {
   const voiceCount = ref<VoiceCount>(3)
+  // How spread out the chords are (see data/spacing.ts): applies to a new flow's starting chord
+  // and leans the streams toward the chosen band. Like voices/drift: a default, not saved with a
+  // flow. 'normal' is the engine exactly as it was.
+  const spacing = ref<Spacing>('normal')
   // The "drift" size cap on Home (½ step … free) — wired into generateCandidates() on
   // 2026-10-20; before that it was only displayed and saved, never read by the engine, so
   // every flow behaved as 'free'. Default is now 'step' (½–1 step) — Paul's call after
@@ -168,6 +174,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function setVoiceCount(n: VoiceCount) { voiceCount.value = n }
   function setMovementSize(m: MovementSize) { movementSize.value = m }
+  function setSpacing(sp: Spacing) { spacing.value = sp }
   function setSeedStreamCount(n: number) { seedStreamCount.value = Math.min(8, Math.max(1, n)) }
   function setKeyLocked(on: boolean) { keyLocked.value = on }
   function setKeyRoot(midi: number) { keyRoot.value = midi }
@@ -211,6 +218,7 @@ export const useSettingsStore = defineStore('settings', () => {
       ambience: ambience.value,
       timeSignature: timeSignature.value,
       seedStreamCount: seedStreamCount.value,
+      spacing: spacing.value,
     }
     localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults))
   }
@@ -224,6 +232,7 @@ export const useSettingsStore = defineStore('settings', () => {
       if (defaults.movementSize) movementSize.value = defaults.movementSize
       if (defaults.instrument) instrument.value = normalizeInstrument(defaults.instrument)
       if (defaults.seedStreamCount) seedStreamCount.value = defaults.seedStreamCount
+      if (defaults.spacing) spacing.value = defaults.spacing
     } catch {
       // corrupt storage — ignore
     }
@@ -256,6 +265,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   return {
     voiceCount,
+    spacing,
     movementSize,
     seedStreamCount,
     keyLocked,
@@ -274,6 +284,7 @@ export const useSettingsStore = defineStore('settings', () => {
     keyLockActive,
     setVoiceCount,
     setMovementSize,
+    setSpacing,
     setSeedStreamCount,
     setKeyLocked,
     setKeyRoot,

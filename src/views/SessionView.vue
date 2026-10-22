@@ -1002,6 +1002,7 @@
         keyRoot: settingsStore.keyRoot,
         scaleId: settingsStore.scaleId,
         movement: settingsStore.movementSize,
+        spacing: settingsStore.spacing,
       })
       attempts++
       if (newCandidates.length > 0) activeStrategy.value = drawn

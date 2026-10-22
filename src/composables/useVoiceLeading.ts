@@ -25,14 +25,21 @@ const MOVEMENT_RANGE: Record<Exclude<MovementLimit, 'free'>, { min: number; max:
   third: { min: 1, max: 4 },  // "≤ 3rd" (up to a major third)
 }
 
+import { spreadBand, spreadOf, type Spacing } from '../data/spacing'
+
 export interface VoiceLeadingOptions {
   keyLockActive: boolean
   keyRoot?: number        // MIDI root note (pitch class only used)
   scaleId?: string        // scale id from scales.ts
   movement?: MovementLimit  // the drift size cap; omitted = 'free'
+  spacing?: Spacing         // the spacing preference (close/normal/open); omitted or 'normal' = no bias
 }
 
 const MAX_CANDIDATES = 6  // max options returned to the user
+// With a non-normal spacing, this many of the MAX_CANDIDATES slots go to candidates inside the
+// chosen spread band (when enough exist); the rest stay free, so a flow can still wander out of
+// the band and back — a lean, not a wall.
+const SPACING_QUOTA = 4
 
 // Resolve interval bounds from a movementType string
 function intervalBounds(movementType: string): { min: number; max: number } {
@@ -300,8 +307,26 @@ function shuffle<T>(arr: T[]): T[] {
 // movement is what actually changes the cluster's register/spread — the more audible,
 // interesting change. Reserve up to half the slots for the outer-voice pool (when it has
 // enough to fill them) before filling the rest randomly from whatever's left.
-function sampleCandidates(candidates: Cluster[], max: number, baseline: Cluster): Cluster[] {
+function sampleCandidates(
+  candidates: Cluster[],
+  max: number,
+  baseline: Cluster,
+  spacing?: Spacing
+): Cluster[] {
   if (candidates.length <= max) return candidates
+
+  // Soft spacing bias: reserve most slots for candidates inside the preferred spread band,
+  // each group still sampled by the outer-voice logic below.
+  const band = spreadBand(spacing, baseline.length)
+  if (band) {
+    const inBand = candidates.filter(c => spreadOf(c) >= band.min && spreadOf(c) <= band.max)
+    if (inBand.length > 0 && inBand.length < candidates.length) {
+      const outBand = candidates.filter(c => !(spreadOf(c) >= band.min && spreadOf(c) <= band.max))
+      const preferred = sampleCandidates(inBand, Math.min(SPACING_QUOTA, inBand.length), baseline)
+      const rest = sampleCandidates(outBand, max - preferred.length, baseline)
+      return shuffle([...preferred, ...rest])
+    }
+  }
 
   const topIdx = baseline.length - 1
   const touchesOuterVoice = (c: Cluster) => c[0] !== baseline[0] || c[topIdx] !== baseline[topIdx]
@@ -428,5 +453,5 @@ export function generateCandidates(
     filtered = filtered.filter(c => strays(c) === fewest)
   }
 
-  return sampleCandidates(filtered, MAX_CANDIDATES, sortedCluster)
+  return sampleCandidates(filtered, MAX_CANDIDATES, sortedCluster, options.spacing)
 }

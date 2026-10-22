@@ -11,6 +11,7 @@ import {
 import { MIDI_SEED_MIN, MIDI_SEED_MAX, MIDI_MIN, MIDI_MAX } from '../data/notes'
 import { getScaleNotes, SCALE_MAP } from '../data/scales'
 import type { ArpeggioDirection } from './settingsStore'
+import { spreadBand, type Spacing } from '../data/spacing'
 
 // Ceiling on a random seed's average pairwise dissonance rank (see clusterDissonance()).
 // Keeps "let it flow" from ever handing a first-time listener a raw tone cluster — tuned
@@ -186,8 +187,17 @@ export const useSequenceStore = defineStore('sequence', () => {
   // seed to that scale's notes; omitted means the usual chromatic seed. Same retry loop
   // and dissonance gate either way, so a locked seed is still a comfortable opening chord,
   // just one drawn from inside the channel.
-  function randomStart(voiceCount: number, channel?: { keyRoot: number; scaleId: string }) {
+  function randomStart(
+    voiceCount: number,
+    channel?: { keyRoot: number; scaleId: string },
+    spacing: Spacing = 'normal'
+  ) {
     let notes: number[] = []
+    // Spacing (data/spacing.ts): close caps the spread below the usual 14; open widens each step
+    // to an octave and requires a minimum spread; normal is exactly the original behaviour.
+    const band = spreadBand(spacing, voiceCount)
+    const spreadCap = spacing === 'close' && band ? band.max : 14
+    const openBand = spacing === 'open' ? band : null
     let found = false
     const allowed = channel && SCALE_MAP[channel.scaleId]
       ? new Set(getScaleNotes(channel.keyRoot, channel.scaleId, MIDI_MIN, MIDI_MAX))
@@ -213,7 +223,9 @@ export const useSequenceStore = defineStore('sequence', () => {
         // Reserve at least 1 semitone per remaining voice
         const minStep = seedMinGap(prev)
         // The usual 5-semitone ceiling, widened just enough for an octave-2 note's fifth.
-        const maxStep = Math.min(14 - spread - (remaining - 1), Math.max(5, minStep + 2))
+        const maxStep = openBand
+          ? Math.min(openBand.max - spread - (remaining - 1), 12)
+          : Math.min(spreadCap - spread - (remaining - 1), Math.max(5, minStep + 2))
         // Open at the bottom, closer at the top: the lower note's register sets the
         // smallest gap allowed above it (see seedMinGap) — a randomly drawn step used to
         // land a second or a minor third right on top of a low bass, which is what read
@@ -233,6 +245,7 @@ export const useSequenceStore = defineStore('sequence', () => {
 
       if (
         notes.length === voiceCount &&
+        (!openBand || notes[notes.length - 1] - notes[0] >= openBand.min) &&
         isValidCluster(notes) &&
         clusterDissonance(notes) <= SEED_DISSONANCE_CEILING &&
         notes[notes.length - 1] >= SEED_MIN_TOP_VOICE
@@ -250,6 +263,8 @@ export const useSequenceStore = defineStore('sequence', () => {
         4: [60, 64, 67, 71], // C4 E4 G4 B4
       }
       notes = fallbacks[voiceCount] ?? [60, 64, 67]
+      // Open: a wide, always-valid voicing (C3 G3 E4 / E2 B2 G3 E4) instead of the close C4 triad
+      if (spacing === 'open') notes = voiceCount === 4 ? [40, 47, 55, 64] : [48, 55, 64]
       // Locked: stack every-other degree of the scale (1-3-5-7, or 1-3-5 for three voices)
       // upward from the root in octave 3 — always in-channel, always valid, whatever the
       // scale. Degree indices wrap into the next octave for the 5-note pentatonics.
