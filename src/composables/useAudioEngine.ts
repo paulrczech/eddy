@@ -571,14 +571,14 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   piano: 3, // tried 3 -> 6 -> back to 3 (Paul, 2026-10-08) — preferred the original after
   // hearing both louder. Originally boosted because it read as a little quieter than
   // guitar-acoustic despite matching RMS targets
-  'electric-guitar': 0, // was -10, then -6 (quieter than the rest); +6 on 2026-10-21 — see the level note below
+  'electric-guitar': -6, // was -10 — Paul heard it as a little quieter than the rest after that cut
   // Tuned by ear against the sample content now in this slot (VSCO2 upright piano,
   // 2026-09-30): 0 -> +6 -> +10. No effects are on this instrument (no REVERB_SETTINGS/
   // CHORUS_SETTINGS/DELAY_SETTINGS/FILTER_SETTINGS entry exists for it — confirmed by
   // grep, not assumed), so the trim itself is the only lever.
-  'piano-salamander': 16, // tried 10 -> 13 -> 11 -> back to 10 (Paul, 2026-10-08) — preferred the
-  // original after hearing both louder; then +6 on 2026-10-21 (see the level note below)
-  'guitar-acoustic': 1, // was -5: Paul heard it as loud/jarring (2026-10-07) — cut back from the
+  'piano-salamander': 10, // tried 10 -> 13 -> 11 -> back to 10 (Paul, 2026-10-08) —
+  // preferred the original after hearing both louder
+  'guitar-acoustic': -5, // Paul heard it as loud/jarring (2026-10-07) — cut back from the
   // +9dB baked into the exported files during the Yindad Acoustic swap, which was
   // deliberately matched to the outgoing nylon pack's loudness for a fair A/B, not tuned
   // for how it should actually sit once it won. Provisional, same as every other
@@ -586,15 +586,14 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // choir-pad needs no entry — its -6dB (female half)/-4dB (male half) gain-matches
   // (measured RMS against retro-pad) were baked into the exported files directly, same
   // convention as every other instrument's initial content swap.
-  // analog-synth-temp: its -4dB gain-match (measured RMS against retro-pad's C4) was baked
-  // into the exported files; +6 on top, 2026-10-21 (below).
-  'analog-synth-temp': 6,
-  // 2026-10-21 level pass: after the velocity patterns (average ~1.5 dB under the old flat
-  // 0.72) and the bass-root trim, Paul A/B'd a live +0/+2/+4/+6 dB gain and chose +6 for every
-  // instrument but the choir pad (stays 0) and the felt piano ('piano', stays 3: its rendered
-  // peaks reach -0.7 dBFS, so there is no headroom to give). Measured peaks before this pass
-  // (dBFS): synth -14, acoustic guitar -11, VSCO2 piano -10, electric guitar -7.5, choir -4 —
-  // so +6 lands the loudest of those around -1.5, with no limiter in the chain.
+  // analog-synth-temp needs no entry either — its -4dB gain-match (measured RMS against
+  // retro-pad's C4) was baked into the exported files the same way.
+  //
+  // 2026-10-21/22: a +6 dB pass on piano-salamander, guitar-acoustic, electric-guitar and
+  // analog-synth-temp (chosen by ear in the iOS *simulator*, to offset the velocity patterns'
+  // ~1.5 dB lower average) shipped in TestFlight 1.0(129) and was far too loud on Paul's
+  // actual device — reverted for 1.0(130). Simulator audio is not a reliable judge of
+  // absolute level; re-judge any future level change on the phone, with headphones.
 }
 
 function noteRelease(instrumentType: InstrumentType): number {
