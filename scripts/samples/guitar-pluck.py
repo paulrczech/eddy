@@ -6,8 +6,13 @@
 Reads <src-folder>/<Root>.wav (E2, As2 = A#2, Cs3 ...), writes public/samples/<out>/<Root>.mp3.
 Per file: starts the file at the pluck (leading silence trimmed to ~5 ms before the onset), keeps
 --trim seconds (default 6.0 — the renders are cut there) with a 0.4 s fade-out, levels the first
-second's RMS to the REFERENCE guitar's at the same pitch (default: public/samples/guitar-acoustic,
-interpolated between its roots), peak-limits to -1 dBFS, encodes 128 kbps with joint stereo off.
+second's PERCEIVED loudness (A-weighted RMS) to the REFERENCE guitar's at the same pitch
+(default: public/samples/guitar-acoustic; its contour is lightly smoothed, then interpolated
+between its roots), peak-limits to -1 dBFS, encodes 128 kbps with joint stereo off.
+
+Why A-weighted: matching plain RMS left the lowest notes 6-9 dB too soft. A deep note's energy
+sits in its fundamental, which the ear (and a phone speaker) barely registers, so it can
+measure as loud as a brighter note and still sound much quieter.
 
 Unlike the synth pads (scripts/samples/synth-pad.py) a pluck has no steady state, so it is
 leveled on its first second, not on 2-6 s. Needs ffmpeg + numpy. Pitch/octave must be checked
@@ -39,14 +44,23 @@ def dec(path):
     return np.frombuffer(raw, dtype=np.float32).reshape(-1, 2).astype(np.float64)
 
 
+def a_weight(f):
+    f = np.maximum(f, 1e-3); f2 = f ** 2
+    return (12194 ** 2 * f2 ** 2) / ((f2 + 20.6 ** 2) * np.sqrt((f2 + 107.7 ** 2) * (f2 + 737.9 ** 2)) * (f2 + 12194 ** 2)) / 1.2589
+
+
 def rms1(x):
+    """A-weighted RMS (dB) of the first second of the mono mix — perceived loudness of a pluck."""
     m = x.mean(axis=1)[:FR]
-    return 20 * np.log10(max(np.sqrt((m ** 2).mean()), 1e-9))
+    wt = np.fft.irfft(np.fft.rfft(m) * a_weight(np.fft.rfftfreq(len(m), 1 / FR)), len(m))
+    return 20 * np.log10(max(np.sqrt((wt ** 2).mean()), 1e-9))
 
 
 # the reference guitar's first-second RMS per root pitch, interpolated across pitch
 ref_pts = sorted((midi(f[:-4]), rms1(dec(os.path.join(REF, f)))) for f in os.listdir(REF) if f.endswith(('.mp3', '.wav')))
 ref_midi = [p for p, _ in ref_pts]; ref_db = [d for _, d in ref_pts]
+# a reference guitar's own levels wander by a few dB from root to root — don't copy that, smooth it
+ref_db = [float(np.mean(ref_db[max(0, i - 1):i + 2])) for i in range(len(ref_db))]
 
 os.makedirs(OUT, exist_ok=True)
 total = 0

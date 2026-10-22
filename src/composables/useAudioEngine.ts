@@ -272,8 +272,11 @@ const GUITAR_ACOUSTIC_URLS: Record<string, string> = {
 // on the first 0.6s, where a pluck lives: all 16 roots within 3 cents, fundamental strongest,
 // nothing below), a root every minor third E2-C6 (16 roots vs the current 11 major thirds).
 // Each file starts at the pluck, is cut at 6s (the renders end there) with a 0.4s fade, and is
-// leveled on its first second's RMS to the current guitar's at the same pitch
-// (scripts/samples/guitar-pluck.py). ~1.5 MB, 128 kbps. Source: Orange Tree Samples' Evolution
+// leveled on its first second's PERCEIVED loudness (A-weighted RMS) to the current guitar's
+// smoothed contour at the same pitch (scripts/samples/guitar-pluck.py). Plain RMS left the four
+// lowest roots 6-9 dB too soft (their energy is mostly deep fundamentals), so on 2026-10-22 they
+// were lifted +4.7..+8.2 dB, applied to the already-processed MP3s because the source WAVs had
+// been moved — one extra MP3 generation; redo from the WAVs if permission arrives. ~1.5 MB, 128 kbps. Source: Orange Tree Samples' Evolution
 // Songwriter, rendered from Paul's own copy. Its licence does not allow redistributing the
 // samples, so Paul has asked Orange Tree for written permission (2026-10-22). UNTIL THAT IS
 // GRANTED: this folder (public/samples/guitar-acoustic-2-temp) is git-excluded (the GitHub repo
