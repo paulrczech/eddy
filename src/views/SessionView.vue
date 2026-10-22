@@ -1210,9 +1210,8 @@
   // other — "reorder whatever's currently selected to play," same principle as range
   // selection itself. 'bounce' is forward then back without repeating the end rows
   // (1-2-3-4-3-2, looping), so a loop never doubles a voicing; the one-shot version adds
-  // the final return to row 1. MIDI/WAV export's "this loop" scope reuses playbackSequence
-  // directly, so it inherits the order for free; "whole flow" export deliberately still
-  // reads sequenceStore.sequence directly — that scope means the canonical stored order.
+  // the final return to row 1. MIDI/WAV export follows the order too, in both scopes (see
+  // exportScopeFor()); only copy-text's "whole flow" keeps the plain stored rows.
   const playOrder = ref<PlayOrder>('forward')
 
   function onPlayOrderChange(order: PlayOrder) {
@@ -1727,8 +1726,12 @@
 
   function exportScopeFor(which: 'loop' | 'flow'): ExportScope {
     if (which === 'flow') {
-      // The canonical stored order, whatever the reverse/bounce toggle says
-      return { sequence: sequenceStore.sequence, plan: buildPlaybackPlan(null, false, 'forward') }
+      // Every row, in the current flow direction (downstream / upstream / ebb and flow) with
+      // pools applied — what the play button would play, minus any loop range. (It used to be
+      // pinned to stored order, so upstream and ebb-and-flow exported as downstream — Paul,
+      // 2026-10-22.) loop=true gives ebb and flow's loop form, 1-2-3-4-3-2, so the file loops
+      // cleanly. `sequence` stays the plain stored rows, for copy-text's numbering.
+      return { sequence: sequenceStore.sequence, plan: buildPlaybackPlan(null, true) }
     }
     return { sequence: playbackSequence.value, plan: buildPlaybackPlan(loopRange.value, true) }
   }
