@@ -267,6 +267,37 @@ const GUITAR_ACOUSTIC_URLS: Record<string, string> = {
   'G#5': 'Gs5.mp3',
 }
 
+// 'guitar-acoustic-2-temp' — a second sampled acoustic guitar, rendered from Logic by Paul
+// (2026-10-22) for an A/B against the Yindad Acoustic above. Sounds at its named pitch (checked
+// on the first 0.6s, where a pluck lives: all 16 roots within 3 cents, fundamental strongest,
+// nothing below), a root every minor third E2-C6 (16 roots vs the current 11 major thirds).
+// Each file starts at the pluck, is cut at 6s (the renders end there) with a 0.4s fade, and is
+// leveled on its first second's RMS to the current guitar's at the same pitch
+// (scripts/samples/guitar-pluck.py). ~1.5 MB, 128 kbps. Source: Orange Tree Samples' Evolution
+// Songwriter, rendered from Paul's own copy. Its licence does not allow redistributing the
+// samples, so Paul has asked Orange Tree for written permission (2026-10-22). UNTIL THAT IS
+// GRANTED: this folder (public/samples/guitar-acoustic-2-temp) is git-excluded (the GitHub repo
+// is public), is for Paul's own device testing only, and must be deleted before any App Store
+// or external-TestFlight build.
+const GUITAR_ACOUSTIC_2_URLS: Record<string, string> = {
+  E2: 'E2.mp3',
+  G2: 'G2.mp3',
+  'A#2': 'As2.mp3',
+  'C#3': 'Cs3.mp3',
+  E3: 'E3.mp3',
+  G3: 'G3.mp3',
+  'A#3': 'As3.mp3',
+  'C#4': 'Cs4.mp3',
+  E4: 'E4.mp3',
+  G4: 'G4.mp3',
+  'A#4': 'As4.mp3',
+  'C#5': 'Cs5.mp3',
+  E5: 'E5.mp3',
+  G5: 'G5.mp3',
+  'A#5': 'As5.mp3',
+  C6: 'C6.mp3',
+}
+
 // Electric guitar samples via Pianobook.co.uk (royalty-free per Pianobook's standard
 // license). See CREDITS.md for full attribution.
 
@@ -321,64 +352,33 @@ const UPRIGHT_PIANO_URLS: Record<string, string> = {
   A5: 'A5.mp3',
 }
 
-// 'choir-pad' — Sonatina Symphonic Orchestra's chorus samples (Creative Commons Sampling
-// Plus 1.0 — see CREDITS.md). Male and female voices combined into a single instrument:
-// male covers G2-F#4 (24 roots), female covers G4-C6 (18 roots), and the two ranges are
-// chromatically adjacent (male's top root F#4 sits one semitone below female's bottom
-// root G4) — no gap, no overlap, so they splice into one continuous 42-root chromatic run
-// from G2 to C6 with a natural register break exactly where a real mixed choir's would
-// be. Initially demoed as two separate instruments (Paul: female "sounds amazing" but
-// wanted full-range coverage, hence the merge) — unlike every other sample pack in this
-// project, both sets are *fully chromatic* (one real recorded root per semitone, no
-// minor-/major-third gaps to pitch-shift across). Pitch verified via autocorrelation
-// across every root in both sets — accurate to within ~16 cents worst-case, consistent
-// with natural vocal vibrato rather than a labeling error. Trimmed to 7s/1s fade-out,
-// same convention as holdsworthian-pad; gain-matched by measured RMS against retro-pad
-// (female needed -6dB, male -4dB, baked into the exported files pre-merge). Added
-// 2026-10-09, confirmed by ear as the pad to keep going forward — replaced the
-// earlier retro pad (since removed).
-const CHOIR_PAD_URLS: Record<string, string> = {
+// 'synth-strings' — Paul's own synthesized pad: a Logic patch rendered note by note (no
+// third-party samples). 16 roots, every minor third E2-C6, ~2 MB. Processed by
+// scripts/samples/synth-pad.py: trimmed to 8s (the held part is ~1-6s, then a ~5s release tail
+// Eddy never plays in full — Tone's own release takes over at note-off), leveled to the loudness
+// reference every pad was matched to (the removed choir pad's steady-state RMS), 128 kbps
+// true-stereo MP3 (mostly centered, L/R correlation ~0.8). Sounds at its named pitch (fundamental
+// strongest, tuned within ~2 cents). Warm: its brightness closes slowly over the note (mid root
+// ~600 Hz -> ~300 Hz centroid). The four lowest roots (E2, G2, A#2, C#3) have the same note one
+// and two octaves up mixed in at -6/-8 dB (--low-assist): the plain patch is nearly pure low
+// hum at E2 (98.8% of its energy under 250 Hz, which a phone speaker can't reproduce); this
+// gives E2 the same spectral balance the patch has at E3 (about 78% / 22% in 250 Hz-1 kHz).
+const SYNTH_STRINGS_URLS: Record<string, string> = {
+  E2: 'E2.mp3',
   G2: 'G2.mp3',
-  'G#2': 'Gs2.mp3',
-  A2: 'A2.mp3',
   'A#2': 'As2.mp3',
-  B2: 'B2.mp3',
-  C3: 'C3.mp3',
   'C#3': 'Cs3.mp3',
-  D3: 'D3.mp3',
-  'D#3': 'Ds3.mp3',
   E3: 'E3.mp3',
-  F3: 'F3.mp3',
-  'F#3': 'Fs3.mp3',
   G3: 'G3.mp3',
-  'G#3': 'Gs3.mp3',
-  A3: 'A3.mp3',
   'A#3': 'As3.mp3',
-  B3: 'B3.mp3',
-  C4: 'C4.mp3',
   'C#4': 'Cs4.mp3',
-  D4: 'D4.mp3',
-  'D#4': 'Ds4.mp3',
   E4: 'E4.mp3',
-  F4: 'F4.mp3',
-  'F#4': 'Fs4.mp3',
   G4: 'G4.mp3',
-  'G#4': 'Gs4.mp3',
-  A4: 'A4.mp3',
   'A#4': 'As4.mp3',
-  B4: 'B4.mp3',
-  C5: 'C5.mp3',
   'C#5': 'Cs5.mp3',
-  D5: 'D5.mp3',
-  'D#5': 'Ds5.mp3',
   E5: 'E5.mp3',
-  F5: 'F5.mp3',
-  'F#5': 'Fs5.mp3',
   G5: 'G5.mp3',
-  'G#5': 'Gs5.mp3',
-  A5: 'A5.mp3',
   'A#5': 'As5.mp3',
-  B5: 'B5.mp3',
   C6: 'C6.mp3',
 }
 
@@ -457,6 +457,10 @@ const SAMPLER_CONFIGS: Partial<
     urls: GUITAR_ACOUSTIC_URLS,
     baseUrl: '/samples/guitar-acoustic/',
   },
+  'guitar-acoustic-2-temp': {
+    urls: GUITAR_ACOUSTIC_2_URLS,
+    baseUrl: '/samples/guitar-acoustic-2-temp/',
+  },
   'electric-guitar': {
     urls: ELECTRIC_GUITAR_URLS,
     baseUrl: '/samples/electric-guitar/',
@@ -465,9 +469,9 @@ const SAMPLER_CONFIGS: Partial<
     urls: UPRIGHT_PIANO_URLS,
     baseUrl: '/samples/piano-original/',
   },
-  'choir-pad': {
-    urls: CHOIR_PAD_URLS,
-    baseUrl: '/samples/choir-pad/',
+  'synth-strings': {
+    urls: SYNTH_STRINGS_URLS,
+    baseUrl: '/samples/synth-strings/',
   },
   'analog-synth-temp': {
     urls: ANALOG_SYNTH_URLS,
@@ -487,12 +491,11 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   'guitar-acoustic': { min: 40, max: MIDI_MAX }, // E2-C6 — 11 roots every major
   // third, E2-G#5 (Yindad Acoustic); top root sits just 4 semitones below MIDI_MAX,
   // close enough not to narrow the picker
+  'guitar-acoustic-2-temp': { min: 40, max: MIDI_MAX }, // E2-C6, 16 roots every minor third
   'electric-guitar': { min: 38, max: 71 }, // D2-B4
   'piano-salamander': { min: 41, max: 81 }, // F2-A5, matches UPRIGHT_PIANO_URLS'
   // 11 usable roots
-  'choir-pad': { min: 43, max: 84 }, // G2-C6, matches all 42 recorded roots exactly
-  // (fully chromatic, male+female merged — see CHOIR_PAD_URLS) — covers nearly all of
-  // MIDI_MIN-MIDI_MAX, missing only the bottom 3 semitones (E2-F#2)
+  'synth-strings': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, a root every minor third
   'analog-synth-temp': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, fully chromatic —
   // every semitone in Eddy's whole range is a real recorded root, no narrowing needed
 }
@@ -533,13 +536,14 @@ export interface PlaybackSettings {
 const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   piano: '2n',
   'guitar-acoustic': '2n',
+  'guitar-acoustic-2-temp': '2n', // same as guitar-acoustic for a like-for-like A/B
   'electric-guitar': '2n', // was '1n' — a full bar held at near-full volume before the
   // release fade even began, so it was still essentially at full volume right up to
   // the next chord's downbeat and only started fading during the new chord, reading
   // as "rings through/muddy" even after the release-time cut. Now matches every other
   // instrument's held duration, giving the release a half-bar head start instead
   'piano-salamander': '2n', // same character class as felt piano
-  'choir-pad': '1n', // sustained pad character
+  'synth-strings': '1n', // sustained pad character
   'analog-synth-temp': '2n', // short, decaying analog synth note — not a pad swell
 }
 
@@ -551,13 +555,13 @@ const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
   // one fired, masking each new note's own (genuinely fast, ~100ms) attack; read as
   // both "too long a sustain" and "attack isn't sharp" from the same cause
   piano: 2.0, // felt piano rings naturally — default 0.1s cutoff read as harsh
+  'guitar-acoustic-2-temp': 1.5, // same as guitar-acoustic for a like-for-like A/B
   'guitar-acoustic': 1.5, // pluck decays naturally, avoid the harsh-cutoff class of bug —
   // carried over unchanged from the nylon pack this replaced; not yet retuned by ear
   // against the new Yindad Acoustic content specifically
   'piano-salamander': 2.0, // same treatment as felt piano — avoids the harsh default
   // 0.1s cutoff
-  'choir-pad': 2.5, // a starting guess carried over from the (since-removed) earlier pads —
-  // not yet tuned by ear
+  'synth-strings': 2.0, // the pad's own release is long (~5s) but Tone's release takes over at note-off; 2s lets chord changes blend
   'analog-synth-temp': 0.8, // short release matching the pack's own natural ~1.9s decay —
   // long enough to avoid a harsh cutoff, short enough not to blur arpeggiated runs
 }
@@ -578,14 +582,14 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   // grep, not assumed), so the trim itself is the only lever.
   'piano-salamander': 10, // tried 10 -> 13 -> 11 -> back to 10 (Paul, 2026-10-08) —
   // preferred the original after hearing both louder
+  'guitar-acoustic-2-temp': -5, // same as guitar-acoustic; leveled to its first-second RMS per pitch
   'guitar-acoustic': -5, // Paul heard it as loud/jarring (2026-10-07) — cut back from the
   // +9dB baked into the exported files during the Yindad Acoustic swap, which was
   // deliberately matched to the outgoing nylon pack's loudness for a fair A/B, not tuned
   // for how it should actually sit once it won. Provisional, same as every other
   // instrument's first by-ear pass — expect this to move again.
-  // choir-pad needs no entry — its -6dB (female half)/-4dB (male half) gain-matches
-  // (measured RMS against retro-pad) were baked into the exported files directly, same
-  // convention as every other instrument's initial content swap.
+  // synth-strings needs no entry — its level was matched by scripts/samples/synth-pad.py when
+  // the files were built, same convention as every other instrument's initial content swap.
   // analog-synth-temp needs no entry either — its -4dB gain-match (measured RMS against
   // retro-pad's C4) was baked into the exported files the same way.
   //
@@ -910,6 +914,7 @@ function midiToTone(midi: number): string {
 const STRUM_INTERVAL = 0.025 // seconds between adjacent strings
 const GUITAR_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set([
   'guitar-acoustic',
+  'guitar-acoustic-2-temp',
   'electric-guitar',
 ])
 

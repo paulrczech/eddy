@@ -40,15 +40,12 @@ sustained, looping playback — same reasoning as the piano swap.
 ([pianobook.co.uk/profile/fred-poirier](https://www.pianobook.co.uk/profile/fred-poirier)).
 Sourced from [Pianobook.co.uk](https://www.pianobook.co.uk).
 
-## choir pad
+## synth strings
 
-Male and female chorus voices from **Sonatina Symphonic Orchestra** (originally created
-by Mattias Westlund; ongoing development at [github.com/peastman/sso](https://github.com/peastman/sso)),
-merged into a single instrument — male covers the lower register, female the upper,
-spliced together chromatically with no gap or overlap. Licensed under [Creative Commons
-Sampling Plus 1.0](https://creativecommons.org/licenses/sampling+/1.0/). Added
-2026-10-09, replacing the earlier retro and ambient pads (since removed) after Paul
-compared them directly and preferred it.
+Paul's own — a synthesizer patch of his own design, rendered note by note (not a third-party
+sample pack, no external attribution needed). Added 2026-10-22, replacing the choir pad
+(Sonatina Symphonic Orchestra chorus samples, CC Sampling Plus 1.0), which was removed to
+clear any licence doubt about shipping it in the app.
 
 ## analog synth (temp)
 

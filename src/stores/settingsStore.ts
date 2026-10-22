@@ -20,11 +20,19 @@ export type InstrumentType =
   // swap in this project.
   | 'piano' | 'piano-salamander'
   | 'guitar-acoustic' | 'electric-guitar'
-  // 'choir-pad' — Sonatina Symphonic Orchestra's chorus samples (Creative Commons
-  // Sampling Plus 1.0), male and female voices merged into one instrument (male below,
-  // female above — see CHOIR_PAD_URLS in useAudioEngine.ts). Added 2026-10-09, confirmed
-  // by ear as the pad to keep going forward — replaced the earlier retro and ambient pads.
-  | 'choir-pad'
+  // Temp A/B candidate (2026-10-22): a second sampled acoustic guitar, rendered from Logic, to
+  // compare against 'guitar-acoustic' (Yindad Acoustic). Same effects/trim/strum/velocity
+  // patterns as that one (fully dry). The winner takes the 'guitar-acoustic' slot.
+  | 'guitar-acoustic-2-temp'
+  // 'synth-strings' — Paul's own synthesized pad (a Logic patch he designed, rendered note by
+  // note; no third-party samples, so no attribution needed). Chosen 2026-10-22 over two other
+  // candidates (a harsher, brighter strings patch, a sweep pad, a synth choir) and the earlier
+  // choir pad, which was removed to clear Sonatina licence doubt. Warm (its filter closes
+  // slowly over a note), mostly centered, ~1 s bloom. Its four lowest roots carry a low-
+  // register assist (scripts/samples/synth-pad.py --low-assist): the patch is so dark that
+  // octave-2 notes were nearly pure low hum. The UI calls it "synth strings" (not "string
+  // pad": that would suggest real strings).
+  | 'synth-strings'
   // Temp A/B candidate, added 2026-10-09 — "Moog Minitaur - Simple Saw" by modularsamples
   // (freesound.org, Creative Commons 0), UI-labeled "analog synth." Fully chromatic
   // across Eddy's whole range (see ANALOG_SYNTH_URLS in useAudioEngine.ts). Intended for
@@ -36,11 +44,12 @@ export type InstrumentType =
 
 // Instruments that no longer exist but may still be named by a saved flow or saved defaults
 // (they shipped in TestFlight builds): 'holdsworthian-pad' and 'retro-pad' were hidden from
-// the pickers, then deleted along with their samples on 2026-10-20/21. Both were pads, so an
-// old reference resolves to the pad that replaced them.
+// the pickers then deleted (2026-10-20/21), and 'choir-pad' was removed 2026-10-22 (Sonatina
+// licence doubt). All were pads, so an old reference resolves to the pad that replaced them.
 const REMOVED_INSTRUMENTS: Record<string, InstrumentType> = {
-  'holdsworthian-pad': 'choir-pad',
-  'retro-pad': 'choir-pad',
+  'holdsworthian-pad': 'synth-strings',
+  'retro-pad': 'synth-strings',
+  'choir-pad': 'synth-strings',
 }
 export function normalizeInstrument(raw: string): InstrumentType {
   return REMOVED_INSTRUMENTS[raw] ?? (raw as InstrumentType)
@@ -49,6 +58,8 @@ export function normalizeInstrument(raw: string): InstrumentType {
 // Flip to false (or delete the temp instrument entirely) once Paul's decided whether it
 // becomes a real instrument slot.
 export const SHOW_ANALOG_SYNTH_TEMP = true
+// Temp A/B of a second acoustic guitar (2026-10-22) — see 'guitar-acoustic-2-temp' above.
+export const SHOW_GUITAR_2_TEMP = true
 // Shows which velocity pattern the flow is playing, beside "the flow" in SessionView — for
 // working the patterns by ear on a device (TestFlight 1.0(129)). A tuning aid, not a feature:
 // FLIP TO false BEFORE APP STORE SUBMISSION.

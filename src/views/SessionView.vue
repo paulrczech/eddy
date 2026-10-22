@@ -302,11 +302,14 @@
           <ion-select-option value="piano-salamander">piano</ion-select-option>
           <ion-select-option value="piano">felt piano</ion-select-option>
           <ion-select-option value="guitar-acoustic">guitar</ion-select-option>
+          <ion-select-option v-if="SHOW_GUITAR_2_TEMP" value="guitar-acoustic-2-temp"
+            >guitar 2 (temp)</ion-select-option
+          >
           <ion-select-option value="electric-guitar"
             >e-guitar</ion-select-option
           >
-          <ion-select-option value="choir-pad"
-            >choir pad</ion-select-option
+          <ion-select-option value="synth-strings"
+            >synth strings</ion-select-option
           >
           <ion-select-option v-if="SHOW_ANALOG_SYNTH_TEMP" value="analog-synth-temp"
             >analog synth</ion-select-option
@@ -536,7 +539,7 @@
   import ChannelPicker from '../components/ui/ChannelPicker.vue'
 
   import { useSequenceStore, type Pool } from '../stores/sequenceStore'
-  import { useSettingsStore, SHOW_ANALOG_SYNTH_TEMP, SHOW_VELOCITY_PATTERN_LABEL, type Subdivision, type TimeSignature, type PlayOrder, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_ANALOG_SYNTH_TEMP, SHOW_GUITAR_2_TEMP, SHOW_VELOCITY_PATTERN_LABEL, type Subdivision, type TimeSignature, type PlayOrder, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'
@@ -769,7 +772,7 @@
   // A pad's slow swell reads as unclear/muddy when arpeggiated — held together as a
   // chord is the only direction that actually suits it (Paul, 2026-09-30). Add any other
   // pad-type instrument here too.
-  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['choir-pad'])
+  const PAD_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set(['synth-strings'])
   const isPadInstrument = computed(() => PAD_INSTRUMENTS.has(settingsStore.instrument))
 
   // Remembers whatever direction was active before a pad forced 'chord', and restores it
