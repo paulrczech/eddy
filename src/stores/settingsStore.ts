@@ -54,10 +54,10 @@ export function normalizeInstrument(raw: string): InstrumentType {
 // Flip to false (or delete the temp instrument entirely) once Paul's decided whether it
 // becomes a real instrument slot.
 export const SHOW_ANALOG_SYNTH_TEMP = true
-// Shows which velocity pattern the flow is playing, beside "the flow" in SessionView — for
-// working the patterns by ear on a device (TestFlight 1.0(129)). A tuning aid, not a feature:
-// FLIP TO false BEFORE APP STORE SUBMISSION.
-export const SHOW_VELOCITY_PATTERN_LABEL = true
+// Shows which velocity pattern the flow is playing, beside "the flow" in SessionView — a
+// tuning aid for working the patterns by ear on a device, not a feature. Off for release
+// (2026-10-23); flip to true to bring it back while tuning.
+export const SHOW_VELOCITY_PATTERN_LABEL = false
 // Arpeggio note grid, in notes per beat — 0.5 = half, 1 = quarter, 2 = 8th,
 // 3 = triplet, 4 = 16th. Shared by live playback (useAudioEngine) and MIDI
 // export (midiUtils) so they always match.
