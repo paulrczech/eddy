@@ -305,8 +305,11 @@
           <ion-select-option value="electric-guitar"
             >e-guitar</ion-select-option
           >
-          <ion-select-option v-if="SHOW_ELECTRIC_2_TEMP" value="electric-guitar-2-temp"
-            >e-guitar 2 (temp)</ion-select-option
+          <ion-select-option v-if="SHOW_ALT_TEMP" value="piano-alt-temp"
+            >piano alt (temp)</ion-select-option
+          >
+          <ion-select-option v-if="SHOW_ALT_TEMP" value="electric-guitar-alt-temp"
+            >e-guitar alt (temp)</ion-select-option
           >
           <ion-select-option value="synth-strings"
             >synth strings</ion-select-option
@@ -539,7 +542,7 @@
   import ChannelPicker from '../components/ui/ChannelPicker.vue'
 
   import { useSequenceStore, type Pool } from '../stores/sequenceStore'
-  import { useSettingsStore, SHOW_ANALOG_SYNTH_TEMP, SHOW_ELECTRIC_2_TEMP, SHOW_VELOCITY_PATTERN_LABEL, type Subdivision, type TimeSignature, type PlayOrder, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_ANALOG_SYNTH_TEMP, SHOW_ALT_TEMP, SHOW_VELOCITY_PATTERN_LABEL, type Subdivision, type TimeSignature, type PlayOrder, TIME_SIGNATURE_BEATS, type InstrumentType, type ArpeggioDirection } from '../stores/settingsStore'
   import { useAudioEngine } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
   import { useLoopDetection } from '../composables/useLoopDetection'

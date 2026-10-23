@@ -298,7 +298,7 @@
   import ChannelPicker from '../components/ui/ChannelPicker.vue'
   import type { SavedSession } from '../utils/sessionStorage'
   import { listSessions } from '../utils/sessionStorage'
-  import { useSettingsStore, SHOW_ANALOG_SYNTH_TEMP, SHOW_ELECTRIC_2_TEMP } from '../stores/settingsStore'
+  import { useSettingsStore, SHOW_ANALOG_SYNTH_TEMP, SHOW_ALT_TEMP } from '../stores/settingsStore'
   import { useSequenceStore } from '../stores/sequenceStore'
   import { useAudioEngine, INSTRUMENT_NOTE_RANGE } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
@@ -342,7 +342,7 @@
     { label: 'felt piano', value: 'piano' },
     { label: 'acoustic guitar', value: 'guitar-acoustic' },
     { label: 'electric guitar', value: 'electric-guitar' },
-    ...(SHOW_ELECTRIC_2_TEMP ? [{ label: 'electric guitar 2 (temp)', value: 'electric-guitar-2-temp' }] : []),
+    ...(SHOW_ALT_TEMP ? [{ label: 'piano alt (temp)', value: 'piano-alt-temp' }, { label: 'electric guitar alt (temp)', value: 'electric-guitar-alt-temp' }] : []),
     { label: 'synth strings', value: 'synth-strings' },
     ...(SHOW_ANALOG_SYNTH_TEMP ? [{ label: 'analog synth', value: 'analog-synth-temp' }] : []),
   ]

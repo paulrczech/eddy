@@ -276,16 +276,32 @@ const GUITAR_ACOUSTIC_URLS: Record<string, string> = {
   C6: 'C6.mp3',
 }
 
-// 'electric-guitar-2-temp' — "Yamaha CS-30L - Straight Guitar" by modularsamples (freesound.org pack
-// 17675, Creative Commons 0 / public domain — free to ship, credit as a courtesy). A synthesizer patch,
-// one 24-bit mono AIFF per semitone C2-C6 (5.9s), here a root every minor third (E2-C6). Pitches verified
-// on the first 0.6s: all 49 files within 7 cents of the MIDI number in their filename (the note LETTERS in
-// the filenames are wrong, the numbers are right). The patch decays from a pluck to a steady, quiet
-// pure tone (the note's 2nd harmonic, ~-41 dBFS) that never dies — not noise, a held sine — so each
-// file keeps only the first 3s with a 1s fade, the part that sounds like a guitar. Leveled by perceived
-// loudness (A-weighted first-second RMS) to the current electric guitar; mono, 96 kbps, ~0.5 MB.
-// Built by scripts/samples/guitar-pluck.py (--mono --trim 3 --fade 1).
-const ELECTRIC_GUITAR_2_URLS: Record<string, string> = {
+// Temp A/B candidates (2026-10-23): the tonejs-instruments sample set (github.com/nbrosowsky/tonejs-instruments,
+// samples CC-BY 3.0; its source list names VSCO Community for the piano and Karoryfer for the electric
+// guitar). Both are replacements considered for the Pianobook pair whose terms don't allow shipping.
+// Pitches verified on the first 0.6s: every file within ~10 cents of its filename. 16 roots each (E2-C6),
+// leveled by perceived loudness to the instrument they would replace (scripts/samples/guitar-pluck.py).
+// 'electric-guitar-alt-temp': plucked electric, mono 4.2s notes at roots E, F#, A, C, D# ...
+const ELECTRIC_GUITAR_ALT_URLS: Record<string, string> = {
+  E2: 'E2.mp3',
+  'F#2': 'Fs2.mp3',
+  A2: 'A2.mp3',
+  C3: 'C3.mp3',
+  'D#3': 'Ds3.mp3',
+  'F#3': 'Fs3.mp3',
+  A3: 'A3.mp3',
+  C4: 'C4.mp3',
+  'D#4': 'Ds4.mp3',
+  'F#4': 'Fs4.mp3',
+  A4: 'A4.mp3',
+  C5: 'C5.mp3',
+  'D#5': 'Ds5.mp3',
+  'F#5': 'Fs5.mp3',
+  A5: 'A5.mp3',
+  C6: 'C6.mp3',
+}
+// 'piano-alt-temp': the same set's piano, 8s notes at roots E, G, A#, C# ...
+const PIANO_ALT_URLS: Record<string, string> = {
   E2: 'E2.mp3',
   G2: 'G2.mp3',
   'A#2': 'As2.mp3',
@@ -463,9 +479,13 @@ const SAMPLER_CONFIGS: Partial<
     urls: GUITAR_ACOUSTIC_URLS,
     baseUrl: '/samples/guitar-acoustic-ots/',
   },
-  'electric-guitar-2-temp': {
-    urls: ELECTRIC_GUITAR_2_URLS,
-    baseUrl: '/samples/electric-guitar-2-temp/',
+  'electric-guitar-alt-temp': {
+    urls: ELECTRIC_GUITAR_ALT_URLS,
+    baseUrl: '/samples/electric-guitar-alt-temp/',
+  },
+  'piano-alt-temp': {
+    urls: PIANO_ALT_URLS,
+    baseUrl: '/samples/piano-alt-temp/',
   },
   'electric-guitar': {
     urls: ELECTRIC_GUITAR_URLS,
@@ -495,7 +515,8 @@ export const INSTRUMENT_NOTE_RANGE: Record<
 > = {
   piano: { min: 33, max: MIDI_MAX }, // A1–C6
   'guitar-acoustic': { min: 40, max: MIDI_MAX }, // E2-C6 — 16 roots every minor third
-  'electric-guitar-2-temp': { min: 40, max: MIDI_MAX }, // E2-C6, 16 roots every minor third
+  'electric-guitar-alt-temp': { min: 40, max: MIDI_MAX }, // E2-C6, 16 roots every minor third
+  'piano-alt-temp': { min: 40, max: MIDI_MAX }, // E2-C6, 16 roots every minor third
   'electric-guitar': { min: 38, max: 71 }, // D2-B4
   'piano-salamander': { min: 41, max: 81 }, // F2-A5, matches UPRIGHT_PIANO_URLS'
   // 11 usable roots
@@ -540,7 +561,8 @@ export interface PlaybackSettings {
 const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   piano: '2n',
   'guitar-acoustic': '2n',
-  'electric-guitar-2-temp': '2n', // same as electric-guitar for a like-for-like A/B
+  'electric-guitar-alt-temp': '2n', // same as electric-guitar for a like-for-like A/B
+  'piano-alt-temp': '2n', // same as piano
   'electric-guitar': '2n', // was '1n' — a full bar held at near-full volume before the
   // release fade even began, so it was still essentially at full volume right up to
   // the next chord's downbeat and only started fading during the new chord, reading
@@ -555,7 +577,7 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
 // a struck/plucked note, but a hard, audible cutoff for anything sustained. The pad-style
 // instruments above get a real fade instead.
 const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
-  'electric-guitar-2-temp': 1.2, // same as electric-guitar for a like-for-like A/B
+  'electric-guitar-alt-temp': 1.2, // same as electric-guitar for a like-for-like A/B
   'electric-guitar': 1.2, // was 2.5 — a note was still near full volume when the next
   // one fired, masking each new note's own (genuinely fast, ~100ms) attack; read as
   // both "too long a sustain" and "attack isn't sharp" from the same cause
@@ -579,7 +601,8 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   piano: 3, // tried 3 -> 6 -> back to 3 (Paul, 2026-10-08) — preferred the original after
   // hearing both louder. Originally boosted because it read as a little quieter than
   // guitar-acoustic despite matching RMS targets
-  'electric-guitar-2-temp': -8.5, // -6 like electric-guitar, minus 2.5 dB: in an offline render of the same flow it measured 2.5 dB louder (RMS -19.6 vs -22.1) despite per-pitch leveling
+  'electric-guitar-alt-temp': -6, // same as electric-guitar; per-pitch leveled to its loudness
+  'piano-alt-temp': 3, // same as piano (felt); per-pitch leveled to its loudness
   'electric-guitar': -6, // was -10 — Paul heard it as a little quieter than the rest after that cut
   // Tuned by ear against the sample content now in this slot (VSCO2 upright piano,
   // 2026-09-30): 0 -> +6 -> +10. No effects are on this instrument (no REVERB_SETTINGS/
@@ -919,7 +942,7 @@ const STRUM_INTERVAL = 0.025 // seconds between adjacent strings
 const GUITAR_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set([
   'guitar-acoustic',
   'electric-guitar',
-  'electric-guitar-2-temp',
+  'electric-guitar-alt-temp',
 ])
 
 function chordInterval(instrumentType: InstrumentType | null): number {

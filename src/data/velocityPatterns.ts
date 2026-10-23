@@ -66,8 +66,9 @@ export const INSTRUMENT_LEVELS: Partial<Record<InstrumentType, Partial<Record<Ve
 // electric-guitar swell, pads) keeps today's flat velocity until it gets its own patterns.
 export const VELOCITY_FAMILY: Partial<Record<InstrumentType, PatternFamily>> = {
   'guitar-acoustic': 'guitar',
-  'electric-guitar': 'guitar',
-  'electric-guitar-2-temp': 'guitar', // temp A/B of a CC0 synth-guitar replacement // the sustained "Afterglow" swell — same accent shapes (2026-10-21)
+  'electric-guitar': 'guitar', // the sustained "Afterglow" swell — same accent shapes (2026-10-21)
+  'electric-guitar-alt-temp': 'guitar', // temp A/B candidates (2026-10-23)
+  'piano-alt-temp': 'piano',
   piano: 'piano',
   'piano-salamander': 'piano',
 }
