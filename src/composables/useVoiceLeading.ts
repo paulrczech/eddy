@@ -33,6 +33,9 @@ export interface VoiceLeadingOptions {
   scaleId?: string        // scale id from scales.ts
   movement?: MovementLimit  // the drift size cap; omitted = 'free'
   spacing?: Spacing         // the spacing preference (close/normal/open); omitted or 'normal' = no bias
+  // Outer voices that have held the same note for the last few rows (see SessionView's advance()):
+  // when the strategy can move them, a couple of the offered streams do. Omitted = no nudge.
+  stalled?: { top: boolean; bass: boolean }
 }
 
 const MAX_CANDIDATES = 6  // max options returned to the user
@@ -40,6 +43,10 @@ const MAX_CANDIDATES = 6  // max options returned to the user
 // chosen spread band (when enough exist); the rest stay free, so a flow can still wander out of
 // the band and back — a lean, not a wall.
 const SPACING_QUOTA = 4
+// With a stalled outer voice, up to this many slots go to streams that move it (both, if both are
+// stalled), best first — but only streams this strategy actually offers: a strategy that holds
+// the bass (hold bass, add extension…) has none, and then nothing changes.
+const STALL_SLOTS = 2
 
 // Resolve interval bounds from a movementType string
 function intervalBounds(movementType: string): { min: number; max: number } {
@@ -311,9 +318,23 @@ function sampleCandidates(
   candidates: Cluster[],
   max: number,
   baseline: Cluster,
-  spacing?: Spacing
+  spacing?: Spacing,
+  stalled?: { top: boolean; bass: boolean }
 ): Cluster[] {
   if (candidates.length <= max) return candidates
+
+  // Stalled-voice nudge: reserve a couple of slots for streams that move a voice that has stalled.
+  if (stalled && (stalled.top || stalled.bass)) {
+    const topIdx = baseline.length - 1
+    const breaks = (c: Cluster) =>
+      (stalled.top && c[topIdx] !== baseline[topIdx] ? 1 : 0) + (stalled.bass && c[0] !== baseline[0] ? 1 : 0)
+    const best = Math.max(...candidates.map(breaks))
+    if (best > 0) {
+      const reserved = shuffle(candidates.filter(c => breaks(c) === best)).slice(0, STALL_SLOTS)
+      const rest = candidates.filter(c => !reserved.includes(c))
+      return shuffle([...reserved, ...sampleCandidates(rest, max - reserved.length, baseline, spacing)])
+    }
+  }
 
   // Soft spacing bias: reserve most slots for candidates inside the preferred spread band,
   // each group still sampled by the outer-voice logic below.
@@ -453,5 +474,5 @@ export function generateCandidates(
     filtered = filtered.filter(c => strays(c) === fewest)
   }
 
-  return sampleCandidates(filtered, MAX_CANDIDATES, sortedCluster, options.spacing)
+  return sampleCandidates(filtered, MAX_CANDIDATES, sortedCluster, options.spacing, options.stalled)
 }
