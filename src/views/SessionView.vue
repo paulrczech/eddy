@@ -197,6 +197,7 @@
                 v-for="(midi, v) in cluster"
                 :key="v"
                 class="pill-note"
+                :class="pillNoteState(cluster, v)"
                 :style="{ color: voiceColors[v] }"
                 >{{ midiToName(midi) }}</span
               >
@@ -954,6 +955,17 @@
   // the sound) — there's just no control to change it mid-session. Flipping this back to
   // true is the only step needed to bring the slider back.
   const SHOW_AMBIENCE_CONTROL = false
+
+  // Trial (Paul, 2026-10-23): mark which notes of each stream moved. A stream is a move from the
+  // current chord, but the four notes don't say which ones changed — and the outer voices are
+  // easy to miss (the same bass or top note often runs through most of the streams shown).
+  // Held notes dim, moved notes stay full and bold. Set false to revert to plain pills.
+  const SHOW_MOVED_NOTES = true
+  function pillNoteState(cluster: Cluster, v: number): 'held' | 'moved' | '' {
+    const current = sequenceStore.currentCluster
+    if (!SHOW_MOVED_NOTES || !current || current.length !== cluster.length) return ''
+    return cluster[v] === current[v] ? 'held' : 'moved'
+  }
 
   const ambiencePercent = computed(() => Math.round(settingsStore.ambience * 100))
 
@@ -2022,6 +2034,13 @@
     font-size: var(--text-xs);
     font-family: var(--font-mono);
     letter-spacing: 0.02em;
+  }
+  /* the moved-notes trial (SHOW_MOVED_NOTES): held notes recede, moved notes stand forward */
+  .pill-note.held {
+    opacity: 0.38;
+  }
+  .pill-note.moved {
+    font-weight: 700;
   }
   .pill-note + .pill-note::before {
     content: '·';
