@@ -179,6 +179,19 @@
               </IonSegment>
             </div>
 
+            <!-- Appearance applies at once and persists on its own — deliberately outside
+                 "save as default", which is for how a flow plays. -->
+            <div class="sheet-group appearance-group">
+              <p class="sheet-label">appearance</p>
+              <IonSegment
+                :value="settingsStore.themePref"
+                @ionChange="settingsStore.setThemePref(($event as CustomEvent).detail.value)">
+                <IonSegmentButton v-for="t in ['dark', 'light', 'system']" :key="t" :value="t">
+                  <IonLabel>{{ t }}</IonLabel>
+                </IonSegmentButton>
+              </IonSegment>
+            </div>
+
             <button class="btn-primary" @click="saveDefault()">
               save as default
             </button>
@@ -885,7 +898,7 @@
 
   .error-msg {
     font-size: var(--text-xs);
-    color: #e07878;
+    color: var(--color-danger);
     margin: 0;
     text-align: center;
   }

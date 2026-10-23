@@ -43,7 +43,7 @@
             Piano: Upright Piano from Versilian Studios' VSCO 2 Community Edition,
             sampled by Simon Dalzell (Ivy Audio).
           </p>
-          <p>Felt piano: Mikor Piano Felt, via Pianobook.co.uk.</p>
+          <p>Felt piano: Mikor Piano Felt by Mikor Studio, via Pianobook.co.uk, used with permission.</p>
           <p>Analog synth: Moog Minitaur "Simple Saw" by modularsamples (CC0).</p>
           <p>Synth strings: original to Eddy.</p>
         </div>

@@ -13,6 +13,12 @@ Two piano voices, kept permanently as of 2026-09-30 (gain-matched to each other)
 engaged, close-miced with a pair of 414s from the nineties through ISA preamps. Soft
 dynamic layer. Sourced from [Pianobook.co.uk](https://www.pianobook.co.uk).
 
+Pianobook's own terms don't cover shipping a library inside an app, so permission was asked of
+the creator (Mikor Studio) directly. **Granted by email, 2026-10-23**: the creator replied that
+it is fine to use the piano in the app ("Feel free to use it for your app"). The email itself is
+kept privately, not in this public repo. The permission is for use in the app; the sample files
+themselves shouldn't be offered as standalone downloads.
+
 **Piano** — **Upright Piano**, from the [Versilian Studios Chamber Orchestra: Community
 Edition (VSCO2 CE)](https://versilstudios.com/vsco-community/), sampled by Simon Dalzell
 of Ivy Audio. Per the pack's own license: "Bearer is granted right to redistribute this

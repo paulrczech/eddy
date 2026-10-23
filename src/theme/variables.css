@@ -43,8 +43,23 @@
   --color-text-muted:  #38404a;   /* very muted, cool */
 
   /* Accent */
-  --color-accent:      #454a68;   /* indigo-slate — receptive, not active */
+  --color-accent:      #4a6478;   /* slate blue — the one UI color: primary buttons, selected toggles/segments, active rows. Was indigo #454a68 until 2026-10-23, when it was unified with the old --voice-1 segment color for testing (restore: #454a68 / 69, 74, 104) */
   --color-accent-warm: #4f5a72;   /* secondary, still cool — no warm accent in this palette */
+  --color-accent-rgb:  74, 100, 120;  /* for tints: rgba(var(--color-accent-rgb), 0.12) */
+  --color-on-fill:     #f2eee3;       /* text/glyphs on any solid accent/voice fill (primary buttons, selected toggles/segments) — pale in both themes */
+
+  /* Semantic washes — one token per role so a second theme can re-tune them */
+  --playing-rgb:       126, 184, 212; /* the playing-row highlight */
+  --color-danger:      #e07878;
+  --color-danger-rgb:  224, 120, 120;
+  --color-hover:       rgba(255, 255, 255, 0.03);   /* hover wash on rows/buttons */
+  --color-stripe:      rgba(255, 255, 255, 0.010);  /* alternate flow-row stripe */
+  --color-segment-text: #9aa4b0;      /* unselected ion-segment label — brighter than text-dim */
+  --card-from:         rgba(30, 38, 50, 0.4);       /* strategy card gradient */
+  --card-to:           rgba(14, 18, 24, 0.2);
+  --picker-fade-rgb:   5, 5, 5;       /* edge fade of the note-picker wheel (Ionic's own default) */
+  --glow-1:            rgba(60, 55, 90, 0.12);      /* ion-app background glows */
+  --glow-2:            rgba(50, 65, 80, 0.08);
 
   /* Ionic overrides */
   --ion-background-color:             var(--color-bg);
@@ -52,14 +67,59 @@
   --ion-text-color:                   var(--color-text);
   --ion-text-color-rgb:               230, 222, 200;
   --ion-color-primary:                var(--color-accent);
-  --ion-color-primary-rgb:            69, 74, 104;
-  --ion-color-primary-contrast:       #e6dec8;
-  --ion-color-primary-shade:          #3a3e59;
-  --ion-color-primary-tint:           #595d79;
+  --ion-color-primary-rgb:            74, 100, 120;
+  --ion-color-primary-contrast:       var(--color-on-fill);
+  --ion-color-primary-shade:          #41586a;
+  --ion-color-primary-tint:           #5c7586;
   --ion-toolbar-background:           var(--color-bg);
   --ion-toolbar-border-color:         var(--color-border);
   --ion-item-background:              var(--color-surface);
   --ion-card-background:              var(--color-surface);
+}
+
+/* Light theme — "Daybreak" (cool mist + indigo ink). Same token names, re-tuned values; set by
+   utils/theme.ts via <html data-theme="light">. The structure mirrors the dark block above:
+   accent is a deeper lake blue than the dark theme's slate; surfaces invert;
+   the voice colors keep their hue but the fourth ("glow") darkens, since a glow only works
+   on dark. Text sitting on a solid fill uses --color-on-fill, which stays pale. */
+:root[data-theme='light'] {
+  --voice-1: #4a6478;
+  --voice-2: #3a6b64;
+  --voice-3: #5c4f68;
+  --voice-4: #6e6c92;
+
+  --color-bg:             #eef1f4;
+  --color-surface:        #f8f9fb;
+  --color-surface-2:      #e4e8ed;
+  --color-border:         #d0d6de;
+  --color-border-subtle:  rgba(60, 72, 96, 0.18);
+
+  --color-text:        #1f2630;
+  --color-text-dim:    #5a6472;
+  --color-text-muted:  #a4acb7;
+
+  /* Accent: a deeper lake blue than dark's slate (#4a6478) so it holds its own on pale mist. */
+  --color-accent:      #3f5f78;
+  --color-accent-rgb:  63, 95, 120;
+  --color-accent-warm: #5a7288;
+
+  --playing-rgb:       38, 110, 150;
+  --color-danger:      #b24a4a;
+  --color-danger-rgb:  178, 74, 74;
+  --color-hover:       rgba(20, 30, 50, 0.05);
+  --color-stripe:      rgba(20, 30, 50, 0.025);
+  --color-segment-text: #566070;
+  --card-from:         rgba(255, 255, 255, 0.7);
+  --card-to:           rgba(228, 234, 241, 0.5);
+  --picker-fade-rgb:   238, 241, 244;
+  --glow-1:            rgba(110, 120, 170, 0.14);
+  --glow-2:            rgba(90, 130, 150, 0.10);
+
+  --ion-background-color-rgb: 238, 241, 244;
+  --ion-color-primary-rgb:    63, 95, 120;
+  --ion-color-primary-shade:  #38546a;
+  --ion-color-primary-tint:   #527089;
+  --ion-text-color-rgb:       31, 38, 48;
 }
 
 /* Global resets */
@@ -76,8 +136,14 @@ ion-content {
 ion-app {
   background-color: var(--color-bg);
   background-image:
-    radial-gradient(circle at 15% 10%, rgba(60, 55, 90, 0.12) 0%, transparent 45%),
-    radial-gradient(circle at 85% 90%, rgba(50, 65, 80, 0.08) 0%, transparent 45%);
+    radial-gradient(circle at 15% 10%, var(--glow-1) 0%, transparent 45%),
+    radial-gradient(circle at 85% 90%, var(--glow-2) 0%, transparent 45%);
+}
+
+/* md mode draws a soft drop shadow under every ion-header — invisible on the near-black dark
+   theme, but a heavy smudge on pale paper. The toolbar's own bottom border already does the job. */
+.header-md::after {
+  display: none;
 }
 
 ion-toolbar {
@@ -106,7 +172,7 @@ ion-toolbar {
   transition: opacity 0.15s;
   background: var(--color-accent);
   border: none;
-  color: #f2eee3;
+  color: var(--color-on-fill);
   font-weight: 500;
 }
 .btn-primary:hover {
@@ -155,7 +221,7 @@ ion-toolbar {
   text-transform: none;
 }
 .alert-button-role-destructive {
-  color: #e07878 !important;
+  color: var(--color-danger) !important;
 }
 
 /* ion-item (SequenceHistory swipe-to-delete rows) — ion-item-sliding requires a real
@@ -187,7 +253,7 @@ ion-item-options ion-item-option ion-icon {
    restrained "success" tone rather than a bright off-palette green. */
 ion-toast {
   --background: var(--voice-2);
-  --color: var(--color-text);
+  --color: var(--color-on-fill);
   --border-color: var(--voice-2);
   --border-width: 1px;
   --border-style: solid;
@@ -207,6 +273,6 @@ ion-action-sheet {
   --button-background-selected: var(--color-bg) !important;
   --button-background-selected-opacity: 1 !important;
   --button-color: var(--color-text) !important;
-  --button-color-selected: var(--voice-1) !important;
+  --button-color-selected: var(--color-accent) !important;
   font-family: var(--font-sans);
 }

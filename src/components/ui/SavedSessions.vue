@@ -156,7 +156,7 @@
     margin-bottom: 0.25rem;
   }
   .clear-all-btn:hover {
-    color: #e07878;
+    color: var(--color-danger);
   }
 
   /* .option-list (box model) comes from sheets.css — session-row is a plain wrapper
@@ -181,7 +181,7 @@
     gap: 0.5rem;
   }
   .session-load-btn:hover .session-name {
-    color: var(--voice-1);
+    color: var(--color-accent);
   }
 
   .session-name {
@@ -220,7 +220,7 @@
     transition: color 0.15s;
   }
   .session-load-btn:hover .session-meta {
-    color: var(--voice-1);
+    color: var(--color-accent);
   }
 
   /* .row-edge-btn (box model, touch target) comes from theme/buttons.css */

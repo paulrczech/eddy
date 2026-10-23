@@ -187,7 +187,7 @@
   .mood-pill.selected {
     background: var(--color-accent);
     border-color: var(--color-accent);
-    color: var(--color-text);
+    color: var(--color-on-fill);
   }
 
   .choose-key {

@@ -1954,7 +1954,7 @@
   }
 
   .loop-banner {
-    background: rgba(69, 74, 104, 0.3);
+    background: rgba(var(--color-accent-rgb), 0.3);
     border: 1px solid var(--color-accent);
     border-radius: 10px;
     padding: 0.8rem 1rem;
@@ -2006,7 +2006,7 @@
   }
   .candidate-pill.selected {
     border-color: var(--color-accent);
-    background: rgba(69, 74, 104, 0.2);
+    background: rgba(var(--color-accent-rgb), 0.2);
   }
 
   .pill-order {
@@ -2017,7 +2017,7 @@
     height: 1.1rem;
     border-radius: 50%;
     background: var(--color-accent);
-    color: #e6dec8;
+    color: var(--color-on-fill);
     font-size: var(--text-label);
     font-weight: 600;
     flex-shrink: 0;
@@ -2079,7 +2079,7 @@
   .loop-toggle.active {
     border-color: var(--color-accent);
     color: var(--color-accent);
-    background: rgba(69, 74, 104, 0.15);
+    background: rgba(var(--color-accent-rgb), 0.15);
   }
 
   /* .icon-btn (box model, touch target) comes from theme/buttons.css */
@@ -2374,7 +2374,7 @@
 
   .toggle-btn.active {
     border-color: var(--color-accent);
-    color: var(--color-text);
+    color: var(--color-on-fill);
     background: var(--color-accent);
   }
 

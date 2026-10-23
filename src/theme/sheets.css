@@ -25,6 +25,10 @@
   gap: 0.5rem;
 }
 
+.appearance-group {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1.1rem;
+}
 .sheet-label {
   font-size: var(--text-label);
   letter-spacing: 0.18em;
@@ -58,11 +62,11 @@
   min-height: 48px;
 }
 .option-btn + .option-btn { border-top: 1px solid var(--color-border); }
-.option-btn:hover { background: rgba(255, 255, 255, 0.03); }
+.option-btn:hover { background: var(--color-hover); }
 .option-btn.active {
-  color: var(--voice-1);
-  background: rgba(74, 100, 120, 0.1);
-  border-left: 2px solid var(--voice-1);
+  color: var(--color-accent);
+  background: rgba(var(--color-accent-rgb), 0.1);
+  border-left: 2px solid var(--color-accent);
 }
 
 /* ion-segment (Voices / Drift toggles in the settings sheet) — sliding indicator gives
@@ -74,11 +78,17 @@ ion-segment {
   border-radius: 10px;
   padding: 2px;
 }
-ion-segment-button {
-  --color: #9aa4b0; /* lighter than --color-text-dim — that token reads too faint against
-    --color-surface for an unselected segment option (vs. its usual use as small labels/meta) */
+/* Light theme, md mode (desktop web, future Android): the checked indicator is a thin underline,
+   not a filled block, so the pale on-fill label would vanish on pale paper — use ink instead.
+   (iOS mode paints a filled block, where the pale label is right.) */
+:root[data-theme='light'].md ion-segment-button {
   --color-checked: var(--color-text);
-  --indicator-color: var(--voice-1);
+}
+ion-segment-button {
+  --color: var(--color-segment-text); /* lighter than --color-text-dim — that token reads too faint against
+    --color-surface for an unselected segment option (vs. its usual use as small labels/meta) */
+  --color-checked: var(--color-on-fill);
+  --indicator-color: var(--color-accent);
   --border-radius: 8px;
   min-height: 40px;
   font-family: var(--font-sans);

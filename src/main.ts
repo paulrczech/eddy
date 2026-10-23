@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router';
 import { logDiag } from './utils/diagLog';
+import { applyTheme, loadThemePref, watchSystemTheme } from './utils/theme';
 
 import { IonicVue } from '@ionic/vue';
 
@@ -42,13 +43,19 @@ import '@ionic/vue/css/display.css';
 
 /* @import '@ionic/vue/css/palettes/dark.always.css'; */
 /* @import '@ionic/vue/css/palettes/dark.class.css'; */
-import '@ionic/vue/css/palettes/dark.system.css';
+import '@ionic/vue/css/palettes/dark.class.css';
 
 /* Theme variables */
 import './theme/variables.css';
 import './theme/sheets.css';
 import './theme/buttons.css';
 import './theme/picker.css';
+
+// Apply the saved appearance before mount so the first paint is already the right theme.
+// Ionic's palette is class-driven (dark.class.css above) rather than following the OS, so
+// applyTheme() owns both our data-theme tokens and Ionic's ion-palette-dark class.
+applyTheme(loadThemePref());
+watchSystemTheme(loadThemePref);
 
 const app = createApp(App)
   // swipeBackEnabled: false — the iOS edge-swipe-back gesture and the Ambience range

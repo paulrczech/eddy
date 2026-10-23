@@ -41,8 +41,8 @@
   .strategy-card {
     background: linear-gradient(
       145deg,
-      rgba(30, 38, 50, 0.4),
-      rgba(14, 18, 24, 0.2)
+      var(--card-from),
+      var(--card-to)
     );
     border: 1px solid var(--color-border-subtle);
     border-radius: 12px;

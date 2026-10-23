@@ -1097,7 +1097,7 @@ function duplicateRowAction(index: number) {
 }
 .range-toggle-btn.active {
   border-color: var(--color-accent);
-  color: var(--color-text);
+  color: var(--color-on-fill);
   background: var(--color-accent);
 }
 .range-toggle-btn:disabled { opacity: 0.3; }
@@ -1109,7 +1109,7 @@ function duplicateRowAction(index: number) {
 }
 .reverse-toggle-btn.active {
   border-color: var(--color-accent);
-  color: var(--color-text);
+  color: var(--color-on-fill);
   background: var(--color-accent);
 }
 .reverse-toggle-btn:disabled { opacity: 0.3; }
@@ -1121,7 +1121,7 @@ function duplicateRowAction(index: number) {
 }
 .duplicate-toggle-btn.active {
   border-color: var(--color-accent);
-  color: var(--color-text);
+  color: var(--color-on-fill);
   background: var(--color-accent);
 }
 .duplicate-toggle-btn:disabled { opacity: 0.3; }
@@ -1179,7 +1179,7 @@ function duplicateRowAction(index: number) {
    first row fixes that and costs nothing for longer flows — it's still a pure alternation,
    just shifted by one. */
 .history-entry.row-stripe {
-  background: rgba(255, 255, 255, 0.010);
+  background: var(--color-stripe);
 }
 
 /* iOS WebKit fires :hover on tap with no real mouse to leave it with, so it sticks until
@@ -1206,7 +1206,7 @@ function duplicateRowAction(index: number) {
   border-left-width: 3px;
   border-left-color: var(--color-accent);
   padding-left: calc(0.5rem - 2px);
-  background: rgba(69, 74, 104, 0.12);
+  background: rgba(var(--color-accent-rgb), 0.12);
 }
 /* Flattens the touching corners of a multi-row range so .history-row's independent
    border-radius per row doesn't carve it back into separate rounded pills — applied to
@@ -1227,8 +1227,8 @@ function duplicateRowAction(index: number) {
 }
 
 .history-entry.playing {
-  background: rgba(126, 184, 212, 0.08);
-  border-color: rgba(126, 184, 212, 0.35);
+  background: rgba(var(--playing-rgb), 0.08);
+  border-color: rgba(var(--playing-rgb), 0.35);
 }
 
 /* Briefly lit after a duplicate lands (swipe or, if ENABLE_TAP_DUPLICATE_MODE ever comes
@@ -1239,7 +1239,7 @@ function duplicateRowAction(index: number) {
    the class never gets pulled mid-animation. */
 @keyframes duplicate-flash {
   from {
-    background: rgba(69, 74, 104, 0.4);
+    background: rgba(var(--color-accent-rgb), 0.4);
     border-color: var(--color-accent);
   }
   to {
@@ -1297,12 +1297,12 @@ function duplicateRowAction(index: number) {
   font-size: var(--icon-sm);
 }
 .action-btn:hover { color: var(--color-accent); }
-.action-btn.delete-btn:hover { color: #e07878; }
+.action-btn.delete-btn:hover { color: var(--color-danger); }
 .action-btn.active { color: var(--color-accent); }
 
 .edit-error {
   font-size: var(--text-xs);
-  color: #e07878;
+  color: var(--color-danger);
   text-align: center;
   padding: 0.4rem 1rem 0;
   margin: 0;

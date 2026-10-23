@@ -21,13 +21,13 @@
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-.btn-outline:hover:not(:disabled) {
+.btn-outline:hover:not(:disabled):not(.active) {
   border-color: var(--color-text-dim);
   color: var(--color-text);
 }
 .btn-outline.active {
   border-color: var(--color-accent);
-  color: var(--color-text);
+  color: var(--color-on-fill);
   background: var(--color-accent);
 }
 .btn-outline:disabled {
@@ -52,7 +52,7 @@
   font-family: inherit;
   transition: color 0.15s;
 }
-.icon-btn:hover:not(:disabled) {
+.icon-btn:hover:not(:disabled):not(.active) {
   color: var(--color-text);
 }
 .icon-btn:disabled {
@@ -78,7 +78,7 @@
   flex-shrink: 0;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-.btn-icon-outline:hover:not(:disabled) {
+.btn-icon-outline:hover:not(:disabled):not(.active) {
   border-color: var(--color-text-dim);
   color: var(--color-text);
 }
@@ -107,9 +107,9 @@
 }
 .row-edge-btn:hover {
   color: var(--color-text-dim);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--color-hover);
 }
 .row-edge-btn.destructive:hover {
-  color: #e07878;
-  background: rgba(224, 120, 120, 0.08);
+  color: var(--color-danger);
+  background: rgba(var(--color-danger-rgb), 0.08);
 }

@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { MOOD_MAP, pickMoodRoot } from '../data/moods'
 import type { Spacing } from '../data/spacing'
+import { loadThemePref, saveThemePref, applyTheme } from '../utils/theme'
+import type { ThemePref } from '../utils/theme'
 
 export type VoiceCount = 3 | 4
 export type MovementSize = 'half' | 'step' | 'whole' | 'third' | 'free'
@@ -119,6 +121,10 @@ export const useSettingsStore = defineStore('settings', () => {
   // and leans the streams toward the chosen band. Like voices/drift: a default, not saved with a
   // flow. 'normal' is the engine exactly as it was.
   const spacing = ref<Spacing>('normal')
+
+  // Appearance (dark / light / system). Persisted on its own key by utils/theme.ts, NOT part of
+  // saveAsDefault() — like showLabels was, a display preference should just stick.
+  const themePref = ref<ThemePref>(loadThemePref())
   // The "drift" size cap on Home (½ step … free) — wired into generateCandidates() on
   // 2026-10-20; before that it was only displayed and saved, never read by the engine, so
   // every flow behaved as 'free'. Default is now 'step' (½–1 step) — Paul's call after
@@ -178,6 +184,11 @@ export const useSettingsStore = defineStore('settings', () => {
   function setVoiceCount(n: VoiceCount) { voiceCount.value = n }
   function setMovementSize(m: MovementSize) { movementSize.value = m }
   function setSpacing(sp: Spacing) { spacing.value = sp }
+  function setThemePref(p: ThemePref) {
+    themePref.value = p
+    saveThemePref(p)
+    applyTheme(p)
+  }
   function setSeedStreamCount(n: number) { seedStreamCount.value = Math.min(8, Math.max(1, n)) }
   function setKeyLocked(on: boolean) { keyLocked.value = on }
   function setKeyRoot(midi: number) { keyRoot.value = midi }
@@ -269,6 +280,7 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     voiceCount,
     spacing,
+    themePref,
     movementSize,
     seedStreamCount,
     keyLocked,
@@ -288,6 +300,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setVoiceCount,
     setMovementSize,
     setSpacing,
+    setThemePref,
     setSeedStreamCount,
     setKeyLocked,
     setKeyRoot,
