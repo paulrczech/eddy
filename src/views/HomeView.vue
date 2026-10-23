@@ -115,7 +115,7 @@
         :handle="true"
         @did-dismiss="settingsOpen = false">
         <ion-content>
-          <div class="sheet-content">
+          <div class="sheet-content" :class="{ 'compact-segments': COMPACT_SEGMENTS }">
             <p class="sheet-title">the current</p>
 
             <div class="sheet-group">
@@ -319,6 +319,11 @@
     'var(--voice-3)',
     'var(--voice-4)',
   ]
+
+  // Trial (Paul, 2026-10-23): one shared, shorter look for Voices / Spacing / Drift / Starting
+  // streams in "the current" sheet — they were already the same height (52px), but Drift's smaller
+  // label text made it feel lighter. Set false for the previous look (larger Voices/Spacing labels).
+  const COMPACT_SEGMENTS = true
 
   const movementOptions = [
     { label: '½ step', value: 'half' },

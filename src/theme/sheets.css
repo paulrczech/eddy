@@ -100,6 +100,21 @@ ion-segment-button {
   white-space: nowrap;
 }
 
+/* Compact segments (HomeView's COMPACT_SEGMENTS trial): Voices, Spacing, Drift and Starting
+   streams share one shorter height and the small label size Drift already used. */
+.compact-segments ion-segment-button {
+  --padding-top: 0;
+  --padding-bottom: 0;
+  min-height: 32px;
+  line-height: 20px; /* Material mode gives the button a 40px line height, which sets its height */
+  font-size: var(--text-xs);
+}
+.compact-segments ion-segment-button ion-label {
+  margin: 0;
+  padding: 0;
+  line-height: 20px;
+}
+
 /* Starting-streams (settings sheet) — 8 options, but single digits rather than Drift's
    multi-character labels, so the same tightened-padding treatment that merely keeps
    Drift's 5 text labels from overflowing fits these 8 numbers comfortably. */
