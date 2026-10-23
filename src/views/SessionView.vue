@@ -985,23 +985,6 @@
     if (justDuplicatedTimeout) clearTimeout(justDuplicatedTimeout)
   })
 
-  // Trial (Paul, 2026-10-23): when the top or bass has held the same note for 2 rows, a couple of
-  // the offered streams move it — as long as the drawn strategy can (a strategy that holds the bass
-  // offers none, and then nothing changes). The same idea as the starting-streams chain (HomeView),
-  // but here it only shapes which streams are *offered*; you still choose. Set false to turn off.
-  const STALLED_VOICE_NUDGE = true
-  const NUDGE_STALL_ROWS = 2
-  function stalledOuterVoices(current: Cluster): { top: boolean; bass: boolean } | undefined {
-    const rows = sequenceStore.sequence
-    if (!STALLED_VOICE_NUDGE || rows.length < NUDGE_STALL_ROWS) return undefined
-    const last = rows.slice(-NUDGE_STALL_ROWS)
-    const topIdx = current.length - 1
-    return {
-      top: last.every(r => r[topIdx] === current[topIdx]),
-      bass: last.every(r => r[0] === current[0]),
-    }
-  }
-
   function advance() {
     selectedIndices.value = []
     activeStrategy.value = null
@@ -1020,7 +1003,6 @@
         scaleId: settingsStore.scaleId,
         movement: settingsStore.movementSize,
         spacing: settingsStore.spacing,
-        stalled: stalledOuterVoices(sequenceStore.currentCluster),
       })
       attempts++
       if (newCandidates.length > 0) activeStrategy.value = drawn
