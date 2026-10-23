@@ -546,8 +546,14 @@
   // builds for the user — never which streams are offered, and never a manual pick — so it
   // can't act in the first rows and needs no length threshold. Measured: 8-row static-top share
   // 53% -> 32%, static-bass 45% -> 29%, both 22% -> 8%; it breaks stalls but doesn't widen the
-  // range (distinct top notes ~3.2 -> 3.3). Strategies that offer no mover (top-stays) still stall.
-  const CHAIN_STALL_ROWS = 3
+  // range (distinct top notes ~3.2 -> 3.3). Strategies that offer no mover (top-stays) still stall
+  // (~24% of stalls). Lowered 3 -> 2: simulated (4 voices, ½–1 step, 8 rows) static top for 4+ rows
+  // 48% off / 29% at 3 / 21% at 2; static bass 45% / 30% / 19%; rows with the same top three in a
+  // row 85% / 86% / 64%; no ping-pong side effect (top returning to the note it just left 10% / 8% /
+  // 6%) and both outer voices moving together barely changes (11% / 11% / 12%). The effect is the
+  // same across drift settings; drift decides how far the outer notes travel (top range over 8 rows:
+  // ½ step 1.7 st, ½–1 step 2.8, 1 step 3.6, ≤3rd 3.4, free 6.4).
+  const CHAIN_STALL_ROWS = 2 // was 3; Paul wanted more outer-voice movement (2026-10-23)
   function pickChainStream(candidates: Cluster[], current: Cluster): Cluster {
     const rows = sequenceStore.sequence
     if (rows.length >= CHAIN_STALL_ROWS) {
