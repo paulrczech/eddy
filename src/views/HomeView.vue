@@ -121,7 +121,7 @@
             <div class="sheet-group">
               <p class="sheet-label">voices</p>
               <IonSegment
-                class="voices-segment"
+                :class="{ 'voices-segment': LARGE_VOICES_DIGITS }"
                 :value="voiceCount"
                 @ionChange="settingsStore.setVoiceCount(Number(($event as CustomEvent).detail.value) as 3 | 4)">
                 <IonSegmentButton v-for="n in [3, 4]" :key="n" :value="n">
@@ -325,6 +325,9 @@
   // streams in "the current" sheet — they were already the same height (52px), but Drift's smaller
   // label text made it feel lighter. Set false for the previous look (larger Voices/Spacing labels).
   const COMPACT_SEGMENTS = true
+  // Voices' "3" / "4" at a larger size (17.6px) in the compact look, same height — tried and set
+  // back to the small size for now while Paul judges both on his phone. true = larger digits.
+  const LARGE_VOICES_DIGITS = false
 
   const movementOptions = [
     { label: '½ step', value: 'half' },
