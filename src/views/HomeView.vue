@@ -301,6 +301,7 @@
   import { useSequenceStore } from '../stores/sequenceStore'
   import { useAudioEngine, INSTRUMENT_NOTE_RANGE } from '../composables/useAudioEngine'
   import { useStrategyDeck } from '../composables/useStrategyDeck'
+  import type { Strategy } from '../data/strategies'
   import { generateCandidates } from '../composables/useVoiceLeading'
   import {
     midiToName,
@@ -554,21 +555,64 @@
   // same across drift settings; drift decides how far the outer notes travel (top range over 8 rows:
   // ½ step 1.7 st, ½–1 step 2.8, 1 step 3.6, ≤3rd 3.4, free 6.4).
   const CHAIN_STALL_ROWS = 2 // was 3; Paul wanted more outer-voice movement (2026-10-23)
-  function pickChainStream(candidates: Cluster[], current: Cluster): Cluster {
+  // Which outer voices have held the same note for the last CHAIN_STALL_ROWS rows (current included).
+  function stalledOuterVoices(current: Cluster) {
     const rows = sequenceStore.sequence
-    if (rows.length >= CHAIN_STALL_ROWS) {
-      const last = rows.slice(-CHAIN_STALL_ROWS)
-      const topIdx = current.length - 1
-      const topStalled = last.every(r => r[topIdx] === current[topIdx])
-      const bassStalled = last.every(r => r[0] === current[0])
-      if (topStalled || bassStalled) {
-        const moves = (c: Cluster) =>
-          (topStalled && c[topIdx] !== current[topIdx] ? 1 : 0) + (bassStalled && c[0] !== current[0] ? 1 : 0)
-        const best = Math.max(...candidates.map(moves))
-        if (best > 0) candidates = candidates.filter(c => moves(c) === best)
-      }
+    if (rows.length < CHAIN_STALL_ROWS) return { top: false, bass: false }
+    const last = rows.slice(-CHAIN_STALL_ROWS)
+    const topIdx = current.length - 1
+    return {
+      top: last.every(r => r[topIdx] === current[topIdx]),
+      bass: last.every(r => r[0] === current[0]),
+    }
+  }
+  function stallsBrokenBy(c: Cluster, current: Cluster, stalled: { top: boolean; bass: boolean }): number {
+    return (stalled.top && c[current.length - 1] !== current[current.length - 1] ? 1 : 0)
+      + (stalled.bass && c[0] !== current[0] ? 1 : 0)
+  }
+  function pickChainStream(candidates: Cluster[], current: Cluster): Cluster {
+    const stalled = stalledOuterVoices(current)
+    if (stalled.top || stalled.bass) {
+      const best = Math.max(...candidates.map(c => stallsBrokenBy(c, current, stalled)))
+      if (best > 0) candidates = candidates.filter(c => stallsBrokenBy(c, current, stalled) === best)
     }
     return candidates[Math.floor(Math.random() * candidates.length)]
+  }
+
+  // The chain's candidate options for one row, from the strategy deck. If an outer voice has stalled
+  // and the drawn strategy offers nothing that moves it (a strategy like "hold bass" or "top stays"
+  // never does — measured: it wasn't a sampling gap, the strategy had no mover at all), draw
+  // other strategies (up to 4) until one can. Leaves ~0-1% of stalls unfixed instead of ~22%;
+  // 4-row chains with the same bass for 3 rows in a row went from 30-38% to 11-18% (4 voices).
+  function chainOptionsFor(current: Cluster, draw: () => Strategy | null): Cluster[] {
+    const options = {
+      keyLockActive: settingsStore.keyLockActive,
+      keyRoot: settingsStore.keyRoot,
+      scaleId: settingsStore.scaleId,
+      movement: settingsStore.movementSize,
+      spacing: settingsStore.spacing,
+    }
+    let attempts = 0
+    let candidates: Cluster[] = []
+    while (attempts < 5 && candidates.length === 0) {
+      const drawn = draw()
+      if (!drawn) break
+      candidates = generateCandidates(current, drawn, options)
+      attempts++
+    }
+    const stalled = stalledOuterVoices(current)
+    if ((stalled.top || stalled.bass) && candidates.length > 0 && !candidates.some(c => stallsBrokenBy(c, current, stalled) > 0)) {
+      for (let d = 0; d < 4; d++) {
+        const other = draw()
+        if (!other) break
+        let movers: Cluster[] = []
+        for (let r = 0; r < 3 && movers.length === 0; r++) {
+          movers = generateCandidates(current, other, options).filter(c => stallsBrokenBy(c, current, stalled) > 0)
+        }
+        if (movers.length > 0) { candidates = movers; break }
+      }
+    }
+    return candidates
   }
 
   function autoChainStreams(count: number) {
@@ -577,20 +621,7 @@
     for (let i = 1; i < count; i++) {
       const current = sequenceStore.currentCluster
       if (!current) break
-      let attempts = 0
-      let candidates: Cluster[] = []
-      while (attempts < 5 && candidates.length === 0) {
-        const drawn = draw()
-        if (!drawn) break
-        candidates = generateCandidates(current, drawn, {
-          keyLockActive: settingsStore.keyLockActive,
-          keyRoot: settingsStore.keyRoot,
-          scaleId: settingsStore.scaleId,
-          movement: settingsStore.movementSize,
-          spacing: settingsStore.spacing,
-        })
-        attempts++
-      }
+      const candidates = chainOptionsFor(current, draw)
       if (candidates.length === 0) break
       sequenceStore.confirm(pickChainStream(candidates, current))
     }
