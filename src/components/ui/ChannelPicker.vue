@@ -10,6 +10,7 @@
       alignItems: 'flex-end',
       overflow: 'hidden',
     }"
+    @did-present="centerKeyColumns"
     @did-dismiss="emit('close')">
     <IonHeader>
       <IonToolbar>
@@ -102,7 +103,9 @@
     () => props.isOpen,
     open => {
       if (!open) return
-      view.value = 'moods'
+      // Context-aware: a key chosen by hand (locked, no mood) reopens straight to the key view, so
+      // changing it isn't an extra tap through the mood grid; a mood, or no lock at all, opens the grid.
+      view.value = settingsStore.keyLocked && !settingsStore.moodId ? 'key' : 'moods'
       draftRoot.value = settingsStore.keyRoot % 12
       draftScale.value = settingsStore.scaleId
     },
@@ -121,12 +124,16 @@
     if (!col || !row) return
     col.scrollTop = row.offsetTop - col.clientHeight / 2 + row.offsetHeight / 2
   }
-  watch(view, async v => {
-    if (v !== 'key') return
+  async function centerKeyColumns() {
+    if (view.value !== 'key') return
     await nextTick()
     centerSelected(rootColRef.value)
     centerSelected(scaleColRef.value)
-  })
+  }
+  // Tapping "choose a key…" switches view while the drawer is already open...
+  watch(view, centerKeyColumns)
+  // ...and opening straight into the key view needs the same centering once the drawer has
+  // presented (its content isn't mounted before that), hence @did-present above.
 
   function chooseOpen() {
     settingsStore.setKeyLocked(false)
