@@ -276,6 +276,34 @@ const GUITAR_ACOUSTIC_URLS: Record<string, string> = {
   C6: 'C6.mp3',
 }
 
+// 'electric-guitar-2-temp' — "Yamaha CS-30L - Straight Guitar" by modularsamples (freesound.org pack
+// 17675, Creative Commons 0 / public domain — free to ship, credit as a courtesy). A synthesizer patch,
+// one 24-bit mono AIFF per semitone C2-C6 (5.9s), here a root every minor third (E2-C6). Pitches verified
+// on the first 0.6s: all 49 files within 7 cents of the MIDI number in their filename (the note LETTERS in
+// the filenames are wrong, the numbers are right). The patch decays from a pluck to a steady, quiet
+// pure tone (the note's 2nd harmonic, ~-41 dBFS) that never dies — not noise, a held sine — so each
+// file keeps only the first 3s with a 1s fade, the part that sounds like a guitar. Leveled by perceived
+// loudness (A-weighted first-second RMS) to the current electric guitar; mono, 96 kbps, ~0.5 MB.
+// Built by scripts/samples/guitar-pluck.py (--mono --trim 3 --fade 1).
+const ELECTRIC_GUITAR_2_URLS: Record<string, string> = {
+  E2: 'E2.mp3',
+  G2: 'G2.mp3',
+  'A#2': 'As2.mp3',
+  'C#3': 'Cs3.mp3',
+  E3: 'E3.mp3',
+  G3: 'G3.mp3',
+  'A#3': 'As3.mp3',
+  'C#4': 'Cs4.mp3',
+  E4: 'E4.mp3',
+  G4: 'G4.mp3',
+  'A#4': 'As4.mp3',
+  'C#5': 'Cs5.mp3',
+  E5: 'E5.mp3',
+  G5: 'G5.mp3',
+  'A#5': 'As5.mp3',
+  C6: 'C6.mp3',
+}
+
 // Electric guitar samples via Pianobook.co.uk (royalty-free per Pianobook's standard
 // license). See CREDITS.md for full attribution.
 
@@ -435,6 +463,10 @@ const SAMPLER_CONFIGS: Partial<
     urls: GUITAR_ACOUSTIC_URLS,
     baseUrl: '/samples/guitar-acoustic-ots/',
   },
+  'electric-guitar-2-temp': {
+    urls: ELECTRIC_GUITAR_2_URLS,
+    baseUrl: '/samples/electric-guitar-2-temp/',
+  },
   'electric-guitar': {
     urls: ELECTRIC_GUITAR_URLS,
     baseUrl: '/samples/electric-guitar/',
@@ -463,6 +495,7 @@ export const INSTRUMENT_NOTE_RANGE: Record<
 > = {
   piano: { min: 33, max: MIDI_MAX }, // A1–C6
   'guitar-acoustic': { min: 40, max: MIDI_MAX }, // E2-C6 — 16 roots every minor third
+  'electric-guitar-2-temp': { min: 40, max: MIDI_MAX }, // E2-C6, 16 roots every minor third
   'electric-guitar': { min: 38, max: 71 }, // D2-B4
   'piano-salamander': { min: 41, max: 81 }, // F2-A5, matches UPRIGHT_PIANO_URLS'
   // 11 usable roots
@@ -507,6 +540,7 @@ export interface PlaybackSettings {
 const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
   piano: '2n',
   'guitar-acoustic': '2n',
+  'electric-guitar-2-temp': '2n', // same as electric-guitar for a like-for-like A/B
   'electric-guitar': '2n', // was '1n' — a full bar held at near-full volume before the
   // release fade even began, so it was still essentially at full volume right up to
   // the next chord's downbeat and only started fading during the new chord, reading
@@ -521,6 +555,7 @@ const NOTE_DURATIONS: Partial<Record<InstrumentType, string>> = {
 // a struck/plucked note, but a hard, audible cutoff for anything sustained. The pad-style
 // instruments above get a real fade instead.
 const RELEASE_TIMES: Partial<Record<InstrumentType, number>> = {
+  'electric-guitar-2-temp': 1.2, // same as electric-guitar for a like-for-like A/B
   'electric-guitar': 1.2, // was 2.5 — a note was still near full volume when the next
   // one fired, masking each new note's own (genuinely fast, ~100ms) attack; read as
   // both "too long a sustain" and "attack isn't sharp" from the same cause
@@ -544,6 +579,7 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   piano: 3, // tried 3 -> 6 -> back to 3 (Paul, 2026-10-08) — preferred the original after
   // hearing both louder. Originally boosted because it read as a little quieter than
   // guitar-acoustic despite matching RMS targets
+  'electric-guitar-2-temp': -6, // same as electric-guitar for a like-for-like A/B (leveled per pitch to its loudness)
   'electric-guitar': -6, // was -10 — Paul heard it as a little quieter than the rest after that cut
   // Tuned by ear against the sample content now in this slot (VSCO2 upright piano,
   // 2026-09-30): 0 -> +6 -> +10. No effects are on this instrument (no REVERB_SETTINGS/
@@ -883,6 +919,7 @@ const STRUM_INTERVAL = 0.025 // seconds between adjacent strings
 const GUITAR_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set([
   'guitar-acoustic',
   'electric-guitar',
+  'electric-guitar-2-temp',
 ])
 
 function chordInterval(instrumentType: InstrumentType | null): number {

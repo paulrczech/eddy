@@ -25,6 +25,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument('src'); ap.add_argument('out')
 ap.add_argument('--ref', default=None)
 ap.add_argument('--trim', type=float, default=6.0)
+ap.add_argument('--fade', type=float, default=0.4, help='fade-out length in seconds')
+ap.add_argument('--mono', action='store_true', help='encode mono at 96 kbps (for mono sources)')
 a = ap.parse_args()
 REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 REF = a.ref or os.path.join(REPO, 'public', 'samples', 'guitar-acoustic')
@@ -72,7 +74,7 @@ for f in sorted(os.listdir(a.src), key=lambda n: midi(n[:-4]) if n.endswith('.wa
     env = np.abs(x).max(axis=1)
     onset = int(np.argmax(env > env.max() * 10 ** (-55 / 20)))
     x = x[max(0, onset - int(0.005 * FR)):][:int(a.trim * FR)]
-    fade = int(0.4 * FR)
+    fade = int(a.fade * FR)
     x[-fade:] *= np.linspace(1, 0, fade)[:, None]
     target = float(np.interp(pitch, ref_midi, ref_db))
     x *= 10 ** ((target - rms1(x)) / 20)
@@ -83,7 +85,7 @@ for f in sorted(os.listdir(a.src), key=lambda n: midi(n[:-4]) if n.endswith('.wa
     tmp = os.path.join(OUT, '_t.f32'); x.astype(np.float32).tofile(tmp)
     out = os.path.join(OUT, f[:-4] + '.mp3')
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'f32le', '-ar', str(FR), '-ac', '2', '-i', tmp,
-                    '-codec:a', 'libmp3lame', '-b:a', '128k', '-joint_stereo', '0', out], check=True)
+                    '-codec:a', 'libmp3lame', '-b:a', '96k' if a.mono else '128k', *(['-ac', '1'] if a.mono else ['-joint_stereo', '0']), out], check=True)
     os.remove(tmp); total += os.path.getsize(out)
     print(f'{f[:-4]:4} onset {onset / FR * 1000:5.1f}ms  target {target:6.1f}dB  peak {20 * np.log10(min(peak, 1e9)):6.1f}dB{"  (limited)" if clipped else ""}  {os.path.getsize(out) // 1024} KB')
 print(f'total {total / 1024 / 1024:.2f} MB')

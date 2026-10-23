@@ -21,6 +21,10 @@ export type InstrumentType =
   // swap in this project.
   | 'piano' | 'piano-salamander'
   | 'guitar-acoustic' | 'electric-guitar'
+  // Temp A/B candidate (2026-10-23): "Yamaha CS-30L - Straight Guitar" by modularsamples (freesound.org,
+  // Creative Commons 0) — a synthesizer patch, not a recorded guitar. A possible replacement for
+  // 'electric-guitar' (Pianobook's Afterglow, whose terms don't allow shipping it in the app).
+  | 'electric-guitar-2-temp'
   // 'synth-strings' — Paul's own synthesized pad (a Logic patch he designed, rendered note by
   // note; no third-party samples, so no attribution needed). Chosen 2026-10-22 over two other
   // candidates (a harsher, brighter strings patch, a sweep pad, a synth choir) and the earlier
@@ -55,6 +59,8 @@ export function normalizeInstrument(raw: string): InstrumentType {
 // Flip to false (or delete the temp instrument entirely) once Paul's decided whether it
 // becomes a real instrument slot.
 export const SHOW_ANALOG_SYNTH_TEMP = true
+// Temp A/B of the CS-30L electric guitar (2026-10-23) — see 'electric-guitar-2-temp' above.
+export const SHOW_ELECTRIC_2_TEMP = true
 // Shows which velocity pattern the flow is playing, beside "the flow" in SessionView — a
 // tuning aid for working the patterns by ear on a device, not a feature. Off for release
 // (2026-10-23); flip to true to bring it back while tuning.
