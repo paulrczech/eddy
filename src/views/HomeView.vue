@@ -121,6 +121,7 @@
             <div class="sheet-group">
               <p class="sheet-label">voices</p>
               <IonSegment
+                class="voices-segment"
                 :value="voiceCount"
                 @ionChange="settingsStore.setVoiceCount(Number(($event as CustomEvent).detail.value) as 3 | 4)">
                 <IonSegmentButton v-for="n in [3, 4]" :key="n" :value="n">

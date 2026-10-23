@@ -109,6 +109,12 @@ ion-segment-button {
   line-height: 20px; /* Material mode gives the button a 40px line height, which sets its height */
   font-size: var(--text-xs);
 }
+/* Voices is just "3" / "4" — a single thin digit reads too small at the compact size, so it
+   alone gets a larger one (same height; there is plenty of room in a 2-option row). */
+.compact-segments .voices-segment ion-segment-button {
+  font-size: var(--text-md);
+}
+
 .compact-segments ion-segment-button ion-label {
   margin: 0;
   padding: 0;
