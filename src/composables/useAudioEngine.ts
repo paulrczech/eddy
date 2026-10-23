@@ -346,12 +346,15 @@ const SYNTH_STRINGS_URLS: Record<string, string> = {
 // than being forced into 'chord' the way the real pads are. Fully chromatic across Eddy's
 // whole range, and the filenames state the real MIDI note explicitly (not something
 // inferred — this was recorded by sending that literal MIDI note to the hardware, about
-// as reliable as sample provenance gets). Pitch spot-checked via autocorrelation: clean
-// confirmation on every low/mid note checked; the two highest notes checked read
-// ambiguously, but that's a known limitation of a sawtooth's dense harmonic stack
-// confusing simple autocorrelation at high frequencies (same caveat several other packs
-// in this project have had), not treated as a real labeling concern given the recording
-// method. Gain-matched by measured RMS against retro-pad's C4 (ran ~4dB hot). Trimmed to
+// as reliable as sample provenance gets). **Caveat found 2026-10-24:** the pack's files above
+// C5 are NOT what their names say — C#5 through C6 are all C5 (~523 Hz; measured by
+// autocorrelation, every one of the twelve), so D5 played C5, F5 played C5, and so on (the
+// Minitaur evidently can't play higher than that, and the pack kept recording). Those twelve
+// files are removed; Tone.Sampler now repitches the real C5 up to the missing notes (a shorter,
+// brighter note the higher it goes — C6 is a full octave of shift). The earlier spot-check had
+// written two of these off as autocorrelation ambiguity; they were the tip of the problem. E2–C5
+// verified clean (all within 5 cents). If a better set for the top octave turns up, add its files
+// back here. Gain-matched by measured RMS against retro-pad's C4 (ran ~4dB hot). Trimmed to
 // the pack's own natural length (~1.9s + 0.3s fade) — these are short analog synth notes,
 // not sustained pad swells. Gated behind SHOW_ANALOG_SYNTH_TEMP in HomeView.vue/
 // SessionView.vue.
@@ -389,18 +392,6 @@ const ANALOG_SYNTH_URLS: Record<string, string> = {
   'A#4': 'As4.mp3',
   B4: 'B4.mp3',
   C5: 'C5.mp3',
-  'C#5': 'Cs5.mp3',
-  D5: 'D5.mp3',
-  'D#5': 'Ds5.mp3',
-  E5: 'E5.mp3',
-  F5: 'F5.mp3',
-  'F#5': 'Fs5.mp3',
-  G5: 'G5.mp3',
-  'G#5': 'Gs5.mp3',
-  A5: 'A5.mp3',
-  'A#5': 'As5.mp3',
-  B5: 'B5.mp3',
-  C6: 'C6.mp3',
 }
 
 // Hoisted out of init() (was rebuilt as a local const on every call) — also needed by
@@ -441,8 +432,8 @@ export const INSTRUMENT_NOTE_RANGE: Record<
   'piano-salamander': { min: 41, max: 81 }, // F2-A5, matches UPRIGHT_PIANO_URLS'
   // 11 usable roots
   'synth-strings': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, a root every minor third
-  'analog-synth-temp': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6, fully chromatic —
-  // every semitone in Eddy's whole range is a real recorded root, no narrowing needed
+  'analog-synth-temp': { min: MIDI_MIN, max: MIDI_MAX }, // E2-C6 — E2–C5 are real recorded
+  // roots; C#5–C6 are repitched from C5 (the pack's own files up there were all C5)
 }
 
 export type ArpeggioDirection = 'up' | 'down' | 'updown' | 'random' | 'chord'

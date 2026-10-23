@@ -70,3 +70,8 @@ clear any licence doubt about shipping it in the app.
 [Creative Commons 0](http://creativecommons.org/publicdomain/zero/1.0/) (public domain).
 Added 2026-10-09 as a temp A/B candidate (see `SHOW_ANALOG_SYNTH_TEMP` in
 settingsStore.ts) — not yet decided whether it becomes a permanent slot.
+
+**Top octave (2026-10-24):** the pack's files from C#5 to C6 were all recorded at C5 (the
+Minitaur can't play higher), so those twelve were removed. In the app the real C5 is repitched
+upward for C#5–C6 (a shorter, brighter note the higher it goes). E2–C5 are real, pitch-verified
+roots (within 5 cents).
