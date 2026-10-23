@@ -238,6 +238,7 @@
             @delete="deleteCluster"
             @edit="editCluster"
             @reorder="reorderClusters"
+            @shift-octave="shiftFlowOctave"
             @range-change="setLoopRange"
             @range-mode-change="onRangeModeChange"
             @range-tap="stopIfPlaying"
@@ -1480,6 +1481,15 @@
       sequenceStore.setLoopResolved(false)
       advance()
     }
+  }
+
+  // Whole-flow octave shift: edits every row, always including the last, so same
+  // stop-and-redraw treatment as editing the last row.
+  function shiftFlowOctave(direction: 1 | -1) {
+    audioEngine.stopLoop(true)
+    sequenceStore.transposeFlowOctave(direction)
+    sequenceStore.setLoopResolved(false)
+    advance()
   }
 
   function reorderClusters(from: number, to: number) {

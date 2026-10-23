@@ -6,6 +6,18 @@
         <span v-if="patternLabel" class="pattern-label">{{ patternLabel }}</span>
       </div>
       <div class="flow-header-actions">
+        <div v-if="showFlowShift" class="octave-pair" role="group" aria-label="shift the whole flow by an octave">
+          <button
+            class="octave-btn"
+            :disabled="!canShiftFlowDown"
+            title="whole flow down an octave"
+            @click="emit('shift-octave', -1)">−12</button>
+          <button
+            class="octave-btn"
+            :disabled="!canShiftFlowUp"
+            title="whole flow up an octave"
+            @click="emit('shift-octave', 1)">+12</button>
+        </div>
         <button
           v-if="ENABLE_TAP_DUPLICATE_MODE"
           class="icon-btn duplicate-toggle-btn"
@@ -203,6 +215,18 @@
       <div v-else-if="playOrder !== 'forward'" class="range-hint-row range-hint-row--footer">
         <p class="range-hint">{{ orderHint }}</p>
       </div>
+      <div v-if="showFlowShift" class="octave-pair" role="group" aria-label="shift the whole flow by an octave">
+        <button
+          class="octave-btn"
+          :disabled="!canShiftFlowDown"
+          title="whole flow down an octave"
+          @click="emit('shift-octave', -1)">−12</button>
+        <button
+          class="octave-btn"
+          :disabled="!canShiftFlowUp"
+          title="whole flow up an octave"
+          @click="emit('shift-octave', 1)">+12</button>
+      </div>
       <button
         v-if="ENABLE_TAP_DUPLICATE_MODE"
         class="icon-btn duplicate-toggle-btn"
@@ -388,7 +412,17 @@ const emit = defineEmits<{
   'duplicate-pool': [id: string]
   'reorder-pool-block': [id: string, targetIndex: number]
   'open-pool-playback': [id: string]
+  'shift-octave': [direction: 1 | -1]
 }>()
+
+// Whole-flow octave shift: shown from 2 rows up, and only while at least one direction fits
+// (same all-or-nothing rule as the pool shift); the direction that doesn't fit is dimmed.
+const flowBounds = { min: MIDI_MIN, max: MIDI_MAX }
+const canShiftFlowUp = computed(() => props.sequence.every(c => canTransposeOctave(c, 1, flowBounds)))
+const canShiftFlowDown = computed(() => props.sequence.every(c => canTransposeOctave(c, -1, flowBounds)))
+const showFlowShift = computed(
+  () => props.sequence.length >= 2 && (canShiftFlowUp.value || canShiftFlowDown.value)
+)
 
 const voiceColors = VOICE_COLORS
 
@@ -1035,6 +1069,26 @@ function duplicateRowAction(index: number) {
   font-size: var(--icon-sm);
   flex-shrink: 0;
 }
+
+/* Whole-flow octave shift: a "−12 | +12" pair in the mono face, same labels as the pickers'
+   octave buttons. Each half keeps the 44px tap minimum; an unavailable direction dims. */
+.octave-pair {
+  display: flex;
+  align-items: center;
+}
+.octave-btn {
+  min-height: var(--tap-min);
+  min-width: 2.4rem;
+  padding: 0 0.3rem;
+  background: none;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--color-text-dim);
+  cursor: pointer;
+}
+.octave-btn:active:not(:disabled) { color: var(--color-text); }
+.octave-btn:disabled { opacity: 0.3; cursor: default; }
 
 .range-toggle-btn {
   font-size: var(--icon-sm);

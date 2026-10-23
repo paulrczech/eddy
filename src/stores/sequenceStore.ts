@@ -376,6 +376,21 @@ export const useSequenceStore = defineStore('sequence', () => {
     if (pool.range[1] === sequence.value.length - 1) candidates.value = []
   }
 
+  // Whole-flow sibling of the pool shift above: every row, pooled or not (pool ranges are
+  // indexes, so they stay valid), same all-or-nothing contract. Always touches the last row,
+  // so the shown streams are always stale afterward.
+  function canTransposeFlowOctave(direction: 1 | -1): boolean {
+    if (sequence.value.length === 0) return false
+    return sequence.value.every(c => canShiftOctave(c, direction, { min: MIDI_MIN, max: MIDI_MAX }))
+  }
+
+  function transposeFlowOctave(direction: 1 | -1) {
+    if (!canTransposeFlowOctave(direction)) return
+    pushHistory()
+    sequence.value = sequence.value.map(c => c.map(n => n + direction * 12) as Cluster)
+    candidates.value = []
+  }
+
   function editClusterAt(index: number, newCluster: Cluster, bounds?: { min: number; max: number }) {
     if (index < 0 || index >= sequence.value.length) return
     const sorted = sortCluster(newCluster)
@@ -629,6 +644,8 @@ export const useSequenceStore = defineStore('sequence', () => {
     transposeOctave,
     canTransposePoolOctave,
     transposePoolOctave,
+    canTransposeFlowOctave,
+    transposeFlowOctave,
     editClusterAt,
     duplicateAt,
     duplicateRange,
