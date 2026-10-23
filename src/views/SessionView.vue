@@ -294,6 +294,7 @@
         </button>
         <ion-select
           interface="action-sheet"
+          cancel-text="cancel"
           :value="settingsStore.instrument"
           class="instrument-select"
           :disabled="!!poolPlaybackContext"

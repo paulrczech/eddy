@@ -337,7 +337,9 @@
   // Trial (Paul, 2026-10-23): one shared, shorter look for Voices / Spacing / Drift / Starting
   // streams in "the current" sheet — they were already the same height (52px), but Drift's smaller
   // label text made it feel lighter. Set false for the previous look (larger Voices/Spacing labels).
-  const COMPACT_SEGMENTS = true
+  // Reverted (false) 2026-10-24: on the phone (build 135) it read too condensed compared to the
+  // simulator. The code stays in case a middle height is tried later.
+  const COMPACT_SEGMENTS = false
   // Voices' "3" / "4" at a larger size (17.6px) in the compact look, same height — tried and set
   // back to the small size for now while Paul judges both on his phone. true = larger digits.
   const LARGE_VOICES_DIGITS = false

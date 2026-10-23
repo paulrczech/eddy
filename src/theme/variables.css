@@ -276,3 +276,21 @@ ion-action-sheet {
   --button-color-selected: var(--color-accent) !important;
   font-family: var(--font-sans);
 }
+
+/* The action sheet's cancel tile is styled as one of the app's primary buttons (accent fill, pale
+   text, same weight as .btn-primary) — a separate tile below the list, the iOS convention and an
+   easy thumb target, and the one obvious way out. Ionic's iOS style makes it semibold and paints
+   the "selected" background over it (also straight onto the tile in its translucent variant), so
+   the fill is set directly and the overlay cleared; :not(.ion-activated) leaves press feedback. */
+ion-action-sheet .action-sheet-cancel,
+ion-action-sheet.action-sheet-translucent .action-sheet-cancel {
+  background: var(--color-accent) !important;
+  color: var(--color-on-fill) !important;
+  font-weight: 500 !important;
+}
+ion-action-sheet .action-sheet-cancel .action-sheet-button-inner {
+  color: var(--color-on-fill) !important;
+}
+ion-action-sheet .action-sheet-cancel:not(.ion-activated)::after {
+  background: transparent !important;
+}
