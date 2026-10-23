@@ -44,7 +44,6 @@
             sampled by Simon Dalzell (Ivy Audio).
           </p>
           <p>Felt piano: Mikor Piano Felt, via Pianobook.co.uk.</p>
-          <p>Electric guitar: Afterglow by Frédéric Poirier, via Pianobook.co.uk.</p>
           <p>Analog synth: Moog Minitaur "Simple Saw" by modularsamples (CC0).</p>
           <p>Synth strings: original to Eddy.</p>
         </div>

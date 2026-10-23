@@ -20,10 +20,7 @@ export type InstrumentType =
   // swap for saved-session backward compatibility, same reasoning as every other content
   // swap in this project.
   | 'piano' | 'piano-salamander'
-  | 'guitar-acoustic' | 'electric-guitar'
-  // Temp A/B candidates (2026-10-23): the tonejs-instruments electric guitar and piano (CC-BY 3.0), possible
-  // replacements for the Pianobook pair whose terms don't allow shipping them in the app.
-  | 'electric-guitar-alt-temp' | 'piano-alt-temp'
+  | 'guitar-acoustic'
   // 'synth-strings' — Paul's own synthesized pad (a Logic patch he designed, rendered note by
   // note; no third-party samples, so no attribution needed). Chosen 2026-10-22 over two other
   // candidates (a harsher, brighter strings patch, a sweep pad, a synth choir) and the earlier
@@ -50,6 +47,9 @@ const REMOVED_INSTRUMENTS: Record<string, InstrumentType> = {
   'holdsworthian-pad': 'synth-strings',
   'retro-pad': 'synth-strings',
   'choir-pad': 'synth-strings',
+  // Afterglow (Pianobook) — terms don't allow shipping it in the app; dropped 2026-10-23.
+  // The acoustic guitar is the nearest voice.
+  'electric-guitar': 'guitar-acoustic',
 }
 export function normalizeInstrument(raw: string): InstrumentType {
   return REMOVED_INSTRUMENTS[raw] ?? (raw as InstrumentType)
@@ -58,8 +58,6 @@ export function normalizeInstrument(raw: string): InstrumentType {
 // Flip to false (or delete the temp instrument entirely) once Paul's decided whether it
 // becomes a real instrument slot.
 export const SHOW_ANALOG_SYNTH_TEMP = true
-// Temp A/B of the tonejs-instruments electric guitar + piano (2026-10-23) — see 'electric-guitar-alt-temp' above.
-export const SHOW_ALT_TEMP = true
 // Shows which velocity pattern the flow is playing, beside "the flow" in SessionView — a
 // tuning aid for working the patterns by ear on a device, not a feature. Off for release
 // (2026-10-23); flip to true to bring it back while tuning.

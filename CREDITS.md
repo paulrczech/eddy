@@ -42,11 +42,13 @@ the original steel-string samples (Nicholaus P. Brosowsky's tonejs-instruments, 
 University of Iowa Electronic Music Studios sample library). Yindad Acoustic was then replaced
 by the Orange Tree notes above after a direct A/B (2026-10-22).
 
-## Electric guitar
+## Electric guitar (removed)
 
-**Afterglow (Demo)**, v1.0, by Frédéric Poirier
-([pianobook.co.uk/profile/fred-poirier](https://www.pianobook.co.uk/profile/fred-poirier)).
-Sourced from [Pianobook.co.uk](https://www.pianobook.co.uk).
+**Afterglow (Demo)** by Frédéric Poirier, via [Pianobook.co.uk](https://www.pianobook.co.uk), was
+dropped 2026-10-23: Pianobook's terms don't allow shipping its samples inside an app. A saved flow
+that names it plays the acoustic guitar. Candidates tried and rejected as replacements: a CC0
+synth "straight guitar" (Yamaha CS-30L, modularsamples) and the tonejs-instruments electric guitar
+(Karoryfer, CC-BY 3.0) — too synthy / too plucky.
 
 ## synth strings
 
