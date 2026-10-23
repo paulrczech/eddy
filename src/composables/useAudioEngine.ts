@@ -579,7 +579,7 @@ const INSTRUMENT_VOLUME: Partial<Record<InstrumentType, number>> = {
   piano: 3, // tried 3 -> 6 -> back to 3 (Paul, 2026-10-08) — preferred the original after
   // hearing both louder. Originally boosted because it read as a little quieter than
   // guitar-acoustic despite matching RMS targets
-  'electric-guitar-2-temp': -6, // same as electric-guitar for a like-for-like A/B (leveled per pitch to its loudness)
+  'electric-guitar-2-temp': -8.5, // -6 like electric-guitar, minus 2.5 dB: in an offline render of the same flow it measured 2.5 dB louder (RMS -19.6 vs -22.1) despite per-pitch leveling
   'electric-guitar': -6, // was -10 — Paul heard it as a little quieter than the rest after that cut
   // Tuned by ear against the sample content now in this slot (VSCO2 upright piano,
   // 2026-09-30): 0 -> +6 -> +10. No effects are on this instrument (no REVERB_SETTINGS/
